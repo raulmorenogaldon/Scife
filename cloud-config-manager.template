@@ -24,6 +24,11 @@ bootcmd:
   - echo "127.0.0.1 Manager" >> /etc/hosts
 
 runcmd:
+  # Format vdb
+  - mkdir -p /home/inputdata
+  - mkfs.xfs /dev/vdb
+  - mount -t xfs /dev/vdb /home/inputdata
+
   # Configure SSH
   - sed -i -e '/^PermitRootLogin/s/^.*$/PermitRootLogin no/' /etc/ssh/sshd_config
   - sed -i -e '$aAllowUsers cesm' /etc/ssh/sshd_config

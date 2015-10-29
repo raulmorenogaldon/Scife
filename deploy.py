@@ -44,7 +44,7 @@ def cloud_deploy_cesm(conn, image, flavor, input_volume):
 		exit(1)
 
 	# Setup initialization steps	
-	template = open('/home/devstack/cesm/cloud-config-manager.template', "r").read()
+	template = open('/home/devstack/cloud-cesm/cloud-config-manager.template', "r").read()
 	SCRIPT = template_key_add(template, key_pair.public_key)
 	print SCRIPT
 

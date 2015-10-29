@@ -35,16 +35,6 @@ except (IndexError, SyntaxError, NameError):
 	print "Invalid selection!"
 	exit(1)
 
-# List volumes
-print "======================================"
-print "Volumes:"
-volumes = conn.list_volumes()
-i = 0
-for volume in volumes:
-	print("["+str(i)+"] "+volume.name)
-	i+=1
-
-
 # Get available images
 print "======================================"
 print "Available images:"
@@ -85,20 +75,39 @@ except (IndexError, SyntaxError, NameError):
 	print "Invalid selection!"
 	exit(1)
 
-# Create volume
+# List volumes
 print "======================================"
-print "Inputdata Volume"
-try:
-	volume_size = int(input("Select volume size in GB: "))
-except (SyntaxError, NameError):
-	print "Invalid volume size!"
-	exit(1)
-print "Selected "+str(volume_size)+" GBs"
+print "Volumes:"
+volumes = conn.list_volumes()
 
-conn.create_volume(size=volume_size, name="Inputdata", location=locations[selected_loc], ex_volume_type="lvmdriver-1")
-print(volume)
+# No volumes available
+if len(volumes) == 0:
+	print "No volumes!"
+	try:
+		volume_size = int(input("Select volume size in GB: "))
+	except (SyntaxError, NameError):
+		print "Invalid volume size!"
+		exit(1)
+	print "Creating volume with "+str(volume_size)+" GBs"
+	volumes = [conn.create_volume(size=volume_size, name="Inputdata", location="nova", ex_volume_type="lvmdriver-1")]
+	selected_vol = 0
+
+# Select available volume
+else :
+	i = 0
+	for volume in volumes:
+		print("["+str(i)+"] "+volume.name)
+		i+=1
+
+	# Select volume
+	try:
+		selected_vol = int(input("Select volume: "))
+	except (SyntaxError, NameError):
+		print "Invalid selection!"
+		exit(1)
+	print "Selected "+volumes[selected_vol].name
 
 # Call deployment function
 print "======================================"
 print "CESM Deployment"
-cloud_deploy_cesm(conn, images[selected_img], flavors[selected_flv])
+cloud_deploy_cesm(conn, images[selected_img], flavors[selected_flv], volumes[selected_vol])
