@@ -17,7 +17,7 @@ function init(route, handle, port) {
 
         // Save complete POST data
         request.addListener("data", function(chunk) {
-            postData += chunk; 
+            postData += chunk;
         });
 
         // Route request
