@@ -1,4 +1,9 @@
-// Load API
+// Node.js interface
+// Concept proof TEST FILE
+// Exec: node openstack.js
+
+// Load pkgcloud API
+// Not used
 var pkgcloud  = require('pkgcloud'),
     _ = require('underscore');
 
@@ -30,12 +35,27 @@ login(function(){
 
 // Login to OpenStack
 function login(callback) {
-	rpc_client.invoke("login", "OpenStack", function(error, res, more) {
+	var url = process.env.OS_AUTH_URL;
+	var user = process.env.OS_USERNAME;
+	var pass = process.env.OS_PASSWORD;
+	var project = process.env.OS_PROJECT_NAME;
+	var region = process.env.OS_REGION_NAME;
+
+	var config = {
+		'url': url,
+		'username': user,
+		'password': pass,
+		'project': project,
+		'region': region,
+		'provider': "OpenStack"
+	};
+
+	rpc_client.invoke("login", config, function(error, res, more) {
 		console.log("error: ",error);
 		console.log("res: ",res);
 		console.log("more: ",more);
 		if(error) {
-			console.error("Failed to connect to OpenStack %s, code: %d","http://TODO:5000",error);
+			console.error("Failed to connect to OpenStack %s, code: %d",url,error);
 		}
 		else {
 			console.log("Connected to OpenStack");

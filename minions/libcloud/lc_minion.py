@@ -1,67 +1,76 @@
 import zerorpc
+import minion
 
-from os import environ as env
 from urlparse import urlparse
 
 from libcloud.compute.types import Provider
 from libcloud.compute.providers import get_driver
 
-class OpenStackLCRPC(object):
+class LibCloudMinion(minion.Minion):
 
     def __init__(self):
         self.connected = False
 
     # Login with libcloud
-    def login(self, strProvider):
-
+    def login(self, config):
         if self.connected:
             print "Already connected..."
             return 0
 
         # Connect to provider
-        self.strProvider = strProvider
-        if strProvider == "OpenStack":
+        self.config = config
+        if config['provider'] == "OpenStack":
+            # Params
+            username = config['username']
+            password = config['password']
+            project  = config['project']
+            region   = config['region']
+
             # Get valid URL
-            url = urlparse(env['OS_AUTH_URL'])
+            url = urlparse(config['url'])
             url = url.scheme + "://" + url.netloc + "/v2.0/tokens"
             try:
                 print "Connecting..."
-                print "User: " + env['OS_USERNAME']
+                print "User: " + username
                 print "Endpoint: " + url
-                print "Tenant: " + env['OS_TENANT_NAME']
-                print "Region: " + env['OS_REGION_NAME']
+                print "Tenant: " + project
+                print "Region: " + region
 
                 # Connect to provider
                 provider = get_driver(Provider.OPENSTACK)
                 self.conn = provider(
-                    env['OS_USERNAME'],
-                    env['OS_PASSWORD'],
+                    username,
+                    password,
                     ex_force_auth_url=url,
                     ex_force_auth_version='2.0_password',
-                    ex_force_service_region=env['OS_REGION_NAME'],
-                    ex_tenant_name=env['OS_TENANT_NAME']
+                    ex_force_service_region=region,
+                    ex_tenant_name=project
                 )
             except Exception as e:
                 print 'FAILED to connect to ' + url + ". Reason: ", e
                 return -2
 
-        if strProvider == "OpenNebula":
+        if config['provider'] == "OpenNebula":
+            # Params
+            username = config['username']
+            password = config['password']
+
             # Get valid URL
-            url = urlparse(env['ON_AUTH_URL'])
+            url = urlparse(config['url'])
             url = url.netloc
             try:
                 print "Connecting..."
-                print "User: " + env['ON_USERNAME']
+                print "User: " + username
                 print "Endpoint: " + url + ":2633"
 
                 # Connect to provider
                 provider = get_driver(Provider.OPENNEBULA)
                 self.conn = provider(
-                    key=env['ON_USERNAME'],
-                    secret=env['ON_PASSWORD'],
+                    key=username,
+                    secret=password,
                     secure=False,
                     host=url,
-                    port=2633,
+                    port=2474,
                     api_version='2.0'
                 )
             except Exception as e:
@@ -73,9 +82,9 @@ class OpenStackLCRPC(object):
         return 0
 
     def getImages(self):
+        ret = []
         try:
             images = self.conn.list_images()
-            ret = []
             for image in images:
                 ret.append({
                     'id': image.id,
@@ -89,7 +98,7 @@ class OpenStackLCRPC(object):
     def getFlavors(self):
         try:
             ret = []
-            if self.strProvider == "OpenNebula":
+            if self.config['provider'] == "OpenNebula":
                 ret = self.__getFlavorsNebula()
             else:
                 ret = self.__getFlavorsOpenStack()
@@ -124,7 +133,8 @@ class OpenStackLCRPC(object):
 
 # Start OpenStack minion
 # Execute this only if called directly from python command
+# From now RPC is waiting for requests
 if __name__ == "__main__":
-    openstack = zerorpc.Server(OpenStackLCRPC())
+    openstack = zerorpc.Server(LibCloudMinion())
     openstack.bind("tcp://0.0.0.0:4242")
     openstack.run()
