@@ -54,6 +54,7 @@ class LibCloudMinion(minion.Minion):
             # Params
             username = config['username']
             password = config['password']
+            port     = config['port']
 
             # Get valid URL
             url = urlparse(config['url'])
@@ -61,7 +62,7 @@ class LibCloudMinion(minion.Minion):
             try:
                 print "Connecting..."
                 print "User: " + username
-                print "Endpoint: " + url + ":2633"
+                print "Endpoint: " + url + ":" + port
 
                 # Connect to provider
                 provider = get_driver(Provider.OPENNEBULA)
@@ -70,7 +71,7 @@ class LibCloudMinion(minion.Minion):
                     secret=password,
                     secure=False,
                     host=url,
-                    port=2474,
+                    port=port,
                     api_version='2.0'
                 )
             except Exception as e:

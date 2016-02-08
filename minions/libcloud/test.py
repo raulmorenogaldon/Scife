@@ -27,6 +27,7 @@ print "======== OpenNebula ========="
 opennebula = LibCloudMinion()
 config = {
     'url': "http://vesuvius.i3a.uclm.es",
+    'port': 2474,
     'username': "oneadmin",
     'password': "35a16a51404255ba4a4b0b66ea9ec5d4",
     'provider': "OpenNebula"
