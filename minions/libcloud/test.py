@@ -1,4 +1,4 @@
-from lc_controller import *
+from lc_minion import *
 from os import environ as env
 
 # Testing
