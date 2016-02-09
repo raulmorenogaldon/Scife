@@ -83,6 +83,7 @@ class LibCloudMinion(minion.Minion):
         return 0
 
     def getImages(self):
+        """Return the id and the name of each image"""
         ret = []
         try:
             images = self.conn.list_images()
@@ -97,6 +98,7 @@ class LibCloudMinion(minion.Minion):
             return ret
 
     def getFlavors(self):
+        """Return a list with the templates"""
         try:
             ret = []
             if self.config['provider'] == "OpenNebula":
@@ -109,6 +111,7 @@ class LibCloudMinion(minion.Minion):
             return ret
 
     def __getFlavorsNebula(self):
+        """Return a list with the templates of Opennebula"""
         sizes = self.conn.list_sizes()
         ret = []
         for size in sizes:
@@ -121,6 +124,7 @@ class LibCloudMinion(minion.Minion):
         return ret
 
     def __getFlavorsOpenStack(self):
+        """Return a list with the templates of Openstack"""
         sizes = self.conn.list_sizes()
         ret = []
         for size in sizes:
@@ -132,10 +136,11 @@ class LibCloudMinion(minion.Minion):
             })
         return ret
 
-# Start OpenStack minion
-# Execute this only if called directly from python command
-# From now RPC is waiting for requests
 if __name__ == "__main__":
+    """Start OpenStack minion
+    Execute this only if called directly from python command
+    From now RPC is waiting for requests
+    """
     openstack = zerorpc.Server(LibCloudMinion())
     openstack.bind("tcp://0.0.0.0:4242")
     openstack.run()
