@@ -1,0 +1,14 @@
+{
+  "name": "multicloud",
+  "version": "0.0.1",
+  "description": "Web app to manage multiple cloud services",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Francisco Javier Perez Gil and Raul Moreno Galdon",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.13.4"
+  }
+}
