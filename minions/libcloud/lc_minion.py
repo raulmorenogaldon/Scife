@@ -1,5 +1,5 @@
 import zerorpc
-import minion
+from .. import minion
 
 from urlparse import urlparse
 
@@ -62,7 +62,7 @@ class LibCloudMinion(minion.Minion):
             try:
                 print "Connecting..."
                 print "User: " + username
-                print "Endpoint: " + url + ":" + port
+                print "Endpoint: " + url + ":", port
 
                 # Connect to provider
                 provider = get_driver(Provider.OPENNEBULA)

@@ -28,7 +28,7 @@ class Minion:
         """
         raise NotImplementedError()
 
-    def getImages(self, filter):
+    def getImages(self, filter=""):
         """
         Get images list
         filter: String with part of the name
@@ -36,7 +36,7 @@ class Minion:
         """
         raise NotImplementedError()
 
-    def getFlavors(self, filter):
+    def getFlavors(self, filter=""):
         """
         Get images list
         filter: String with part of the name
@@ -44,7 +44,7 @@ class Minion:
         """
         raise NotImplementedError()
 
-    def getInstances(self, filter):
+    def getInstances(self, filter=""):
         """
         Get instance list
         filter: String with part of the name
