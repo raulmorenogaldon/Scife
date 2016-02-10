@@ -14,13 +14,13 @@ config = {
 cluster.login(config)
 
 # Add some flavors to the cluster
-flavor = {
-    'name': 'little',
-    'cpus': 1,
-    'ram': 1024,
-    'disk': 0
-}
-cluster.createFlavor(flavor)
+#flavor = {
+#    'name': 'little',
+#    'cpus': 1,
+#    'ram': 1024,
+#    'disk': 0
+#}
+#cluster.createFlavor(flavor)
 
 images = cluster.getImages()
 print "Images:"

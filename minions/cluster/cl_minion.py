@@ -1,5 +1,7 @@
 import zerorpc
 import uuid
+import json
+
 from pexpect import pxssh
 from .. import minion
 
@@ -10,11 +12,8 @@ class ClusterMinion(minion.Minion):
     def __init__(self):
         self.connected = False
 
-        # There is no images in clusters
-        self.images = [{
-            'name': 'Cluster FS',
-            'id': uuid.uuid1()
-        }]
+        # Initialize list of images
+        self.images = []
 
         # Initialize list of flavors
         self.flavors = []
@@ -41,9 +40,9 @@ class ClusterMinion(minion.Minion):
             print "Endpoint: " + url
 
             # Create command line and connect to the cluster
-            ssh = pxssh.pxssh()
+            ssh = pxssh.pxssh(echo=False)
             ssh.login(url, username, password)
-
+            ssh.prompt()
             print "Connected!"
 
             # Save connection var
@@ -52,6 +51,17 @@ class ClusterMinion(minion.Minion):
         except Exception as e:
             print 'FAILED to connect to ' + url + ". Reason: ", e
             raise e
+
+        # Get configuration from cloud.json
+        ssh.sendline("cat cloud.json")
+        ssh.prompt()
+        try:
+            config = json.loads(ssh.before)
+            self.__loadConfig(config)
+        except Exception as e:
+            print "Malformed config.json!"
+            raise e
+
         return
 
     def getImages(self, filter=""):
@@ -61,10 +71,21 @@ class ClusterMinion(minion.Minion):
         return self.flavors
 
     def createFlavor(self, flavor):
-        flavor['id'] = uuid.uuid1()
+        flavor['id'] = str(uuid.uuid1())
         self.flavors.append(flavor)
         print "Created flavor:"
         print flavor
+
+    def __loadConfig(self, config):
+        # Parse images
+        for image in config['images']:
+            image['id'] = str(uuid.uuid1())
+            self.images.append(image)
+
+        # Parse flavors
+        for flavor in config['flavors']:
+            flavor['id'] = str(uuid.uuid1())
+            self.flavors.append(flavor)
 
 
 # Start RPC minion
