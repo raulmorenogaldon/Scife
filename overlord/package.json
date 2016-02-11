@@ -8,7 +8,19 @@
   },
   "author": "Francisco Javier Perez Gil and Raul Moreno Galdon",
   "license": "ISC",
+  "contributors": [
+    {
+      "name": "Francisco Javier Perez Gil",
+      "email": "fcoperezgil@gmail.com"
+    },
+    {
+      "name": "Raul Moreno Galdón",
+      "email": "raulmorenogaldon@gmail.com"
+    }
+  ],
   "dependencies": {
+    "body-parser": "^1.15.0",
+    "cookie-parser": "^1.4.1",
     "express": "^4.13.4"
   }
 }
