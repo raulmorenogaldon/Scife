@@ -56,6 +56,7 @@ class LibCloudMinion(minion.Minion):
             password = config['password']
             port     = config['port']
 
+            print port
             # Get valid URL
             url = urlparse(config['url'])
             url = url.netloc
@@ -72,7 +73,7 @@ class LibCloudMinion(minion.Minion):
                     secure=False,
                     host=url,
                     port=port,
-                    api_version='2.0'
+                    api_version='3.8'
                 )
             except Exception as e:
                 print 'FAILED to connect to ' + url + ". Reason: ", e
