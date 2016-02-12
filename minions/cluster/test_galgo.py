@@ -1,33 +1,61 @@
 from minions.cluster.cl_minion import ClusterMinion
+from minions.cluster.storage import Storage
 from os import environ as env
 
 import getpass
 
-# Testing
-print "======== Galgo ========="
-cluster = ClusterMinion()
-config = {
-    'url': "galgo.i3a.info",
-    'username': "rmoreno",
-    'password': getpass.getpass('password: ')
+# Create storage
+print("Creating storage")
+storage = Storage()
+
+# Define application
+app = {
+    'name': "Python test app",
+    'path': "/home/devstack/python_test_app"
 }
-cluster.login(config)
+
+# Upload the application
+print('Uploading: "{0}"'.format(app['name']))
+app_id = storage.uploadApplication(app)
+
+# Get App data
+app = storage.getApplication(app_id)
+print(app)
+
+# List information
+# listInfo()
+
+
+# Testing
+#print "======== Galgo ========="
+#cluster = ClusterMinion()
+#config = {
+#    'url': "galgo.i3a.info",
+#    'username': "rmoreno",
+#    'password': getpass.getpass('password: ')
+#}
+#cluster.login(config)
 
 # Add some flavors to the cluster
 #flavor = {
-#    'name': 'little',
+#    'name': 'small',
 #    'cpus': 1,
 #    'ram': 1024,
 #    'disk': 0
 #}
 #cluster.createFlavor(flavor)
 
-images = cluster.getImages()
-print "Images:"
-for image in images:
-    print image
+def listInfo():
+    images = cluster.getImages()
+    print "Images:"
+    i = 1
+    for image in images:
+        print str(i),"-->", image
+        i += 1
 
-flavors = cluster.getFlavors()
-print "Flavors:"
-for flavor in flavors:
-    print flavor
+    flavors = cluster.getFlavors()
+    print "Flavors:"
+    i = 1
+    for flavor in flavors:
+        print str(i),"-->", flavor
+        i += 1
