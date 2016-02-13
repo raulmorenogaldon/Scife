@@ -8,6 +8,16 @@ This project consists in two parts:
 Example
 A system with 2 possible cloud providers. For every provider we use a minion. Overlord can now allocate VMs in any of the two providers using its minion. Also, it can retrieve full information about the instances.
 
-A new provider is added. In this case we only need to report this to the overlord without changing its code. (TODO:¿config file, environment vars...?)
+A new provider is added. In this case we only need to report this to the overlord without changing its code.
 
-To install required packages for nodejs, only run `npm install` code in the *overlord* folder.
+### Required packages
+
+Python packages:
+
+* python-dev: `sudo apt-get install python-dev`
+* pip: `sudo apt-get install python-pip`
+* zerorpc: `sudo pip install zerorpc`
+* [libcloud](libcloud.apache.org): `pip install apache-libcloud`
+
+Node.js packages:
+To install required packages for *nodejs*, only run `npm install` code in the *overlord* folder.

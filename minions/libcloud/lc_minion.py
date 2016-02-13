@@ -58,12 +58,12 @@ class LibCloudMinion(minion.Minion):
 
             print port
             # Get valid URL
-            url = urlparse(config['url'])
-            url = url.netloc
+            url = urlparse(config['url']).netloc
+
             try:
                 print "Connecting..."
                 print "User: " + username
-                print "Endpoint: " + url + ":", port
+                print "Endpoint: " + url + ":" + str(port)
 
                 # Connect to provider
                 provider = get_driver(Provider.OPENNEBULA)
