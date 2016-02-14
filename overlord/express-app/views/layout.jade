@@ -1,7 +1,6 @@
-//- layout.jade
 doctype html
 html(lang='en')
-	head
+head
 	meta(charset='utf-8')
 	meta(http-equiv="X-UA-Compatible", content="IE=edge")
 	meta(name='viewport', content='width=device-width, initial-scale=1.0')
@@ -19,19 +18,14 @@ body
 			h3.text-muted MultiCloud
 		nav
 			ul.nav.nav-justified
-				li.active
-					a(href="#") Home
-				li
-					a(href="#") Opennebula
-				li
-					a(href="#") OpenStack
-				li
-					a(href="#") About us
-				li
-					a(href="#") Contact
+				li: a(href="/") Home
+				li: a(href="opennebula") OpenNebula
+				li: a(href="openstack") OpenStack
+				li: a(href="#") About us
+				li: a(href="#") Contact
+				li: a(href="#") Iniciar Sesión
 
 		block content
-		
 
 		footer.footer
 			p © 2016 University of Castilla - La Mancha.
