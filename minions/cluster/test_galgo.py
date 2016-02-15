@@ -19,8 +19,15 @@ print('Uploading: "{0}"'.format(app['name']))
 app_id = storage.uploadApplication(app)
 
 # Get App data
-app = storage.getApplication(app_id)
-print(app)
+#app = storage.getApplication(app_id)
+#print(app)
+
+# Create experiment
+script = "test.py"
+labels = {'DUMMY': '"Hola mundo cruel"'}
+
+experiment_id = storage.createExperiment("Experimento Loco", app_id, script, labels)
+print(experiment_id)
 
 # List information
 # listInfo()
