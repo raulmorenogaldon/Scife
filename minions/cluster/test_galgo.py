@@ -16,53 +16,39 @@ app = {
 
 # Upload the application
 print('Uploading: "{0}"'.format(app['name']))
-app_id = storage.uploadApplication(app)
+app_id = storage.createApplication(app)
 
-# Get App data
-#app = storage.getApplication(app_id)
-#print(app)
+# Update app data
+app = storage.getApplication(app_id)
 
 # Create experiment
 script = "test.py"
-labels = {'DUMMY': '"Hola mundo cruel"'}
-
+labels = {
+    'DUMMY': '"Hola mundo cruel"',
+    'EXTRA': '", te odio!"',
+    'ALT': '"Lore ipsum"'
+}
 experiment_id = storage.createExperiment("Experimento Loco", app_id, script, labels)
-print(experiment_id)
-
-# List information
-# listInfo()
-
+experiment = storage.getExperiment(experiment_id)
+print("Experiment: {0}".format(experiment_id))
 
 # Testing
-#print "======== Galgo ========="
-#cluster = ClusterMinion()
-#config = {
-#    'url': "galgo.i3a.info",
-#    'username': "rmoreno",
-#    'password': getpass.getpass('password: ')
-#}
-#cluster.login(config)
+print "======== Galgo ========="
+cluster = ClusterMinion()
+config = {
+    'url': "galgo.i3a.info",
+    'username': "rmoreno",
+    'password': env['GALGO_PASSWORD']
+    #'password': getpass.getpass('password: ')
+}
+cluster.login(config)
 
-# Add some flavors to the cluster
-#flavor = {
-#    'name': 'small',
-#    'cpus': 1,
-#    'ram': 1024,
-#    'disk': 0
-#}
-#cluster.createFlavor(flavor)
+# Get info
+images = cluster.getImages()
+flavors = cluster.getFlavors()
 
-def listInfo():
-    images = cluster.getImages()
-    print "Images:"
-    i = 1
-    for image in images:
-        print str(i),"-->", image
-        i += 1
+# Create instance
+instance = cluster.createInstance(experiment['name'], images[0]['id'], flavors[1]['id'])
 
-    flavors = cluster.getFlavors()
-    print "Flavors:"
-    i = 1
-    for flavor in flavors:
-        print str(i),"-->", flavor
-        i += 1
+# Deploy experiment in galgo
+cluster.deployExperiment(storage, app, experiment, instance)
