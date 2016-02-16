@@ -1,3 +1,2 @@
-overlord/node_modules/
-overlord/express-app/node_modules
+overlord/*/node_modules
 *.pyc
