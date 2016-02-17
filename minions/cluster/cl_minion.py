@@ -99,13 +99,13 @@ class ClusterMinion(minion.Minion):
         print("Created flavor:")
         print(flavor)
 
-    def createInstance(self, name, id_image, id_size):
+    def createInstance(self, name, image_id, size_id):
         """Reserve resources in cluster"""
         # Get image
-        image = self.findImage(id_image)
+        image = self.findImage(image_id)
 
         # Get size
-        size = self.findFlavor(id_size)
+        size = self.findFlavor(size_id)
 
         print("=============================")
         print("Creating instance:")
@@ -123,8 +123,8 @@ class ClusterMinion(minion.Minion):
         instance = {
             'name': name,
             'id': uuid.uuid1(),
-            'image': id_image,
-            'size': id_size,
+            'image_id': image_id,
+            'size_id': size_id,
             'ssh': ssh
         }
         self.instances.append(instance)
@@ -156,12 +156,12 @@ class ClusterMinion(minion.Minion):
         stdout.channel.recv_exit_status()
 
         # Get size
-        size = self.findFlavor(instance['size'])
+        size = self.findFlavor(instance['size_id'])
 
         # Create PBS experiment file
         work_dir = "{0}/{1}".format(self.workspace, experiment['id'])
         cd_cmd = "cd {0}".format(work_dir)
-        exe_cmd = "./{0}".format(experiment['execution_script'])
+        exe_cmd = "./{0}".format(app['execution_script'])
         qsub_cmd = "qsub -l select={0}:ncpus={1}:mem={2}MB -o {3} -e {3}".format(
             1, size['cpus'], size['ram'], work_dir
         )

@@ -1,0 +1,48 @@
+// Application
+{
+	'id': "f745c536-d55a-11e5-90c8-5254003eece4",
+	'name': "App",
+	'desc': "Description"
+	'creation_script': "./creation.sh",
+	'execution_script': "./exec.sh",
+	'labels': ["LABEL", "PATH", "ARG1", "..."]
+}
+
+// Experiment
+{
+	'id': "f745c536-d55a-11e5-90c8-5254003eece4",
+	'name': "Experiment dummy",
+	'desc': "Description",
+	'app_id': "f745c536-8888-8888-8888-5254003eece4",
+	'labels': {
+		'LABEL': "cmd",
+		'PATH': "$PATH",
+		'ARG1': "-n 128",
+		'...': "..."
+	}
+}
+
+// Instance
+{
+	'id': "f745c536-d55a-11e5-90c8-5254003eece4",
+	'name': "Instance name",
+	'desc': "Description",
+	'image_id': "f745c536-8888-8888-8888-5254003eece4",
+	'size_id': "f745c536-8888-8888-8888-5254003eece4"
+}
+
+// Image
+{
+	'id': "f745c536-d55a-11e5-90c8-5254003eece4",
+	'name': "Image name",
+	'desc': "Description"
+}
+
+// Size
+{
+	'id': "f745c536-d55a-11e5-90c8-5254003eece4",
+	'name': "Image name",
+	'desc': "Description",
+	'cpus': 4,
+	'ram': 1024
+}

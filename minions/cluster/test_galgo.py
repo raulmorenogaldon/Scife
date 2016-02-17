@@ -14,21 +14,24 @@ storage = Storage(
 )
 
 # Define application
-app = {
-    'name': "Python test app",
-    'path': "/home/devstack/python_test_app"
-}
+app_name = "Python test app"
+app_path = "/home/devstack/python_test_app"
+app_creation_script = "./test.py"
+app_execution_script = "./test.py"
 
 # Upload the application
-print('Uploading: "{0}"'.format(app['name']))
-app_id = storage.createApplication(app)
+print('Uploading: "{0}"'.format(app_name))
+app_id = storage.createApplication(
+    app_name,
+    app_path,
+    app_creation_script,
+    app_execution_script
+)
 
 # Update app data
 app = storage.getApplication(app_id)
 
 # Create experiment
-creation_script = "test.py"
-execution_script = "test.py"
 labels = {
     'DUMMY': '"Hola mundo cruel"',
     'EXTRA': '", te odio!"',
@@ -37,8 +40,6 @@ labels = {
 experiment_id = storage.createExperiment(
     "Experimento Loco",
     app_id,
-    creation_script,
-    execution_script,
     labels
 )
 experiment = storage.getExperiment(experiment_id)

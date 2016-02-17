@@ -29,33 +29,36 @@ class Storage(object):
         # Create storage folder
         os.mkdir(self.path)
 
-    def createApplication(self, config):
+    def createApplication(self, app_name, app_path, app_creation_script, app_execution_script):
         # Check if config is valid
-        if not(os.path.isdir(config['path'])):
+        if not(os.path.isdir(app_path)):
             raise IOError("Invalid input path, does not exists: {0}".format(
-                config['path']
+                app_path
             ))
 
         # Create UUID for application
         id = str(uuid.uuid1())
 
-        # Create application data
-        app = {
-            'name': config["name"],
-            'id': id,
-        }
-
         # Get source path
-        src_path = config['path']
+        src_path = app_path
 
         # Get destination path and create it
         dst_path = self.path + "/" + id + "/"
 
         # Copy application to storage
         print('Copying app "{0}": {1} --> {2}'.format(
-            config['name'], src_path, dst_path
+            app_path, src_path, dst_path
         ))
         shutil.copytree(src_path, dst_path)
+
+        # Create application data
+        app = {
+            'id': id,
+            'name': app_name,
+            'desc': "Description...",
+            'creation_script': app_creation_script,
+            'execution_script': app_execution_script,
+        }
 
         # Create labels list
         print('Discovering parameters...')
@@ -93,7 +96,7 @@ class Storage(object):
                 return app
         return None
 
-    def createExperiment(self, name, app_id, creation_script, exe_script, labels):
+    def createExperiment(self, name, app_id, labels):
         # Retrieve application
         app = self.getApplication(app_id)
         if app is None:
@@ -102,11 +105,10 @@ class Storage(object):
         # Create experiment metadata
         experiment = {
             'id': str(uuid.uuid1()),
-            'app': app['id'],
             'name': name,
-            'labels': labels,
-            'creation_script': creation_script,
-            'execution_script': exe_script
+            'desc': "Description...",
+            'app_id': app['id'],
+            'labels': labels
         }
 
         # Get application storage path
@@ -124,7 +126,7 @@ class Storage(object):
 
     def getExperimentPublicURL(self, experiment):
         # Get application storage path
-        app_path = self.path + "/" + experiment['app']
+        app_path = self.path + "/" + experiment['app_id']
 
         # Get public URL for this experiment
         url = "{0}@{1}:{2}".format(self.username, self.public_url, app_path)
@@ -173,9 +175,9 @@ class Storage(object):
                 self._replaceLabelsInFile(file, experiment['labels'])
 
         # Execute experiment creation script
-        if experiment['creation_script'] is not None:
+        if app['creation_script'] is not None:
             print("===============================")
-            comm = "./{0}".format(experiment['creation_script'])
+            comm = "./{0}".format(app['creation_script'])
             print("Executing experiment creation script: {0}".format(comm))
             subprocess.call([comm], cwd=app_path)
 
