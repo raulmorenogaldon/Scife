@@ -4,21 +4,23 @@ import uuid
 import shutil
 import subprocess
 
-class Storage(object):
 
-    def __init__(self):
+class Storage(object):
+    """Class to handle application storage in standard a FS."""
+
+    def __init__(self, path, public_url, username):
         # Create applications and experiments array
         self.applications = []
         self.experiments = []
 
         # Set path for storage
-        self.path = "/home/devstack/datastorage"
+        self.path = path
 
         # Set user
-        self.username = "devstack"
+        self.username = username
 
         # Set public url
-        self.publicURL = "161.67.100.29"
+        self.public_url = public_url
 
         # Check if datastorage exists
         if os.path.isdir(self.path):
@@ -91,7 +93,7 @@ class Storage(object):
                 return app
         return None
 
-    def createExperiment(self, name, app_id, script, labels):
+    def createExperiment(self, name, app_id, creation_script, exe_script, labels):
         # Retrieve application
         app = self.getApplication(app_id)
         if app is None:
@@ -103,7 +105,8 @@ class Storage(object):
             'app': app['id'],
             'name': name,
             'labels': labels,
-            'script': script
+            'creation_script': creation_script,
+            'execution_script': exe_script
         }
 
         # Get application storage path
@@ -124,10 +127,9 @@ class Storage(object):
         app_path = self.path + "/" + experiment['app']
 
         # Get public URL for this experiment
-        url = "{0}@{1}:{2}".format(self.username, self.publicURL, app_path)
+        url = "{0}@{1}:{2}".format(self.username, self.public_url, app_path)
 
         return url
-
 
     def getExperiment(self, experiment_id):
         # Search experiment
@@ -171,9 +173,9 @@ class Storage(object):
                 self._replaceLabelsInFile(file, experiment['labels'])
 
         # Execute experiment creation script
-        if experiment['script'] is not None:
+        if experiment['creation_script'] is not None:
             print("===============================")
-            comm = "./{0}".format(experiment['script'])
+            comm = "./{0}".format(experiment['creation_script'])
             print("Executing experiment creation script: {0}".format(comm))
             subprocess.call([comm], cwd=app_path)
 
@@ -186,4 +188,10 @@ class Storage(object):
         subprocess.call(["git", "checkout", "master"], cwd=app_path)
 
 
-
+# Start RPC server
+# Execute this only if called directly from python command
+# From now RPC is waiting for requests
+if __name__ == "__main__":
+    rpc = zerorpc.Server(Storage())
+    rpc.bind("tcp://0.0.0.0:4242")
+    rpc.run()
