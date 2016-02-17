@@ -4,8 +4,7 @@ import uuid
 import zerorpc
 
 from minions import minion
-##import pexpect
-import paramiko
+from pexpect import pxssh
 
 from urlparse import urlparse
 
@@ -26,10 +25,6 @@ class ClusterMinion(minion.Minion):
         # Initialize list of instances
         self.instances = []
 
-        # Command to load bash environment in SSH
-        #self.cmd_env = ". ~/.bash_profile"
-        self.cmd_env = ". /etc/profile; . ~/.bash_profile"
-
     def login(self, config):
         """Login to cluster using SSH."""
         if self.connected:
@@ -40,41 +35,40 @@ class ClusterMinion(minion.Minion):
         self.config = config
 
         # Params
-        url = config['url']
         username = config['username']
         password = config['password']
+        url = config['url']
 
         # Get command line
         ssh = self._retrieveSSH(url, username, password)
 
         # Get configuration from cloud.json
-        stdin, stdout, stderr = ssh.exec_command("cat cloud.json")
-        json_config = stdout.read()
+        ssh.sendline("")
+        ssh.prompt()
+        ssh.sendline("cat cloud.json")
+        ssh.sendline("")
+        ssh.prompt()
         try:
-            config = json.loads(json_config)
+            config = json.loads(ssh.before)
             self.__loadConfig(config)
         except Exception as e:
             print("Malformed config.json!")
             raise e
 
-        # Close connection
-        ssh.close()
-
         return
 
     def _retrieveSSH(self, url, username, password=None):
         # Get valid URL
-        url = urlparse(url).path
+        url = urlparse(url)
+        url = username + "@" + url.path
         try:
             print("Connecting...")
             print("User: {0}".format(username))
             print("Endpoint: {0}".format(url))
 
             # Create command line and connect to the cluster
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(url, username=username)
-
+            ssh = pxssh.pxssh(echo=False)
+            ssh.login(url, username, password)
             print("Connected!")
 
         except Exception as e:
@@ -99,13 +93,13 @@ class ClusterMinion(minion.Minion):
         print("Created flavor:")
         print(flavor)
 
-    def createInstance(self, name, image_id, size_id):
+    def createInstance(self, name, id_image, id_size):
         """Reserve resources in cluster"""
         # Get image
-        image = self.findImage(image_id)
+        image = self.findImage(id_image)
 
         # Get size
-        size = self.findFlavor(size_id)
+        size = self.findFlavor(id_size)
 
         print("=============================")
         print("Creating instance:")
@@ -119,16 +113,19 @@ class ClusterMinion(minion.Minion):
         password = self.config['password']
         ssh = self._retrieveSSH(url, username, password)
 
+        # Launch job in c)luster
+        cmd = "qsub -I -l select={0}:ncpus={1}:mem={2}MB".format(
+            1, size['cpus'], size['ram']
+        )
+        print("Line: {0}".format(cmd))
+
         # Save instance
         instance = {
             'name': name,
             'id': uuid.uuid1(),
-            'image_id': image_id,
-            'size_id': size_id,
             'ssh': ssh
         }
         self.instances.append(instance)
-        print('Instance "{0}" (DUMMY) created'.format(instance['id']))
 
         return instance['id']
 
@@ -152,30 +149,17 @@ class ClusterMinion(minion.Minion):
             experiment['id'], experiment_url, self.workspace, experiment['id']
         )
         print("Cloning: {0}".format(cmd))
-        stdin, stdout, stderr = ssh.exec_command(cmd)
-        stdout.channel.recv_exit_status()
+        ssh.sendline(cmd)
 
-        # Get size
-        size = self.findFlavor(instance['size_id'])
-
-        # Create PBS experiment file
-        work_dir = "{0}/{1}".format(self.workspace, experiment['id'])
-        cd_cmd = "cd {0}".format(work_dir)
-        exe_cmd = "./{0}".format(app['execution_script'])
-        qsub_cmd = "qsub -l select={0}:ncpus={1}:mem={2}MB -o {3} -e {3}".format(
-            1, size['cpus'], size['ram'], work_dir
-        )
-        cmd = '{0}; echo "{1}; {2};" | {3} '.format(
-            self.cmd_env, cd_cmd, exe_cmd, qsub_cmd
-        )
-
-        # Execute experiment
-        print("==========")
-        print("Launching execution: {0}".format(cmd))
-        print("Output:")
-        print("-------")
-        stdin, stdout, stderr = ssh.exec_command(cmd)
-        stdout.channel.recv_exit_status()
+        # Change working dir
+        cd_cmd = "cd {0}/{1}".format(self.workspace, experiment['id'])
+        print cd_cmd
+        ssh.sendline(cd_cmd)
+        ssh.sendline("")
+        ssh.prompt()
+        ssh.sendline("ls -l")
+        ssh.prompt()
+        print "LS: ", ssh.before
 
     def findImage(self, image_id):
         for image in self.images:
