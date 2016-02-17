@@ -7,5 +7,9 @@ router.get('/', function(req, res, next) {
     res.send(JSON.stringify({ return: 'Esto lo devuelve el servidor interno' }));
 });
 
-module.exports = router;
+router.get('/suma', function(req, res, next) {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(JSON.stringify({ resultado: req.body.num1 + req.body.num2 }));
+});
 
+module.exports = router;
