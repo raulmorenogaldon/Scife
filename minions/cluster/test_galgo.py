@@ -14,10 +14,15 @@ storage = Storage(
 )
 
 # Define application
-app_name = "Python test app"
-app_path = "/home/devstack/python_test_app"
-app_creation_script = "./test.py"
-app_execution_script = "./test.py"
+#app_name = "Python test app"
+#app_path = "/home/devstack/test_apps/python_test_app"
+#app_creation_script = "./test.py"
+#app_execution_script = "./test.py"
+
+app_name = "CESM_1.2.2"
+app_path = "/home/devstack/test_apps/cesm1_2_2"
+app_creation_script = "./create_experiment.sh"
+app_execution_script = "./execute_experiment.sh"
 
 # Upload the application
 print('Uploading: "{0}"'.format(app_name))
@@ -32,13 +37,19 @@ app_id = storage.createApplication(
 app = storage.getApplication(app_id)
 
 # Create experiment
+#labels = {
+#    'DUMMY': '"Hola mundo cruel"',
+#    'EXTRA': '", te odio!"',
+#    'ALT': '"Lore ipsum"'
+#}
 labels = {
-    'DUMMY': '"Hola mundo cruel"',
-    'EXTRA': '", te odio!"',
-    'ALT': '"Lore ipsum"'
+    'GRID_RESOLUTION': 'f09_g16',
+    'COMPSET': 'BCN',
+    'STOP_N': '6',
+    'STOP_OPTION': 'ndays',
 }
 experiment_id = storage.createExperiment(
-    "Experimento Loco",
+    "Experimento_Loco",
     app_id,
     labels
 )

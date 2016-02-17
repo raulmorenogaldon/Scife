@@ -141,6 +141,9 @@ class ClusterMinion(minion.Minion):
         # Get instance
         instance = self.findInstance(instance_id)
 
+        # Get size
+        size = self.findFlavor(instance['size_id'])
+
         # Get instance command line
         ssh = instance['ssh']
         if ssh is None:
@@ -155,10 +158,43 @@ class ClusterMinion(minion.Minion):
         stdin, stdout, stderr = ssh.exec_command(cmd)
         stdout.channel.recv_exit_status()
 
+        # PBS command for compile creation
+        work_dir = "{0}/{1}".format(self.workspace, experiment['id'])
+        cd_cmd = "cd {0}".format(work_dir)
+        exe_cmd = "./{0}".format(app['creation_script'])
+        qsub_cmd = "qsub -l select={0}:ncpus={1}:mem={2}MB -o {3} -e {3}".format(
+            1, size['cpus'], size['ram'], work_dir
+        )
+        cmd = '{0}; echo "{1}; {2};" | {3} '.format(
+            self.cmd_env, cd_cmd, exe_cmd, qsub_cmd
+        )
+
+        # Execute creation
+        print("==========")
+        print("Launching creation script: {0}".format(cmd))
+        print("Output:")
+        print("-------")
+        stdin, stdout, stderr = ssh.exec_command(cmd)
+        stdout.channel.recv_exit_status()
+
+    def executeExperiment(self, storage, app, experiment, instance_id):
+        """Execute an experiment in the cluster FS."""
+        print('EXECUTING app "{0}": {1} - {2}'.format(
+            app['name'], experiment['name'], experiment['id']
+        ))
+
+        # Get instance
+        instance = self.findInstance(instance_id)
+
+        # Get instance command line
+        ssh = instance['ssh']
+        if ssh is None:
+            raise Exception("Instance without SSH")
+
         # Get size
         size = self.findFlavor(instance['size_id'])
 
-        # Create PBS experiment file
+        # Create PBS command for experiment
         work_dir = "{0}/{1}".format(self.workspace, experiment['id'])
         cd_cmd = "cd {0}".format(work_dir)
         exe_cmd = "./{0}".format(app['execution_script'])

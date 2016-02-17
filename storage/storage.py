@@ -86,6 +86,7 @@ class Storage(object):
         f.close()
         # Find labels
         labels = re.findall(r"\[\[\[(\w+)\]\]\]", filedata)
+        labels = set(labels)
         print("Found: {0}".format(labels))
         return labels
 
@@ -150,7 +151,6 @@ class Storage(object):
         for label in labels.keys():
             key = "[[[{0}]]]".format(label)
             value = labels[label]
-            print("Replacing: {0} <-- {1}".format(key, value))
             filedata = filedata.replace(key, value)
         # Write file
         f = open(file, 'w')
@@ -166,26 +166,40 @@ class Storage(object):
         print('Checking out experiment branch...')
         subprocess.call(["git", "checkout", experiment['id']], cwd=app_path)
 
+        # Get labels and add default ones
+        labels = experiment['labels']
+        labels['EXPERIMENT_ID'] = experiment['id']
+        labels['EXPERIMENT_NAME'] = experiment['name']
+        labels['APPLICATION_ID'] = app['id']
+        labels['APPLICATION_NAME'] = app['name']
+        labels['CPUS'] = "1"
+
+        # List labels
+        for label in labels.keys():
+            key = "[[[{0}]]]".format(label)
+            value = labels[label]
+            print("Replacing: {0} <-- {1}".format(key, value))
+
         # Apply labels
         print("===============================")
         print("Applying labels...")
         for file in os.listdir(app_path):
             file = os.path.join(app_path, file)
             if os.path.isfile(file):
-                self._replaceLabelsInFile(file, experiment['labels'])
+                self._replaceLabelsInFile(file, labels)
 
         # Execute experiment creation script
-        if app['creation_script'] is not None:
-            print("===============================")
-            comm = "./{0}".format(app['creation_script'])
-            print("Executing experiment creation script: {0}".format(comm))
-            subprocess.call([comm], cwd=app_path)
+        #if app['creation_script'] is not None:
+        #    print("===============================")
+        #    comm = "./{0}".format(app['creation_script'])
+        #    print("Executing experiment creation script: {0}".format(comm))
+        #    subprocess.call([comm], cwd=app_path)
 
         # Commit changes and return to master
         print("===============================")
         print('Committing...')
         commit_msg = "Created experiment {0}".format(experiment['id'])
-        subprocess.call(["git", "add", "-u"], cwd=app_path)
+        subprocess.call(["git", "add", "*"], cwd=app_path)
         subprocess.call(["git", "commit", "-m", commit_msg], cwd=app_path)
         subprocess.call(["git", "checkout", "master"], cwd=app_path)
 
