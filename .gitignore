@@ -1,2 +1,2 @@
-overlord/*/node_modules
+**/node_modules
 *.pyc
