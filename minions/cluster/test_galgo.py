@@ -1,8 +1,9 @@
+"""Test file for Galgo."""
 from minions.cluster.cl_minion import ClusterMinion
 from storage.storage import Storage
-from os import environ as env
+# from os import environ as env
 
-import getpass
+# import getpass
 import time
 
 # Create storage
@@ -14,10 +15,10 @@ storage = Storage(
 )
 
 # Define application
-#app_name = "Python test app"
-#app_path = "/home/devstack/test_apps/python_test_app"
-#app_creation_script = "./test.py"
-#app_execution_script = "./test.py"
+# app_name = "Python test app"
+# app_path = "/home/devstack/test_apps/python_test_app"
+# app_creation_script = "./test.py"
+# app_execution_script = "./test.py"
 
 app_name = "CESM_1.2.2"
 app_path = "/home/devstack/test_apps/cesm1_2_2"
@@ -36,44 +37,101 @@ app_id = storage.createApplication(
 # Update app data
 app = storage.getApplication(app_id)
 
+# Testing
+print("======== Galgo =========")
+cluster = ClusterMinion()
+config = {
+    'url': "galgo.i3a.info",
+    'username': "rmoreno",
+    'password': None,
+    # 'password': env['GALGO_PASSWORD']
+    # 'password': getpass.getpass('password: ')
+}
+cluster.login(config)
+
+# Get info
+images = cluster.getImages()
+sizes = cluster.getFlavors()
+
+image = images[0]
+size = sizes[3]
+
+# Create instance
+instance1 = cluster.createInstance(
+    "Instance1",
+    image['id'],
+    size['id']
+)
+instance2 = cluster.createInstance(
+    "Instance2",
+    image['id'],
+    size['id']
+)
+instance3 = cluster.createInstance(
+    "Instance3",
+    image['id'],
+    size['id']
+)
+system = {
+    'master': instance1,
+    'instances': [instance1, instance2, instance3]
+}
+
 # Create experiment
-#labels = {
-#    'DUMMY': '"Hola mundo cruel"',
-#    'EXTRA': '", te odio!"',
-#    'ALT': '"Lore ipsum"'
-#}
+# labels = {
+#     'DUMMY': '"Hola mundo cruel"',
+#     'EXTRA': '", te odio!"',
+#     'ALT': '"Lore ipsum"'
+# }
 labels = {
     'GRID_RESOLUTION': 'f09_g16',
     'COMPSET': 'BCN',
     'STOP_N': '6',
     'STOP_OPTION': 'ndays',
 }
+nodes = len(system['instances'])
 experiment_id = storage.createExperiment(
-    "Experimento_Loco",
+    "ExperimentoLoco",
     app_id,
+    nodes,
+    size,
     labels
 )
 experiment = storage.getExperiment(experiment_id)
 print("Experiment: {0}".format(experiment_id))
 
-# Testing
-print "======== Galgo ========="
-cluster = ClusterMinion()
-config = {
-    'url': "galgo.i3a.info",
-    'username': "rmoreno",
-    'password': None,
-    #'password': env['GALGO_PASSWORD']
-    #'password': getpass.getpass('password: ')
-}
-cluster.login(config)
-
-# Get info
-images = cluster.getImages()
-flavors = cluster.getFlavors()
-
-# Create instance
-instance = cluster.createInstance(experiment['name'], images[0]['id'], flavors[1]['id'])
-
 # Deploy experiment in galgo
-cluster.deployExperiment(storage, app, experiment, instance)
+cluster.deployExperiment(app, experiment, system)
+
+# Poll status
+status = cluster.pollExperiment(experiment, system)
+print("Status: {0}".format(status))
+while True:
+    time.sleep(1)
+    status = cluster.pollExperiment(experiment, system)
+    if "compiled" in status:
+        print("Status changed: {0}".format(status))
+        print("Compilation success!")
+        break
+    if "failed_compilation" in status:
+        print("Status changed: {0}".format(status))
+        print("Compilation FAILED!")
+        exit(1)
+
+# Execute experiment
+cluster.executeExperiment(app, experiment, system)
+
+# Poll status
+status = cluster.pollExperiment(experiment, system)
+print("Status: {0}".format(status))
+while True:
+    time.sleep(1)
+    status = cluster.pollExperiment(experiment, system)
+    if "done" in status:
+        print("Status changed: {0}".format(status))
+        print("Execution success!")
+        break
+    if "failed_execution" in status:
+        print("Status changed: {0}".format(status))
+        print("Execution FAILED!")
+        exit(1)

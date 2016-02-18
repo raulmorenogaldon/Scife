@@ -122,7 +122,7 @@ class ClusterMinion(minion.Minion):
         # Save instance
         instance = {
             'name': name,
-            'id': uuid.uuid1(),
+            'id': str(uuid.uuid1()),
             'image_id': image_id,
             'size_id': size_id,
             'ssh': ssh
@@ -132,13 +132,34 @@ class ClusterMinion(minion.Minion):
 
         return instance['id']
 
-    def deployExperiment(self, storage, app, experiment, instance_id):
+    def pollExperiment(self, experiment, system):
+        """Update experiment status."""
+
+        # Get instance
+        instance_id = system['master']
+        instance = self.findInstance(instance_id)
+
+        # Get instance command line
+        ssh = instance['ssh']
+        if ssh is None:
+            raise Exception("Instance without SSH")
+
+        # Check status
+        work_dir = "{0}/{1}".format(self.workspace, experiment['id'])
+        cmd = 'cat {0}/EXPERIMENT_STATUS'.format(work_dir)
+        stdin, stdout, stderr = ssh.exec_command(cmd)
+        stdout.channel.recv_exit_status()
+        status = stdout.read()
+        return status
+
+    def deployExperiment(self, app, experiment, system):
         """Deploy an experiment in the cluster FS."""
         print('Deploying app "{0}": {1} - {2}'.format(
             app['name'], experiment['name'], experiment['id']
         ))
 
-        # Get instance
+        # Get master instance
+        instance_id = system['master']
         instance = self.findInstance(instance_id)
 
         # Get size
@@ -150,7 +171,7 @@ class ClusterMinion(minion.Minion):
             raise Exception("Instance without SSH")
 
         # Copy experiment in FS
-        experiment_url = storage.getExperimentPublicURL(experiment)
+        experiment_url = experiment['public_url']
         cmd = "git clone -b {0} {1} {2}/{3}".format(
             experiment['id'], experiment_url, self.workspace, experiment['id']
         )
@@ -158,15 +179,33 @@ class ClusterMinion(minion.Minion):
         stdin, stdout, stderr = ssh.exec_command(cmd)
         stdout.channel.recv_exit_status()
 
+        # Init EXPERIMENT_STATUS
+        cmd = 'echo -n "initialized" > {0}/{1}/EXPERIMENT_STATUS'.format(
+            self.workspace, experiment['id']
+        )
+        stdin, stdout, stderr = ssh.exec_command(cmd)
+        stdout.channel.recv_exit_status()
+
         # PBS command for compile creation
         work_dir = "{0}/{1}".format(self.workspace, experiment['id'])
-        cd_cmd = "cd {0}".format(work_dir)
-        exe_cmd = "./{0}".format(app['creation_script'])
-        qsub_cmd = "qsub -l select={0}:ncpus={1}:mem={2}MB -o {3} -e {3}".format(
+        exe_script = """
+            #!/bin/sh
+            cd {0}
+            echo -n "compiling" > EXPERIMENT_STATUS
+            ./{1}
+            RETVAL=\$?
+            if [ \$RETVAL -eq 0 ]; then
+                echo -n "compiled" > EXPERIMENT_STATUS
+            else
+                echo -n "failed_compilation" > EXPERIMENT_STATUS
+            fi
+            echo -n \$RETVAL > COMPILATION_EXIT_CODE
+        """.format(work_dir, app['creation_script'])
+        qsub_cmd = "qsub -N COMPILE -l select={0}:ncpus={1}:mem={2}MB -o {3} -e {3}".format(
             1, size['cpus'], size['ram'], work_dir
         )
-        cmd = '{0}; echo "{1}; {2};" | {3} '.format(
-            self.cmd_env, cd_cmd, exe_cmd, qsub_cmd
+        cmd = '{0}; echo "{1}" | {2} '.format(
+            self.cmd_env, exe_script, qsub_cmd
         )
 
         # Execute creation
@@ -177,13 +216,14 @@ class ClusterMinion(minion.Minion):
         stdin, stdout, stderr = ssh.exec_command(cmd)
         stdout.channel.recv_exit_status()
 
-    def executeExperiment(self, storage, app, experiment, instance_id):
+    def executeExperiment(self, app, experiment, system):
         """Execute an experiment in the cluster FS."""
         print('EXECUTING app "{0}": {1} - {2}'.format(
             app['name'], experiment['name'], experiment['id']
         ))
 
         # Get instance
+        instance_id = system['master']
         instance = self.findInstance(instance_id)
 
         # Get instance command line
@@ -194,15 +234,26 @@ class ClusterMinion(minion.Minion):
         # Get size
         size = self.findFlavor(instance['size_id'])
 
-        # Create PBS command for experiment
+        # Create PBS script for experiment
         work_dir = "{0}/{1}".format(self.workspace, experiment['id'])
-        cd_cmd = "cd {0}".format(work_dir)
-        exe_cmd = "./{0}".format(app['execution_script'])
-        qsub_cmd = "qsub -l select={0}:ncpus={1}:mem={2}MB -o {3} -e {3}".format(
-            1, size['cpus'], size['ram'], work_dir
+        exe_script = """
+            #!/bin/bash
+            cd {0}
+            echo -n "executing" > EXPERIMENT_STATUS
+            ./{1}
+            RETVAL=\$?
+            if [ \$RETVAL -eq 0 ]; then
+                echo -n "done" > EXPERIMENT_STATUS
+            else
+                echo -n "failed_execution" > EXPERIMENT_STATUS
+            fi
+            echo -n \$RETVAL > EXECUTION_EXIT_CODE
+        """.format(work_dir, app['execution_script'])
+        qsub_cmd = "qsub -N EXEC -l select={0}:ncpus={1}:mem={2}MB -o {3} -e {3}".format(
+            len(system['instances']), size['cpus'], size['ram'], work_dir
         )
-        cmd = '{0}; echo "{1}; {2};" | {3} '.format(
-            self.cmd_env, cd_cmd, exe_cmd, qsub_cmd
+        cmd = '{0}; echo "{1}" | {2} '.format(
+            self.cmd_env, exe_script, qsub_cmd
         )
 
         # Execute experiment

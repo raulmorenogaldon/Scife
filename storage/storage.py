@@ -97,7 +97,7 @@ class Storage(object):
                 return app
         return None
 
-    def createExperiment(self, name, app_id, labels):
+    def createExperiment(self, name, app_id, nodes, size, labels):
         # Retrieve application
         app = self.getApplication(app_id)
         if app is None:
@@ -109,6 +109,7 @@ class Storage(object):
             'name': name,
             'desc': "Description...",
             'app_id': app['id'],
+            'size_id': size['id'],
             'labels': labels
         }
 
@@ -120,7 +121,10 @@ class Storage(object):
         subprocess.call(["git", "branch", experiment['id']], cwd=app_path)
 
         # Apply parameters
-        self._applyExperimentParams(app, experiment)
+        self._applyExperimentParams(app, experiment, nodes, size)
+
+        # Set public URL
+        experiment['public_url'] = self.getExperimentPublicURL(experiment)
 
         self.experiments.append(experiment)
         return experiment['id']
@@ -157,7 +161,7 @@ class Storage(object):
         f.write(filedata)
         f.close()
 
-    def _applyExperimentParams(self, app, experiment):
+    def _applyExperimentParams(self, app, experiment, nodes, size):
         # Get application storage path
         app_path = self.path + "/" + app['id'] + "/"
 
@@ -172,7 +176,9 @@ class Storage(object):
         labels['EXPERIMENT_NAME'] = experiment['name']
         labels['APPLICATION_ID'] = app['id']
         labels['APPLICATION_NAME'] = app['name']
-        labels['CPUS'] = "1"
+        labels['CPUS'] = str(size['cpus'])
+        labels['NODES'] = str(nodes)
+        labels['TOTALCPUS'] = str(nodes * size['cpus'])
 
         # List labels
         for label in labels.keys():
