@@ -4,7 +4,6 @@ import uuid
 import zerorpc
 
 from minions import minion
-##import pexpect
 import paramiko
 
 from urlparse import urlparse
@@ -15,6 +14,7 @@ class ClusterMinion(minion.Minion):
 
     def __init__(self):
         """Init function."""
+        print("Initializing Cluster minion...")
         self.connected = False
 
         # Initialize list of images
@@ -29,6 +29,7 @@ class ClusterMinion(minion.Minion):
         # Command to load bash environment in SSH
         #self.cmd_env = ". ~/.bash_profile"
         self.cmd_env = ". /etc/profile; . ~/.bash_profile"
+        print("Initialization completed!")
 
     def login(self, config):
         """Login to cluster using SSH."""
@@ -42,7 +43,10 @@ class ClusterMinion(minion.Minion):
         # Params
         url = config['url']
         username = config['username']
-        password = config['password']
+        if 'password' in config:
+            password = config['password']
+        else:
+            password = None
 
         # Get command line
         ssh = self._retrieveSSH(url, username, password)
@@ -59,6 +63,9 @@ class ClusterMinion(minion.Minion):
 
         # Close connection
         ssh.close()
+
+        # Set connected
+        self.connected = 1
 
         return
 
@@ -311,5 +318,5 @@ class ClusterMinion(minion.Minion):
 # From now RPC is waiting for requests
 if __name__ == "__main__":
     rpc = zerorpc.Server(ClusterMinion())
-    rpc.bind("tcp://0.0.0.0:4242")
+    rpc.bind("tcp://0.0.0.0:7826")
     rpc.run()
