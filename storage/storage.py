@@ -1,8 +1,10 @@
+import json
 import os
 import re
-import uuid
 import shutil
 import subprocess
+import uuid
+import zerorpc
 
 
 class Storage(object):
@@ -24,10 +26,28 @@ class Storage(object):
 
         # Check if datastorage exists
         if os.path.isdir(self.path):
-            return
+            # Load existings applications
+            self._loadApplications(self.path)
 
-        # Create storage folder
-        os.mkdir(self.path)
+        else:
+            # Create storage folder
+            os.mkdir(self.path)
+
+    def _loadApplications(self, folder):
+        # Iterate folders
+        for dir in os.listdir(folder):
+            dir = os.path.join(folder, dir)
+            if os.path.isdir(dir):
+                # Load application json
+                file = "{0}/app.json".format(dir)
+                if os.path.exists(file):
+                    f = open(file, "r")
+                    app = json.loads(f.read())
+                    f.close()
+                    print("Loaded app: {0} - {1}".format(
+                        app['name'], app['id']
+                    ))
+                    self.applications.append(app)
 
     def createApplication(self, app_name, app_path, app_creation_script, app_execution_script):
         # Check if config is valid
@@ -35,6 +55,12 @@ class Storage(object):
             raise IOError("Invalid input path, does not exists: {0}".format(
                 app_path
             ))
+
+        # Check if application name exists
+        for app in self.applications:
+            if app['name'] == app_name:
+                print('App "{0}" already exists.'.format(app_name))
+                return app['id']
 
         # Create UUID for application
         id = str(uuid.uuid1())
@@ -76,6 +102,11 @@ class Storage(object):
         # Add application to DB
         self.applications.append(app)
 
+        # Create application json
+        file_path = "{0}/app.json".format(dst_path)
+        with open(file_path, "w") as file:
+            json.dump(app, file)
+
         return app['id']
 
     def _getLabelsInFile(self, file):
@@ -86,7 +117,7 @@ class Storage(object):
         f.close()
         # Find labels
         labels = re.findall(r"\[\[\[(\w+)\]\]\]", filedata)
-        labels = set(labels)
+        labels = list(set(labels))
         print("Found: {0}".format(labels))
         return labels
 
@@ -214,6 +245,10 @@ class Storage(object):
 # Execute this only if called directly from python command
 # From now RPC is waiting for requests
 if __name__ == "__main__":
-    rpc = zerorpc.Server(Storage())
-    rpc.bind("tcp://0.0.0.0:4242")
+    rpc = zerorpc.Server(Storage(
+        path="/home/devstack/datastorage",
+        public_url="161.67.100.29",
+        username="devstack"
+    ))
+    rpc.bind("tcp://0.0.0.0:8237")
     rpc.run()
