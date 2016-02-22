@@ -11,6 +11,7 @@ class Storage(object):
     """Class to handle application storage in standard a FS."""
 
     def __init__(self, path, public_url, username):
+        print("Initializing storage...")
         # Create applications and experiments array
         self.applications = []
         self.experiments = []
@@ -26,12 +27,14 @@ class Storage(object):
 
         # Check if datastorage exists
         if os.path.isdir(self.path):
+            print("Loading apps in storage folder...")
             # Load existings applications
             self._loadApplications(self.path)
 
         else:
             # Create storage folder
             os.mkdir(self.path)
+        print("Initialization completed!")
 
     def _loadApplications(self, folder):
         # Iterate folders
@@ -93,12 +96,6 @@ class Storage(object):
             if os.path.isfile(file):
                 app['labels'] = self._getLabelsInFile(file)
 
-        # Create git repository for this app
-        print('Creating repository...')
-        subprocess.call(["git", "init"], cwd=dst_path)
-        subprocess.call(["git", "add", "*"], cwd=dst_path)
-        subprocess.call(["git", "commit", "-m", "'Application created'"], cwd=dst_path)
-
         # Add application to DB
         self.applications.append(app)
 
@@ -106,6 +103,12 @@ class Storage(object):
         file_path = "{0}/app.json".format(dst_path)
         with open(file_path, "w") as file:
             json.dump(app, file)
+
+        # Create git repository for this app
+        print('Creating repository...')
+        subprocess.call(["git", "init"], cwd=dst_path)
+        subprocess.call(["git", "add", "*"], cwd=dst_path)
+        subprocess.call(["git", "commit", "-q", "-m", "'Application created'"], cwd=dst_path)
 
         return app['id']
 
@@ -128,7 +131,7 @@ class Storage(object):
                 return app
         return None
 
-    def createExperiment(self, name, app_id, nodes, size, labels):
+    def createExperiment(self, name, app_id, nodes, cpus, labels):
         # Retrieve application
         app = self.getApplication(app_id)
         if app is None:
@@ -140,7 +143,8 @@ class Storage(object):
             'name': name,
             'desc': "Description...",
             'app_id': app['id'],
-            'size_id': size['id'],
+            'nodes': nodes,
+            'cpus': cpus,
             'labels': labels
         }
 
@@ -152,7 +156,7 @@ class Storage(object):
         subprocess.call(["git", "branch", experiment['id']], cwd=app_path)
 
         # Apply parameters
-        self._applyExperimentParams(app, experiment, nodes, size)
+        self._applyExperimentParams(app, experiment, nodes, cpus)
 
         # Set public URL
         experiment['public_url'] = self.getExperimentPublicURL(experiment)
@@ -192,7 +196,7 @@ class Storage(object):
         f.write(filedata)
         f.close()
 
-    def _applyExperimentParams(self, app, experiment, nodes, size):
+    def _applyExperimentParams(self, app, experiment, nodes, cpus):
         # Get application storage path
         app_path = self.path + "/" + app['id'] + "/"
 
@@ -207,9 +211,9 @@ class Storage(object):
         labels['EXPERIMENT_NAME'] = experiment['name']
         labels['APPLICATION_ID'] = app['id']
         labels['APPLICATION_NAME'] = app['name']
-        labels['CPUS'] = str(size['cpus'])
+        labels['CPUS'] = str(cpus)
         labels['NODES'] = str(nodes)
-        labels['TOTALCPUS'] = str(nodes * size['cpus'])
+        labels['TOTALCPUS'] = str(nodes * cpus)
 
         # List labels
         for label in labels.keys():
