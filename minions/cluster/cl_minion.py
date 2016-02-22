@@ -1,10 +1,10 @@
 """Minion for clusters."""
+import gevent
 import json
 import uuid
 import zerorpc
 
 from minions import minion
-##import pexpect
 import paramiko
 
 from urlparse import urlparse
@@ -15,13 +15,14 @@ class ClusterMinion(minion.Minion):
 
     def __init__(self):
         """Init function."""
+        print("Initializing Cluster minion...")
         self.connected = False
 
         # Initialize list of images
         self.images = []
 
-        # Initialize list of flavors
-        self.flavors = []
+        # Initialize list of sizes
+        self.sizes = []
 
         # Initialize list of instances
         self.instances = []
@@ -29,6 +30,7 @@ class ClusterMinion(minion.Minion):
         # Command to load bash environment in SSH
         #self.cmd_env = ". ~/.bash_profile"
         self.cmd_env = ". /etc/profile; . ~/.bash_profile"
+        print("Initialization completed!")
 
     def login(self, config):
         """Login to cluster using SSH."""
@@ -40,9 +42,11 @@ class ClusterMinion(minion.Minion):
         self.config = config
 
         # Params
-        url = config['url']
-        username = config['username']
-        password = config['password']
+        url = self.config['url']
+        username = self.config['username']
+        if 'password' not in self.config:
+            self.config['password'] = None
+        password = self.config['password']
 
         # Get command line
         ssh = self._retrieveSSH(url, username, password)
@@ -52,7 +56,7 @@ class ClusterMinion(minion.Minion):
         json_config = stdout.read()
         try:
             config = json.loads(json_config)
-            self.__loadConfig(config)
+            self._loadConfig(config)
         except Exception as e:
             print("Malformed config.json!")
             raise e
@@ -60,44 +64,18 @@ class ClusterMinion(minion.Minion):
         # Close connection
         ssh.close()
 
+        # Set connected
+        self.connected = 1
+
         return
 
-    def _retrieveSSH(self, url, username, password=None):
-        # Get valid URL
-        url = urlparse(url).path
-        try:
-            print("Connecting...")
-            print("User: {0}".format(username))
-            print("Endpoint: {0}".format(url))
-
-            # Create command line and connect to the cluster
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(url, username=username)
-
-            print("Connected!")
-
-        except Exception as e:
-            print("FAILED to connect to", url, "- Reason:", e)
-            raise e
-
-        # Save connection var
-        return ssh
-
-    def getImages(self, filter=""):
-        """Get image list using an optional name filter."""
-        return self.images
-
-    def getFlavors(self, filter=""):
-        """Get flavor list using an optional name filter."""
-        return self.flavors
-
-    def createFlavor(self, flavor):
-        """Create a new flavor and assign an UUID."""
-        flavor['id'] = str(uuid.uuid1())
-        self.flavors.append(flavor)
-        print("Created flavor:")
-        print(flavor)
+    def createSize(self, size):
+        """Create a new size and assign an UUID."""
+        size['id'] = str(uuid.uuid1())
+        self.sizes.append(size)
+        print("Created size:")
+        print(size)
+        return size['id']
 
     def createInstance(self, name, image_id, size_id):
         """Reserve resources in cluster"""
@@ -105,7 +83,7 @@ class ClusterMinion(minion.Minion):
         image = self.findImage(image_id)
 
         # Get size
-        size = self.findFlavor(size_id)
+        size = self.findSize(size_id)
 
         print("=============================")
         print("Creating instance:")
@@ -132,25 +110,17 @@ class ClusterMinion(minion.Minion):
 
         return instance['id']
 
-    def pollExperiment(self, experiment, system):
-        """Update experiment status."""
+    def getImages(self, filter=""):
+        """Get image list using an optional name filter."""
+        return self.images
 
-        # Get instance
-        instance_id = system['master']
-        instance = self.findInstance(instance_id)
+    def getSizes(self, filter=""):
+        """Get size list using an optional name filter."""
+        return self.sizes
 
-        # Get instance command line
-        ssh = instance['ssh']
-        if ssh is None:
-            raise Exception("Instance without SSH")
-
-        # Check status
-        work_dir = "{0}/{1}".format(self.workspace, experiment['id'])
-        cmd = 'cat {0}/EXPERIMENT_STATUS'.format(work_dir)
-        stdin, stdout, stderr = ssh.exec_command(cmd)
-        stdout.channel.recv_exit_status()
-        status = stdout.read()
-        return status
+    def getInstances(self, filter=""):
+        """Get instance list using an optional name filter."""
+        return self.instances
 
     def deployExperiment(self, app, experiment, system):
         """Deploy an experiment in the cluster FS."""
@@ -163,7 +133,7 @@ class ClusterMinion(minion.Minion):
         instance = self.findInstance(instance_id)
 
         # Get size
-        size = self.findFlavor(instance['size_id'])
+        size = self.findSize(instance['size_id'])
 
         # Get instance command line
         ssh = instance['ssh']
@@ -177,14 +147,16 @@ class ClusterMinion(minion.Minion):
         )
         print("Cloning: {0}".format(cmd))
         stdin, stdout, stderr = ssh.exec_command(cmd)
-        stdout.channel.recv_exit_status()
+        while not stdout.channel.exit_status_ready():
+            gevent.sleep(1)
 
         # Init EXPERIMENT_STATUS
         cmd = 'echo -n "initialized" > {0}/{1}/EXPERIMENT_STATUS'.format(
             self.workspace, experiment['id']
         )
         stdin, stdout, stderr = ssh.exec_command(cmd)
-        stdout.channel.recv_exit_status()
+        while not stdout.channel.exit_status_ready():
+            gevent.sleep(1)
 
         # PBS command for compile creation
         work_dir = "{0}/{1}".format(self.workspace, experiment['id'])
@@ -214,7 +186,8 @@ class ClusterMinion(minion.Minion):
         print("Output:")
         print("-------")
         stdin, stdout, stderr = ssh.exec_command(cmd)
-        stdout.channel.recv_exit_status()
+        while not stdout.channel.exit_status_ready():
+            gevent.sleep(1)
 
     def executeExperiment(self, app, experiment, system):
         """Execute an experiment in the cluster FS."""
@@ -232,7 +205,7 @@ class ClusterMinion(minion.Minion):
             raise Exception("Instance without SSH")
 
         # Get size
-        size = self.findFlavor(instance['size_id'])
+        size = self.findSize(instance['size_id'])
 
         # Create PBS script for experiment
         work_dir = "{0}/{1}".format(self.workspace, experiment['id'])
@@ -262,28 +235,53 @@ class ClusterMinion(minion.Minion):
         print("Output:")
         print("-------")
         stdin, stdout, stderr = ssh.exec_command(cmd)
-        stdout.channel.recv_exit_status()
+        while not stdout.channel.exit_status_ready():
+            gevent.sleep(1)
+
+    def pollExperiment(self, experiment, system):
+        """Update experiment status."""
+
+        # Get instance
+        instance_id = system['master']
+        instance = self.findInstance(instance_id)
+
+        # Get instance command line
+        ssh = instance['ssh']
+        if ssh is None:
+            raise Exception("Instance without SSH")
+
+        # Check status
+        work_dir = "{0}/{1}".format(self.workspace, experiment['id'])
+        cmd = 'cat {0}/EXPERIMENT_STATUS'.format(work_dir)
+        stdin, stdout, stderr = ssh.exec_command(cmd)
+        while not stdout.channel.exit_status_ready():
+            gevent.sleep(1)
+        status = stdout.read()
+        return status
 
     def findImage(self, image_id):
+        """Return image data"""
         for image in self.images:
             if image['id'] == image_id:
                 return image
         return None
 
-    def findFlavor(self, flavor_id):
-        for flavor in self.flavors:
-            if flavor['id'] == flavor_id:
-                return flavor
+    def findSize(self, size_id):
+        """Return size data"""
+        for size in self.sizes:
+            if size['id'] == size_id:
+                return size
         return None
 
     def findInstance(self, inst_id):
+        """Return instance data"""
         for inst in self.instances:
             if inst['id'] == inst_id:
                 return inst
         return None
 
     """ Private functions """
-    def __loadConfig(self, config):
+    def _loadConfig(self, config):
         print("Loading config...")
         print("Images:")
         # Parse images
@@ -292,18 +290,39 @@ class ClusterMinion(minion.Minion):
             print(image)
             self.images.append(image)
 
-        # Parse flavors
-        print("Flavors:")
-        for flavor in config['flavors']:
-            flavor['id'] = str(uuid.uuid1())
-            print(flavor)
-            self.flavors.append(flavor)
+        # Parse sizes
+        print("Sizes:")
+        for size in config['sizes']:
+            size['id'] = str(uuid.uuid1())
+            print(size)
+            self.sizes.append(size)
 
         # Parse working directory path
         self.workspace = config['workspace']
         print("Workspace: {0}".format(self.workspace))
-
         print("Config loaded!")
+
+    def _retrieveSSH(self, url, username, password=None):
+        # Get valid URL
+        url = urlparse(url).path
+        try:
+            print("Connecting...")
+            print("User: {0}".format(username))
+            print("Endpoint: {0}".format(url))
+
+            # Create command line and connect to the cluster
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(url, username=username)
+
+            print("Connected!")
+
+        except Exception as e:
+            print("FAILED to connect to", url, "- Reason:", e)
+            raise e
+
+        # Save connection var
+        return ssh
 
 
 # Start RPC minion
@@ -311,5 +330,5 @@ class ClusterMinion(minion.Minion):
 # From now RPC is waiting for requests
 if __name__ == "__main__":
     rpc = zerorpc.Server(ClusterMinion())
-    rpc.bind("tcp://0.0.0.0:4242")
+    rpc.bind("tcp://0.0.0.0:8238")
     rpc.run()

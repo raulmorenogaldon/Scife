@@ -86,7 +86,7 @@ system = {
 labels = {
     'GRID_RESOLUTION': 'f09_g16',
     'COMPSET': 'BCN',
-    'STOP_N': '6',
+    'STOP_N': '365',
     'STOP_OPTION': 'ndays',
 }
 nodes = len(system['instances'])
@@ -94,7 +94,7 @@ experiment_id = storage.createExperiment(
     "ExperimentoLoco",
     app_id,
     nodes,
-    size,
+    size['cpus'],
     labels
 )
 experiment = storage.getExperiment(experiment_id)

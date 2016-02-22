@@ -28,6 +28,12 @@ class Minion:
         """
         raise NotImplementedError()
 
+    def createSize(self, size):
+        """
+        Create size
+        Must return an ID string
+        """
+
     def getImages(self, filter=""):
         """
         Get images list
@@ -36,11 +42,11 @@ class Minion:
         """
         raise NotImplementedError()
 
-    def getFlavors(self, filter=""):
+    def getSizes(self, filter=""):
         """
         Get images list
         filter: String with part of the name
-        Return a list of Flavors
+        Return a list of Size
         """
         raise NotImplementedError()
 
@@ -73,6 +79,33 @@ class Minion:
         Find instance from ID
         id: Instance string id
         Return a Instance or None
+        """
+        raise NotImplementedError()
+
+    def deployExperiment(self, app, experiment, system):
+        """
+        Deploy experiment
+        app: Application data
+        experiment: Experiment data
+        system: Cluster of instances
+        """
+        raise NotImplementedError()
+
+    def executeExperiment(self, app, experiment, system):
+        """
+        Execute a deployed experiment
+        app: Application data
+        experiment: Experiment data
+        system: Cluster of instances
+        """
+        raise NotImplementedError()
+
+    def pollExperiment(self, experiment, system):
+        """
+        Return experiment status
+        experiment: Experiment data
+        system: Cluster of instances
+        Return a status string
         """
         raise NotImplementedError()
 
