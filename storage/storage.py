@@ -25,6 +25,8 @@ class Storage(object):
         # Set public url
         self.public_url = public_url
 
+        self.lock = False
+
         # Check if datastorage exists
         if os.path.isdir(self.path):
             print("Loading apps in storage folder...")
@@ -106,9 +108,13 @@ class Storage(object):
 
         # Create git repository for this app
         print('Creating repository...')
+        while self.lock:
+            gevent.sleep(1)
+        self.lock = True
         gevent.subprocess.call(["git", "init"], cwd=dst_path)
         gevent.subprocess.call(["git", "add", "*"], cwd=dst_path)
         gevent.subprocess.call(["git", "commit", "-q", "-m", "'Application created'"], cwd=dst_path)
+        self.lock = False
 
         return app['id']
 
@@ -153,7 +159,11 @@ class Storage(object):
 
         # Create experiment branch
         print('Creating experiment branch...')
+        while self.lock:
+            gevent.sleep(1)
+        self.lock = True
         gevent.subprocess.call(["git", "branch", experiment['id']], cwd=app_path)
+        self.lock = False
 
         # Apply parameters
         self._applyExperimentParams(app, experiment, nodes, cpus)
@@ -203,7 +213,11 @@ class Storage(object):
         # Check out experiment
         print("===============================")
         print('Checking out experiment branch...')
+        while self.lock:
+            gevent.sleep(1)
+        self.lock = True
         gevent.subprocess.call(["git", "checkout", experiment['id']], cwd=app_path)
+        self.lock = False
 
         # Get labels and add default ones
         labels = experiment['labels']
@@ -240,9 +254,13 @@ class Storage(object):
         print("===============================")
         print('Committing...')
         commit_msg = "Created experiment {0}".format(experiment['id'])
+        while self.lock:
+            gevent.sleep(1)
+        self.lock = True
         gevent.subprocess.call(["git", "add", "*"], cwd=app_path)
         gevent.subprocess.call(["git", "commit", "-m", commit_msg], cwd=app_path)
         gevent.subprocess.call(["git", "checkout", "master"], cwd=app_path)
+        self.lock = False
 
 
 # Start RPC server

@@ -27,6 +27,8 @@ class ClusterMinion(minion.Minion):
         # Initialize list of instances
         self.instances = []
 
+        self.lock = False
+
         # Command to load bash environment in SSH
         #self.cmd_env = ". ~/.bash_profile"
         self.cmd_env = ". /etc/profile; . ~/.bash_profile"
@@ -146,9 +148,13 @@ class ClusterMinion(minion.Minion):
             experiment['id'], experiment_url, self.workspace, experiment['id']
         )
         print("Cloning: {0}".format(cmd))
+        while self.lock:
+            gevent.sleep(1)
+        self.lock = True
         stdin, stdout, stderr = ssh.exec_command(cmd)
         while not stdout.channel.exit_status_ready():
             gevent.sleep(1)
+        self.lock = False
 
         # Init EXPERIMENT_STATUS
         cmd = 'echo -n "initialized" > {0}/{1}/EXPERIMENT_STATUS'.format(
