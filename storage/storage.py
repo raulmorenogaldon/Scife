@@ -1,8 +1,8 @@
 import json
+import gevent.subprocess
 import os
 import re
 import shutil
-import subprocess
 import uuid
 import zerorpc
 
@@ -106,9 +106,9 @@ class Storage(object):
 
         # Create git repository for this app
         print('Creating repository...')
-        subprocess.call(["git", "init"], cwd=dst_path)
-        subprocess.call(["git", "add", "*"], cwd=dst_path)
-        subprocess.call(["git", "commit", "-q", "-m", "'Application created'"], cwd=dst_path)
+        gevent.subprocess.call(["git", "init"], cwd=dst_path)
+        gevent.subprocess.call(["git", "add", "*"], cwd=dst_path)
+        gevent.subprocess.call(["git", "commit", "-q", "-m", "'Application created'"], cwd=dst_path)
 
         return app['id']
 
@@ -153,7 +153,7 @@ class Storage(object):
 
         # Create experiment branch
         print('Creating experiment branch...')
-        subprocess.call(["git", "branch", experiment['id']], cwd=app_path)
+        gevent.subprocess.call(["git", "branch", experiment['id']], cwd=app_path)
 
         # Apply parameters
         self._applyExperimentParams(app, experiment, nodes, cpus)
@@ -203,7 +203,7 @@ class Storage(object):
         # Check out experiment
         print("===============================")
         print('Checking out experiment branch...')
-        subprocess.call(["git", "checkout", experiment['id']], cwd=app_path)
+        gevent.subprocess.call(["git", "checkout", experiment['id']], cwd=app_path)
 
         # Get labels and add default ones
         labels = experiment['labels']
@@ -240,9 +240,9 @@ class Storage(object):
         print("===============================")
         print('Committing...')
         commit_msg = "Created experiment {0}".format(experiment['id'])
-        subprocess.call(["git", "add", "*"], cwd=app_path)
-        subprocess.call(["git", "commit", "-m", commit_msg], cwd=app_path)
-        subprocess.call(["git", "checkout", "master"], cwd=app_path)
+        gevent.subprocess.call(["git", "add", "*"], cwd=app_path)
+        gevent.subprocess.call(["git", "commit", "-m", commit_msg], cwd=app_path)
+        gevent.subprocess.call(["git", "checkout", "master"], cwd=app_path)
 
 
 # Start RPC server
