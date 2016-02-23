@@ -145,17 +145,15 @@ class ClusterMinion(minion.Minion):
             experiment['id'], experiment_url, self.workspace, experiment['id']
         )
         print("Cloning: {0}".format(cmd))
-        stdin, stdout, stderr = ssh.exec_command(cmd)
-        while not stdout.channel.exit_status_ready():
-            gevent.sleep(0)
+        task = gevent.spawn(self._executeSSH, ssh, cmd)
+        gevent.joinall([task])
 
         # Init EXPERIMENT_STATUS
         cmd = 'echo -n "initialized" > {0}/{1}/EXPERIMENT_STATUS'.format(
             self.workspace, experiment['id']
         )
-        stdin, stdout, stderr = ssh.exec_command(cmd)
-        while not stdout.channel.exit_status_ready():
-            gevent.sleep(0)
+        task = gevent.spawn(self._executeSSH, ssh, cmd)
+        gevent.joinall([task])
 
         # PBS command for compile creation
         work_dir = "{0}/{1}".format(self.workspace, experiment['id'])
@@ -184,9 +182,8 @@ class ClusterMinion(minion.Minion):
         print("Launching creation script: {0}".format(cmd))
         print("Output:")
         print("-------")
-        stdin, stdout, stderr = ssh.exec_command(cmd)
-        while not stdout.channel.exit_status_ready():
-            gevent.sleep(0)
+        task = gevent.spawn(self._executeSSH, ssh, cmd)
+        gevent.joinall([task])
 
     def executeExperiment(self, app, experiment, system):
         """Execute an experiment in the cluster FS."""
@@ -233,9 +230,8 @@ class ClusterMinion(minion.Minion):
         print("Launching execution: {0}".format(cmd))
         print("Output:")
         print("-------")
-        stdin, stdout, stderr = ssh.exec_command(cmd)
-        while not stdout.channel.exit_status_ready():
-            gevent.sleep(0)
+        task = gevent.spawn(self._executeSSH, ssh, cmd)
+        gevent.joinall([task])
 
     def pollExperiment(self, experiment, system):
         """Update experiment status."""
@@ -252,10 +248,9 @@ class ClusterMinion(minion.Minion):
         # Check status
         work_dir = "{0}/{1}".format(self.workspace, experiment['id'])
         cmd = 'cat {0}/EXPERIMENT_STATUS'.format(work_dir)
-        stdin, stdout, stderr = ssh.exec_command(cmd)
-        while not stdout.channel.exit_status_ready():
-            gevent.sleep(0)
-        status = stdout.read()
+        task = gevent.spawn(self._executeSSH, ssh, cmd)
+        gevent.joinall([task])
+        status = task.value[0].read()
         return status
 
     def findImage(self, image_id):
@@ -323,11 +318,16 @@ class ClusterMinion(minion.Minion):
         # Save connection var
         return ssh
 
+    def _executeSSH(self, ssh, cmd):
+        stdin, stdout, stderr = ssh.exec_command(cmd)
+        while not stdout.channel.exit_status_ready():
+            gevent.sleep(0)
+        return [stdout, stderr]
 
 # Start RPC minion
 # Execute this only if called directly from python command
 # From now RPC is waiting for requests
 if __name__ == "__main__":
-    rpc = zerorpc.Server(ClusterMinion())
+    rpc = zerorpc.Server(ClusterMinion(), heartbeat=30)
     rpc.bind("tcp://0.0.0.0:8238")
     rpc.run()

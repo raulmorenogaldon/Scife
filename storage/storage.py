@@ -273,6 +273,6 @@ if __name__ == "__main__":
         path="/home/devstack/datastorage",
         public_url="161.67.100.29",
         username="devstack"
-    ))
+    ), heartbeat=30)
     rpc.bind("tcp://0.0.0.0:8237")
     rpc.run()
