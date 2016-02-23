@@ -102,7 +102,10 @@ class ClusterMinion(minion.Minion):
             'id': str(uuid.uuid1()),
             'image_id': image_id,
             'size_id': size_id,
-            'ssh': ssh
+            'ssh': ssh,
+            'lock': False,
+            'deployed': False,
+            'executed': False
         }
         self.instances.append(instance)
         print('Instance "{0}" (DUMMY) created'.format(instance['id']))
@@ -130,6 +133,19 @@ class ClusterMinion(minion.Minion):
         # Get master instance
         instance_id = system['master']
         instance = self.findInstance(instance_id)
+
+        ####################
+        # Set the lock for the instance
+        while instance['lock']:
+            gevent.sleep(0)
+        instance['lock'] = True
+
+        # Check if instance is already deployed
+        if instance['deployed']:
+            instance['lock'] = False
+            raise Exception("Experiment {0} is already deployed in instance {1}".format(
+                experiment['id'], instance['id']
+            ))
 
         # Get size
         size = self.findSize(instance['size_id'])
@@ -185,6 +201,10 @@ class ClusterMinion(minion.Minion):
         task = gevent.spawn(self._executeSSH, ssh, cmd)
         gevent.joinall([task])
 
+        instance['deployed'] = True
+        instance['lock'] = False
+        ####################
+
     def executeExperiment(self, app, experiment, system):
         """Execute an experiment in the cluster FS."""
         print('EXECUTING app "{0}": {1} - {2}'.format(
@@ -194,6 +214,19 @@ class ClusterMinion(minion.Minion):
         # Get instance
         instance_id = system['master']
         instance = self.findInstance(instance_id)
+
+        ####################
+        # Set the lock for the instance
+        while instance['lock']:
+            gevent.sleep(0)
+        instance['lock'] = True
+
+        # Check if instance is already executed
+        if instance['executed']:
+            instance['lock'] = False
+            raise Exception("Experiment {0} is already executed in instance {1}".format(
+                experiment['id'], instance['id']
+            ))
 
         # Get instance command line
         ssh = instance['ssh']
@@ -233,12 +266,22 @@ class ClusterMinion(minion.Minion):
         task = gevent.spawn(self._executeSSH, ssh, cmd)
         gevent.joinall([task])
 
+        instance['executed'] = True
+        instance['lock'] = False
+        ####################
+
     def pollExperiment(self, experiment, system):
         """Update experiment status."""
 
         # Get instance
         instance_id = system['master']
         instance = self.findInstance(instance_id)
+
+        ####################
+        # Set the lock for the instance
+        while instance['lock']:
+            gevent.sleep(0)
+        instance['lock'] = True
 
         # Get instance command line
         ssh = instance['ssh']
@@ -251,6 +294,12 @@ class ClusterMinion(minion.Minion):
         task = gevent.spawn(self._executeSSH, ssh, cmd)
         gevent.joinall([task])
         status = task.value[0].read()
+        if status == "":
+            status = None
+
+        instance['lock'] = False
+        ####################
+
         return status
 
     def findImage(self, image_id):
