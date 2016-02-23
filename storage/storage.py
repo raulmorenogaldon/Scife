@@ -61,10 +61,17 @@ class Storage(object):
                 app_path
             ))
 
+        ########################
+        # Wait for the lock
+        while self.lock:
+            gevent.sleep(0)
+        self.lock = True
+
         # Check if application name exists
         for app in self.applications:
             if app['name'] == app_name:
                 print('App "{0}" already exists.'.format(app_name))
+                self.lock = False
                 return app['id']
 
         # Create UUID for application
@@ -98,9 +105,6 @@ class Storage(object):
             if os.path.isfile(file):
                 app['labels'] = self._getLabelsInFile(file)
 
-        # Add application to DB
-        self.applications.append(app)
-
         # Create application json
         file_path = "{0}/app.json".format(dst_path)
         with open(file_path, "w") as file:
@@ -108,13 +112,15 @@ class Storage(object):
 
         # Create git repository for this app
         print('Creating repository...')
-        while self.lock:
-            gevent.sleep(1)
-        self.lock = True
         gevent.subprocess.call(["git", "init"], cwd=dst_path)
         gevent.subprocess.call(["git", "add", "*"], cwd=dst_path)
         gevent.subprocess.call(["git", "commit", "-q", "-m", "'Application created'"], cwd=dst_path)
+
+        # Add application to DB
+        self.applications.append(app)
+
         self.lock = False
+        ########################
 
         return app['id']
 
@@ -131,7 +137,7 @@ class Storage(object):
         return labels
 
     def getApplication(self, app_id):
-        # Search app
+
         for app in self.applications:
             if app['id'] == app_id:
                 return app
@@ -159,11 +165,12 @@ class Storage(object):
 
         # Create experiment branch
         print('Creating experiment branch...')
+        ########################
+        # Wait for the lock
         while self.lock:
-            gevent.sleep(1)
+            gevent.sleep(0)
         self.lock = True
         gevent.subprocess.call(["git", "branch", experiment['id']], cwd=app_path)
-        self.lock = False
 
         # Apply parameters
         self._applyExperimentParams(app, experiment, nodes, cpus)
@@ -172,6 +179,9 @@ class Storage(object):
         experiment['public_url'] = self.getExperimentPublicURL(experiment)
 
         self.experiments.append(experiment)
+        self.lock = False
+        ########################
+        print('Experiment {0} created.'.format(experiment['id']))
         return experiment['id']
 
     def getExperimentPublicURL(self, experiment):
@@ -213,11 +223,7 @@ class Storage(object):
         # Check out experiment
         print("===============================")
         print('Checking out experiment branch...')
-        while self.lock:
-            gevent.sleep(1)
-        self.lock = True
         gevent.subprocess.call(["git", "checkout", experiment['id']], cwd=app_path)
-        self.lock = False
 
         # Get labels and add default ones
         labels = experiment['labels']
@@ -254,13 +260,9 @@ class Storage(object):
         print("===============================")
         print('Committing...')
         commit_msg = "Created experiment {0}".format(experiment['id'])
-        while self.lock:
-            gevent.sleep(1)
-        self.lock = True
         gevent.subprocess.call(["git", "add", "*"], cwd=app_path)
         gevent.subprocess.call(["git", "commit", "-m", commit_msg], cwd=app_path)
         gevent.subprocess.call(["git", "checkout", "master"], cwd=app_path)
-        self.lock = False
 
 
 # Start RPC server

@@ -27,10 +27,7 @@ class ClusterMinion(minion.Minion):
         # Initialize list of instances
         self.instances = []
 
-        self.lock = False
-
         # Command to load bash environment in SSH
-        #self.cmd_env = ". ~/.bash_profile"
         self.cmd_env = ". /etc/profile; . ~/.bash_profile"
         print("Initialization completed!")
 
@@ -148,13 +145,9 @@ class ClusterMinion(minion.Minion):
             experiment['id'], experiment_url, self.workspace, experiment['id']
         )
         print("Cloning: {0}".format(cmd))
-        while self.lock:
-            gevent.sleep(1)
-        self.lock = True
         stdin, stdout, stderr = ssh.exec_command(cmd)
         while not stdout.channel.exit_status_ready():
-            gevent.sleep(1)
-        self.lock = False
+            gevent.sleep(0)
 
         # Init EXPERIMENT_STATUS
         cmd = 'echo -n "initialized" > {0}/{1}/EXPERIMENT_STATUS'.format(
@@ -162,7 +155,7 @@ class ClusterMinion(minion.Minion):
         )
         stdin, stdout, stderr = ssh.exec_command(cmd)
         while not stdout.channel.exit_status_ready():
-            gevent.sleep(1)
+            gevent.sleep(0)
 
         # PBS command for compile creation
         work_dir = "{0}/{1}".format(self.workspace, experiment['id'])
@@ -193,7 +186,7 @@ class ClusterMinion(minion.Minion):
         print("-------")
         stdin, stdout, stderr = ssh.exec_command(cmd)
         while not stdout.channel.exit_status_ready():
-            gevent.sleep(1)
+            gevent.sleep(0)
 
     def executeExperiment(self, app, experiment, system):
         """Execute an experiment in the cluster FS."""
@@ -242,7 +235,7 @@ class ClusterMinion(minion.Minion):
         print("-------")
         stdin, stdout, stderr = ssh.exec_command(cmd)
         while not stdout.channel.exit_status_ready():
-            gevent.sleep(1)
+            gevent.sleep(0)
 
     def pollExperiment(self, experiment, system):
         """Update experiment status."""
@@ -261,7 +254,7 @@ class ClusterMinion(minion.Minion):
         cmd = 'cat {0}/EXPERIMENT_STATUS'.format(work_dir)
         stdin, stdout, stderr = ssh.exec_command(cmd)
         while not stdout.channel.exit_status_ready():
-            gevent.sleep(1)
+            gevent.sleep(0)
         status = stdout.read()
         return status
 
