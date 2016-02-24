@@ -68,20 +68,30 @@ class ClusterMinion(minion.Minion):
 
         return
 
-    def createSize(self, size):
+    def createSize(self, size_cfg):
         """Create a new size and assign an UUID."""
-        size['id'] = str(uuid.uuid1())
+        size = {
+            "id": str(uuid.uuid1()),
+            "name": size_cfg['name'],
+            "desc": "Description",
+            "cpus": size_cfg['cpus'],
+            "ram": size_cfg['ram']
+        }
         self.sizes.append(size)
         print("Created size:")
         print(size)
         return size['id']
 
-    def createInstance(self, name, image_id, size_id):
+    def createInstance(self, instance_cfg):
         """Reserve resources in cluster"""
+        name = instance_cfg['name']
+
         # Get image
+        image_id = instance_cfg['image_id']
         image = self.findImage(image_id)
 
         # Get size
+        size_id = instance_cfg['size_id']
         size = self.findSize(size_id)
 
         print("=============================")
@@ -98,8 +108,8 @@ class ClusterMinion(minion.Minion):
 
         # Save instance
         instance = {
-            'name': name,
             'id': str(uuid.uuid1()),
+            'name': name,
             'image_id': image_id,
             'size_id': size_id,
             'ssh': ssh,

@@ -14,7 +14,7 @@ class Minion:
         """
         raise NotImplementedError()
 
-    def createInstance(self, name, id_image, id_size):
+    def createInstance(self, instance_cfg):
         """
         Create instance
         Must return an ID string
@@ -28,7 +28,7 @@ class Minion:
         """
         raise NotImplementedError()
 
-    def createSize(self, size):
+    def createSize(self, size_cfg):
         """
         Create size
         Must return an ID string
