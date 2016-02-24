@@ -143,7 +143,7 @@ class Storage(object):
                 return app
         return None
 
-    def createExperiment(self, name, app_id, nodes, cpus, labels):
+    def createExperiment(self, name, app_id, exec_env, labels):
         # Retrieve application
         app = self.getApplication(app_id)
         if app is None:
@@ -155,8 +155,7 @@ class Storage(object):
             'name': name,
             'desc': "Description...",
             'app_id': app['id'],
-            'nodes': nodes,
-            'cpus': cpus,
+            'exec_env': exec_env,
             'labels': labels
         }
 
@@ -173,7 +172,7 @@ class Storage(object):
         gevent.subprocess.call(["git", "branch", experiment['id']], cwd=app_path)
 
         # Apply parameters
-        self._applyExperimentParams(app, experiment, nodes, cpus)
+        self._applyExperimentParams(app, experiment)
 
         # Set public URL
         experiment['public_url'] = self.getExperimentPublicURL(experiment)
@@ -216,7 +215,7 @@ class Storage(object):
         f.write(filedata)
         f.close()
 
-    def _applyExperimentParams(self, app, experiment, nodes, cpus):
+    def _applyExperimentParams(self, app, experiment):
         # Get application storage path
         app_path = self.path + "/" + app['id'] + "/"
 
@@ -225,15 +224,20 @@ class Storage(object):
         print('Checking out experiment branch...')
         gevent.subprocess.call(["git", "checkout", experiment['id']], cwd=app_path)
 
-        # Get labels and add default ones
+        # Get execution environment
+        exec_env = experiment['exec_env']
+
+        # Get labels and add system ones
         labels = experiment['labels']
-        labels['EXPERIMENT_ID'] = experiment['id']
-        labels['EXPERIMENT_NAME'] = experiment['name']
-        labels['APPLICATION_ID'] = app['id']
-        labels['APPLICATION_NAME'] = app['name']
-        labels['CPUS'] = str(cpus)
-        labels['NODES'] = str(nodes)
-        labels['TOTALCPUS'] = str(nodes * cpus)
+        labels['#EXPERIMENT_ID'] = experiment['id']
+        labels['#EXPERIMENT_NAME'] = experiment['name']
+        labels['#APPLICATION_ID'] = app['id']
+        labels['#APPLICATION_NAME'] = app['name']
+        labels['#INPUTPATH'] = exec_env['inputpath']
+        labels['#LIBPATH'] = exec_env['libpath']
+        labels['#CPUS'] = str(exec_env['cpus'])
+        labels['#NODES'] = str(exec_env['nodes'])
+        labels['#TOTALCPUS'] = str(exec_env['nodes'] * exec_env['cpus'])
 
         # List labels
         for label in labels.keys():
