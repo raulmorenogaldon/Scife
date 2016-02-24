@@ -14,10 +14,16 @@ A new provider is added. In this case we only need to report this to the overlor
 
 Python packages:
 
-* python-dev: `sudo apt-get install python-dev`
-* pip: `sudo apt-get install python-pip`
-* zerorpc: `sudo pip install zerorpc`
-* [libcloud](https://libcloud.apache.org/): `pip install apache-libcloud`
+* *python-dev*: `sudo apt-get install python-dev`
+* *setuptools*: `sudo apt-get install python-setuptools`
+* *numpy*: `sudo apt-get install python-numpy`
+* *pip*: `sudo apt-get install python-pip`
+* *zerorpc*: `sudo pip install zerorpc`
+* *[libcloud](https*://libcloud.apache.org/)*: `pip install apache-libcloud`
+* *libevent-dev*: `apt-get install libevent`
+* *libzmq3*: `apt-get install libzmq3 libzmq3-dev`
+* *greenlet*: `pip install greenlet`
+* *gevent*: `pip install gevent`
 
 Node.js packages:
-To install required packages for *nodejs*, only run `npm install` code in the *overlord* folder.
+To install required packages for *nodejs*, only run `npm install` code in the folder location. Optionaly, you can install Yeoman with she folow command: `sudo npm install -g yo`
