@@ -70,14 +70,17 @@ class StubMinion(minion.Minion):
         print(size)
         return size['id']
 
-    def createInstance(self, name, image_id, size_id):
+    def createInstance(self, instance_cfg):
         """Reserve resources in cluster"""
+        name = instance_cfg['name']
         # Get image
+        image_id = instance_cfg['image_id']
         image = self.findImage(image_id)
         if image is None:
             raise Exception("Image ID does not exists.")
 
         # Get size
+        size_id = instance_cfg['size_id']
         size = self.findSize(size_id)
         if size is None:
             raise Exception("Size ID does not exists.")
@@ -194,7 +197,7 @@ class StubMinion(minion.Minion):
             fi
             echo -n \$RETVAL > EXECUTION_EXIT_CODE
         """.format(work_dir, app['execution_script'])
-        cmd = '{0}; {1} '.format(exe_script)
+        cmd = '{0}'.format(exe_script)
 
         # Execute experiment
         print("==========")
