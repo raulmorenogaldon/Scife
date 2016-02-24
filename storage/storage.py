@@ -99,11 +99,12 @@ class Storage(object):
         }
 
         # Create labels list
+        app['labels'] = []
         print('Discovering parameters...')
         for file in os.listdir(dst_path):
             file = os.path.join(dst_path, file)
             if os.path.isfile(file):
-                app['labels'] = self._getLabelsInFile(file)
+                app['labels'] = list(set(app['labels'] + self._getLabelsInFile(file)))
 
         # Create application json
         file_path = "{0}/app.json".format(dst_path)
@@ -209,7 +210,7 @@ class Storage(object):
         for label in labels.keys():
             key = "[[[{0}]]]".format(label)
             value = labels[label]
-            filedata = filedata.replace(key, value)
+            filedata = filedata.replace(key, str(value))
         # Write file
         f = open(file, 'w')
         f.write(filedata)
@@ -235,6 +236,7 @@ class Storage(object):
         labels['#APPLICATION_NAME'] = app['name']
         labels['#INPUTPATH'] = exec_env['inputpath']
         labels['#LIBPATH'] = exec_env['libpath']
+        labels['#TMPPATH'] = exec_env['tmppath']
         labels['#CPUS'] = str(exec_env['cpus'])
         labels['#NODES'] = str(exec_env['nodes'])
         labels['#TOTALCPUS'] = str(exec_env['nodes'] * exec_env['cpus'])
@@ -245,6 +247,11 @@ class Storage(object):
             value = labels[label]
             print("Replacing: {0} <-- {1}".format(key, value))
 
+        # List of empty labels
+        empty_labels = {}
+        for label in app['labels']:
+            empty_labels[label] = ""
+
         # Apply labels
         print("===============================")
         print("Applying labels...")
@@ -252,6 +259,7 @@ class Storage(object):
             file = os.path.join(app_path, file)
             if os.path.isfile(file):
                 self._replaceLabelsInFile(file, labels)
+                self._replaceLabelsInFile(file, empty_labels)
 
         # Execute experiment creation script
         #if app['creation_script'] is not None:
