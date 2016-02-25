@@ -6,15 +6,14 @@ import shutil
 import uuid
 import zerorpc
 
+import pymongo
+from pymongo import MongoClient
 
 class Storage(object):
     """Class to handle application storage in standard a FS."""
 
     def __init__(self, path, public_url, username):
         print("Initializing storage...")
-        # Create applications and experiments array
-        self.applications = []
-        self.experiments = []
 
         # Set path for storage
         self.path = path
@@ -25,34 +24,54 @@ class Storage(object):
         # Set public url
         self.public_url = public_url
 
+        # Connect to DB (default "localhost")
+        # db vars must be private to avoid zerorpc errors
+        print("Connecting to DB...")
+        try:
+            self._db_client = MongoClient()
+            self._db = self._db_client.test_db
+        except Exception as e:
+            print("Failed to get Storage database, reason: ", e)
+            raise e
+
+        try:
+            self._db.applications.create_index([
+                ('id', pymongo.ASCENDING),
+                ('name', pymongo.ASCENDING)
+            ], unique=True)
+            self._db.experiments.create_index([
+                ('id', pymongo.ASCENDING),
+                ('name', pymongo.ASCENDING)
+            ], unique=True)
+        except Exception as e:
+            print("Failed to create DB index, reason: ", e)
+            raise e
+
+        # Init lock
         self.lock = False
 
         # Check if datastorage exists
-        if os.path.isdir(self.path):
-            print("Loading apps in storage folder...")
-            # Load existings applications
-            self._loadApplications(self.path)
-
-        else:
+        if not os.path.isdir(self.path):
             # Create storage folder
             os.mkdir(self.path)
-        print("Initialization completed!")
 
-    def _loadApplications(self, folder):
-        # Iterate folders
-        for dir in os.listdir(folder):
-            dir = os.path.join(folder, dir)
-            if os.path.isdir(dir):
-                # Load application json
-                file = "{0}/app.json".format(dir)
-                if os.path.exists(file):
-                    f = open(file, "r")
-                    app = json.loads(f.read())
-                    f.close()
-                    print("Loaded app: {0} - {1}".format(
+        # Load apps
+        print("Loading apps in DB...")
+        cursor = self._db.applications.find()
+        if cursor.count() == 0:
+            print("No apps in DB!")
+        else:
+            for app in cursor:
+                # Check if exists in folder
+                app_path = os.path.join(self.path, app['id'])
+                if os.path.isdir(app_path):
+                    print("App loaded:", app['name'], app['id'])
+                else:
+                    print("App {0} - {1} not found!, removing from DB...".format(
                         app['name'], app['id']
                     ))
-                    self.applications.append(app)
+                    self._db.applications.delete_one({'id': app['id']})
+        print("Initialization completed!")
 
     def createApplication(self, app_name, app_path, app_creation_script, app_execution_script):
         # Check if config is valid
@@ -68,11 +87,11 @@ class Storage(object):
         self.lock = True
 
         # Check if application name exists
-        for app in self.applications:
-            if app['name'] == app_name:
-                print('App "{0}" already exists.'.format(app_name))
-                self.lock = False
-                return app['id']
+        cursor = self._db.applications.find({'name': app_name})
+        for app in cursor:
+            print('App "{0}" already exists.'.format(app_name))
+            self.lock = False
+            return app['id']
 
         # Create UUID for application
         id = str(uuid.uuid1())
@@ -91,6 +110,7 @@ class Storage(object):
 
         # Create application data
         app = {
+            '_id': id,
             'id': id,
             'name': app_name,
             'desc': "Description...",
@@ -118,7 +138,7 @@ class Storage(object):
         gevent.subprocess.call(["git", "commit", "-q", "-m", "'Application created'"], cwd=dst_path)
 
         # Add application to DB
-        self.applications.append(app)
+        self._db.applications.insert_one(app)
 
         self.lock = False
         ########################
@@ -138,10 +158,8 @@ class Storage(object):
         return labels
 
     def getApplication(self, app_id):
-
-        for app in self.applications:
-            if app['id'] == app_id:
-                return app
+        for app in self._db.applications.find({'id': app_id}):
+            return app
         return None
 
     def createExperiment(self, name, app_id, exec_env, labels):
@@ -151,8 +169,10 @@ class Storage(object):
             raise Exception("Application ID does not exists")
 
         # Create experiment metadata
+        id = str(uuid.uuid1())
         experiment = {
-            'id': str(uuid.uuid1()),
+            '_id': id,
+            'id': id,
             'name': name,
             'desc': "Description...",
             'app_id': app['id'],
@@ -178,7 +198,7 @@ class Storage(object):
         # Set public URL
         experiment['public_url'] = self.getExperimentPublicURL(experiment)
 
-        self.experiments.append(experiment)
+        self._db.experiments.insert_one(experiment)
         self.lock = False
         ########################
         print('Experiment {0} created.'.format(experiment['id']))
@@ -195,9 +215,8 @@ class Storage(object):
 
     def getExperiment(self, experiment_id):
         # Search experiment
-        for exp in self.experiments:
-            if exp['id'] == experiment_id:
-                return exp
+        for exp in self._db.experiments.find({'id': experiment_id}):
+            return exp
         return None
 
     def _replaceLabelsInFile(self, file, labels):
