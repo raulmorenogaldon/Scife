@@ -12,15 +12,51 @@ console.log('Conecting to minion-url: ' + constants.MINION_URL +
 minionClient.connect(constants.MINION_URL);
 storageClient.connect(constants.STORAGE_URL);
 
-router.get('/', function (req, res, next) {
-  res.json({return: 'Ha solicitado el path: ' + req.baseUrl});
+
+
+router.get('/login', function(req, res, next){
+	minionClient.invoke("login", {name:"hola"}, function(error, result, more){
+		if(error){
+			console.log("Error in the request /createstorage\n"+error);
+			res.json({error:error});
+		}else{
+			res.json({result:result});
+		}
+	});
 });
+
+/*
+// The config object depends on the provider
+router.post('login', function (req, res, next) {
+  minionClient.invoke('login', {config: 'hola'}, function (error, result, more) {
+    if (error) {
+      console.log('Error in the request /createstorage\n' + error);
+      res.json({error: error});
+    } else {
+      res.json({result: result});
+    }
+  });
+});
+*/
 
 /**
  * Get image list from the server
  */
 router.get('/images', function (req, res, next) {
   minionClient.invoke('getImages', function (error, result, more) {
+    if (error) {
+      console.log('Error in the request /images');
+      res.json({error: error});
+    }
+    res.json(result);
+  });
+});
+
+/**
+ * Get image list from the server
+ */
+router.get('/images/:image_id', function (req, res, next) {
+  minionClient.invoke('findImage', {image_id:req.params.image_id}, function (error, result, more) {
     if (error) {
       console.log('Error in the request /images');
       res.json({error: error});
@@ -55,18 +91,6 @@ router.get('/instances', function (req, res, next) {
   });
 });
 
-/**
- * Return the imagen whose id is passed in the url get method
- */
-router.get('/image/:idImage', function (req, res, next) {
-  minionClient.invoke('getInstances', function (error, result, more) {
-    if (error) {
-      console.log('Error in the request /image/:idImage');
-      res.json({error: error});
-    }
-    res.json(result);
-  });
-});
 
 router.post('/createstorage', function (req, res, next) {
   console.log(req.body);
@@ -85,30 +109,6 @@ router.post('/createstorage', function (req, res, next) {
   }
 });
 
-/*
-router.get('/login', function(req, res, next){
-	minionClient.invoke("login", {name:"hola"}, function(error, result, more){
-		if(error){
-			console.log("Error in the request /createstorage\n"+error)
-			res.json({error:error})
-		}else{
-			res.json({result:result})
-		}
-	})
-})
-*/
-
-// The config object depends on the provider
-router.post('login', function (req, res, next) {
-  minionClient.invoke('login', {config: 'hola'}, function (error, result, more) {
-    if (error) {
-      console.log('Error in the request /createstorage\n' + error);
-      res.json({error: error});
-    } else {
-      res.json({result: result});
-    }
-  });
-});
 
 /**
  * Return a Json object named result with a list of sizes 
