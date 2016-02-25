@@ -9,6 +9,8 @@ import paramiko
 
 from urlparse import urlparse
 
+import pymongo
+from pymongo import MongoClient
 
 class ClusterMinion(minion.Minion):
     """Class definition."""
@@ -16,36 +18,73 @@ class ClusterMinion(minion.Minion):
     def __init__(self):
         """Init function."""
         print("Initializing Cluster minion...")
-        self.connected = False
+        self._connected = False
 
-        # Initialize list of images
-        self.images = []
+        # Connect to DB (default "localhost")
+        # db vars must be private to avoid zerorpc errors
+        print("Connecting to DB...")
+        try:
+            self._db_client = MongoClient()
+            self._db = self._db_client.test_db
+        except Exception as e:
+            print("Failed to get Storage database, reason: ", e)
+            raise e
 
-        # Initialize list of sizes
-        self.sizes = []
+        try:
+            self._db.images.create_index([
+                ('id', pymongo.ASCENDING),
+                ('name', pymongo.ASCENDING),
+                ('minion', pymongo.ASCENDING)
+            ], unique=True)
+            self._db.sizes.create_index([
+                ('id', pymongo.ASCENDING),
+                ('name', pymongo.ASCENDING),
+                ('minion', pymongo.ASCENDING)
+            ], unique=True)
+            self._db.instances.create_index([
+                ('id', pymongo.ASCENDING),
+                ('name', pymongo.ASCENDING),
+                ('minion', pymongo.ASCENDING)
+            ], unique=True)
+        except Exception as e:
+            print("Failed to create DB index, reason: ", e)
+            raise e
 
-        # Initialize list of instances
-        self.instances = []
+        # Locks
+        self._login_lock = False
+        self._instance_lock = {}
+
+        # SSH connections
+        self._instance_ssh = {}
 
         # Command to load bash environment in SSH
-        self.cmd_env = ". /etc/profile; . ~/.bash_profile"
+        self._cmd_env = ". /etc/profile; . ~/.bash_profile"
         print("Initialization completed!")
 
     def login(self, config):
         """Login to cluster using SSH."""
-        if self.connected:
+
+        ####################
+        # Set the lock for login
+        while self._login_lock:
+            gevent.sleep(0)
+        self._login_lock = True
+
+        # Check if already connected
+        if self._connected:
             print("Already connected...")
+            self._login_lock = False
             return 0
 
         # Connect to provider
-        self.config = config
+        self._config = config
 
         # Params
-        url = self.config['url']
-        username = self.config['username']
-        if 'password' not in self.config:
-            self.config['password'] = None
-        password = self.config['password']
+        url = self._config['url']
+        username = self._config['username']
+        if 'password' not in self._config:
+            self._config['password'] = None
+        password = self._config['password']
 
         # Get command line
         ssh = self._retrieveSSH(url, username, password)
@@ -64,20 +103,26 @@ class ClusterMinion(minion.Minion):
         ssh.close()
 
         # Set connected
-        self.connected = 1
+        self._connected = 1
+
+        self._login_lock = False
+        ####################
 
         return
 
     def createSize(self, size_cfg):
         """Create a new size and assign an UUID."""
+        id = str(uuid.uuid1())
         size = {
-            "id": str(uuid.uuid1()),
+            "_id": id,
+            "id": id,
             "name": size_cfg['name'],
             "desc": "Description",
             "cpus": size_cfg['cpus'],
-            "ram": size_cfg['ram']
+            "ram": size_cfg['ram'],
+            "minion": self.__class__.__name__
         }
-        self.sizes.append(size)
+        self._db.sizes.insert_one(size)
         print("Created size:")
         print(size)
         return size['id']
@@ -101,38 +146,47 @@ class ClusterMinion(minion.Minion):
         print("--> Size : {0}".format(size))
 
         # Get instance as a SSH connection
-        url = self.config['url']
-        username = self.config['username']
-        password = self.config['password']
+        url = self._config['url']
+        username = self._config['username']
+        password = self._config['password']
         ssh = self._retrieveSSH(url, username, password)
 
         # Save instance
+        id = str(uuid.uuid1())
         instance = {
-            'id': str(uuid.uuid1()),
+            '_id': id,
+            'id': id,
             'name': name,
             'image_id': image_id,
             'size_id': size_id,
-            'ssh': ssh,
-            'lock': False,
+            'minion': self.__class__.__name__,
             'deployed': False,
             'executed': False
         }
-        self.instances.append(instance)
+        self._instance_ssh[id] = ssh
+        self._instance_lock[id] = False
+        self._db.instances.insert_one(instance)
         print('Instance "{0}" (DUMMY) created'.format(instance['id']))
 
         return instance['id']
 
     def getImages(self, filter=""):
         """Get image list using an optional name filter."""
-        return self.images
+        return list(
+            self._db.images.find({'minion': self.__class__.__name__})
+        )
 
     def getSizes(self, filter=""):
         """Get size list using an optional name filter."""
-        return self.sizes
+        return list(
+            self._db.sizes.find({'minion': self.__class__.__name__})
+        )
 
     def getInstances(self, filter=""):
         """Get instance list using an optional name filter."""
-        return self.instances
+        return list(
+            self._db.instances.find({'minion': self.__class__.__name__})
+        )
 
     def deployExperiment(self, app, experiment, system):
         """Deploy an experiment in the cluster FS."""
@@ -142,33 +196,36 @@ class ClusterMinion(minion.Minion):
 
         # Get master instance
         instance_id = system['master']
-        instance = self.findInstance(instance_id)
 
         ####################
         # Set the lock for the instance
-        while instance['lock']:
+        while self._instance_lock[instance_id]:
             gevent.sleep(0)
-        instance['lock'] = True
+        self._instance_lock[instance_id] = True
+
+        # Get instance
+        instance = self.findInstance(instance_id)
 
         # Check if instance is already deployed
         if instance['deployed']:
-            instance['lock'] = False
+            self._instance_lock[instance_id] = False
             raise Exception("Experiment {0} is already deployed in instance {1}".format(
                 experiment['id'], instance['id']
             ))
 
+        # Get instance command line
+        ssh = self._instance_ssh[instance_id]
+        if ssh is None:
+            self._instance_lock[instance_id] = False
+            raise Exception("Instance without SSH")
+
         # Get size
         size = self.findSize(instance['size_id'])
-
-        # Get instance command line
-        ssh = instance['ssh']
-        if ssh is None:
-            raise Exception("Instance without SSH")
 
         # Copy experiment in FS
         experiment_url = experiment['public_url']
         cmd = "git clone -b {0} {1} {2}/{3}".format(
-            experiment['id'], experiment_url, self.workspace, experiment['id']
+            experiment['id'], experiment_url, self._workspace, experiment['id']
         )
         print("Cloning: {0}".format(cmd))
         task = gevent.spawn(self._executeSSH, ssh, cmd)
@@ -176,13 +233,13 @@ class ClusterMinion(minion.Minion):
 
         # Init EXPERIMENT_STATUS
         cmd = 'echo -n "initialized" > {0}/{1}/EXPERIMENT_STATUS'.format(
-            self.workspace, experiment['id']
+            self._workspace, experiment['id']
         )
         task = gevent.spawn(self._executeSSH, ssh, cmd)
         gevent.joinall([task])
 
         # PBS command for compile creation
-        work_dir = "{0}/{1}".format(self.workspace, experiment['id'])
+        work_dir = "{0}/{1}".format(self._workspace, experiment['id'])
         exe_script = """
             #!/bin/sh
             cd {0}
@@ -200,7 +257,7 @@ class ClusterMinion(minion.Minion):
             1, size['cpus'], size['ram'], work_dir
         )
         cmd = '{0}; echo "{1}" | {2} '.format(
-            self.cmd_env, exe_script, qsub_cmd
+            self._cmd_env, exe_script, qsub_cmd
         )
 
         # Execute creation
@@ -211,8 +268,12 @@ class ClusterMinion(minion.Minion):
         task = gevent.spawn(self._executeSSH, ssh, cmd)
         gevent.joinall([task])
 
-        instance['deployed'] = True
-        instance['lock'] = False
+        # Update in DB
+        self._db.instances.update_one(
+            {'id': instance_id},
+            {"$set": {"deployed": True}}
+        )
+        self._instance_lock[instance_id] = False
         ####################
 
     def executeExperiment(self, app, experiment, system):
@@ -223,17 +284,19 @@ class ClusterMinion(minion.Minion):
 
         # Get instance
         instance_id = system['master']
-        instance = self.findInstance(instance_id)
 
         ####################
         # Set the lock for the instance
-        while instance['lock']:
+        while self._instance_lock[instance_id]:
             gevent.sleep(0)
-        instance['lock'] = True
+        self._instance_lock[instance_id] = True
+
+        # Get instance
+        instance = self.findInstance(instance_id)
 
         # Check if instance is already executed
         if instance['executed']:
-            instance['lock'] = False
+            self._instance_lock[instance_id] = False
             raise Exception("Experiment {0} is already executed in instance {1}".format(
                 experiment['id'], instance['id']
             ))
@@ -241,13 +304,14 @@ class ClusterMinion(minion.Minion):
         # Get instance command line
         ssh = instance['ssh']
         if ssh is None:
+            self._instance_lock[instance_id] = False
             raise Exception("Instance without SSH")
 
         # Get size
         size = self.findSize(instance['size_id'])
 
         # Create PBS script for experiment
-        work_dir = "{0}/{1}".format(self.workspace, experiment['id'])
+        work_dir = "{0}/{1}".format(self._workspace, experiment['id'])
         exe_script = """
             #!/bin/bash
             cd {0}
@@ -265,7 +329,7 @@ class ClusterMinion(minion.Minion):
             len(system['instances']), size['cpus'], size['ram'], work_dir
         )
         cmd = '{0}; echo "{1}" | {2} '.format(
-            self.cmd_env, exe_script, qsub_cmd
+            self._cmd_env, exe_script, qsub_cmd
         )
 
         # Execute experiment
@@ -276,8 +340,12 @@ class ClusterMinion(minion.Minion):
         task = gevent.spawn(self._executeSSH, ssh, cmd)
         gevent.joinall([task])
 
-        instance['executed'] = True
-        instance['lock'] = False
+        # Update in DB
+        self._db.instances.update_one(
+            {'id': instance_id},
+            {"$set": {"executed": True}}
+        )
+        self._instance_lock[instance_id] = False
         ####################
 
     def pollExperiment(self, experiment, system):
@@ -285,21 +353,21 @@ class ClusterMinion(minion.Minion):
 
         # Get instance
         instance_id = system['master']
-        instance = self.findInstance(instance_id)
 
         ####################
         # Set the lock for the instance
-        while instance['lock']:
+        while self._instance_lock[instance_id]:
             gevent.sleep(0)
-        instance['lock'] = True
+        self._instance_lock[instance_id] = True
 
         # Get instance command line
-        ssh = instance['ssh']
+        ssh = self._instance_ssh[instance_id]
         if ssh is None:
+            self._instance_lock[instance_id] = False
             raise Exception("Instance without SSH")
 
         # Check status
-        work_dir = "{0}/{1}".format(self.workspace, experiment['id'])
+        work_dir = "{0}/{1}".format(self._workspace, experiment['id'])
         cmd = 'cat {0}/EXPERIMENT_STATUS'.format(work_dir)
         task = gevent.spawn(self._executeSSH, ssh, cmd)
         gevent.joinall([task])
@@ -307,52 +375,89 @@ class ClusterMinion(minion.Minion):
         if status == "":
             status = None
 
-        instance['lock'] = False
+        self._instance_lock[instance_id] = False
         ####################
 
         return status
 
     def findImage(self, image_id):
         """Return image data"""
-        for image in self.images:
-            if image['id'] == image_id:
-                return image
+        for img in self._db.images.find({
+            'id': image_id,
+            'minion': self.__class__.__name__
+        }):
+            return img
         return None
 
     def findSize(self, size_id):
         """Return size data"""
-        for size in self.sizes:
-            if size['id'] == size_id:
-                return size
+        for size in self._db.sizes.find({
+            'id': size_id,
+            'minion': self.__class__.__name__
+        }):
+            return size
         return None
 
     def findInstance(self, inst_id):
         """Return instance data"""
-        for inst in self.instances:
-            if inst['id'] == inst_id:
-                return inst
+        for instance in self._db.instances.find({
+            'id': inst_id,
+            'minion': self.__class__.__name__
+        }):
+            return instance
         return None
 
     """ Private functions """
     def _loadConfig(self, config):
         print("Loading config...")
-        print("Images:")
+
+        # Get existing data from DB
+        prev_images = self._db.images.find({'minion': self.__class__.__name__})
+        prev_sizes = self._db.sizes.find({'minion': self.__class__.__name__})
+
         # Parse images
+        print("Parsing images...")
         for image in config['images']:
-            image['id'] = str(uuid.uuid1())
-            print(image)
-            self.images.append(image)
+            # Check if already exists
+            found = False
+            for prev_img in prev_images:
+                if image['name'] == prev_img['name']:
+                    # Found!
+                    found = True
+                    print('-- Image "{0}" already exists'.format(image['name']))
+                    break
+            if not found:
+                id = str(uuid.uuid1())
+                image['_id'] = id
+                image['id'] = id
+                image['minion'] = self.__class__.__name__
+                print("-- Adding image: {0}".format(image))
+                self._db.images.insert_one(image)
 
         # Parse sizes
-        print("Sizes:")
+        print("Parsing sizes...")
         for size in config['sizes']:
-            size['id'] = str(uuid.uuid1())
-            print(size)
-            self.sizes.append(size)
+            # Check if already exists
+            found = False
+            for prev_size in prev_sizes:
+                if size['name'] == prev_size['name'] \
+                    and size['cpus'] == prev_size['cpus'] \
+                        and size['ram'] == prev_size['ram']:
+                    # Found!
+                    found = True
+                    print('-- Size "{0}" already exists'.format(size['name']))
+                    break
+            if not found:
+                id = str(uuid.uuid1())
+                size['_id'] = id
+                size['id'] = id
+                size['minion'] = self.__class__.__name__
+                print("-- Adding size: {0}".format(size))
+                self._db.sizes.insert_one(size)
 
         # Parse working directory path
-        self.workspace = config['workspace']
-        print("Workspace: {0}".format(self.workspace))
+        self._workspace = config['workspace']
+        print("Workspace: {0}".format(self._workspace))
         print("Config loaded!")
 
     def _retrieveSSH(self, url, username, password=None):
