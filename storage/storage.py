@@ -100,13 +100,13 @@ class Storage(object):
         src_path = app_path
 
         # Get destination path and create it
-        dst_path = self.path + "/" + id + "/"
+        dst_path = self.path + "/" + id
 
         # Copy application to storage
         print('Copying app "{0}": {1} --> {2}'.format(
             app_path, src_path, dst_path
         ))
-        shutil.copytree(src_path, dst_path)
+        gevent.subprocess.call(["scp", "-r", src_path, dst_path])
 
         # Create application data
         app = {
