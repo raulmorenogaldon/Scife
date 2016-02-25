@@ -1,8 +1,9 @@
 import json
+import getopt
 import gevent.subprocess
 import os
 import re
-import shutil
+import sys
 import uuid
 import zerorpc
 
@@ -300,10 +301,40 @@ class Storage(object):
 # Execute this only if called directly from python command
 # From now RPC is waiting for requests
 if __name__ == "__main__":
+    # Get arguments
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "hc:", ["cfg="])
+        if len(opts) == 0:
+            raise getopt.GetoptError("Please, specify configuration file with -c")
+    except getopt.GetoptError as e:
+        # Not valid arguments
+        print(e)
+        print("Usage: python -m storage.storage -c <config_file>")
+        sys.exit(2)
+
+    # Iterate arguments
+    for opt, arg in opts:
+        if opt == '-h':
+            print("python -m storage.storage -c <config_file>")
+            sys.exit()
+        elif opt in ("-c", "--cfg"):
+            cfg_file = arg
+
+    print("Config file: {0}".format(cfg_file))
+
+    # Check if config file exists
+    if os.path.isfile(cfg_file):
+        with open(cfg_file) as f:
+            cfg = json.load(f)
+    else:
+        print("Inexistent file: {0}".format(cfg_file))
+        sys.exit(3)
+
+    # Read configuration file
     rpc = zerorpc.Server(Storage(
-        path="/home/devstack/datastorage",
-        public_url="161.67.100.29",
-        username="devstack"
+        path=cfg['path'],
+        public_url=cfg['public_url'],
+        username=cfg['username']
     ), heartbeat=30)
     rpc.bind("tcp://0.0.0.0:8237")
     rpc.run()
