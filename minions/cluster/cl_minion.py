@@ -302,7 +302,7 @@ class ClusterMinion(minion.Minion):
             ))
 
         # Get instance command line
-        ssh = instance['ssh']
+        ssh = self._instance_ssh[instance_id]
         if ssh is None:
             self._instance_lock[instance_id] = False
             raise Exception("Instance without SSH")
