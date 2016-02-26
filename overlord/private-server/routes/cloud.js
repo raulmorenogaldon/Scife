@@ -182,5 +182,84 @@ router.get('/images/:image_id', function (req, res, next) {
   });
 });
 
+/**
+ * Get applications from the storage
+ * @return {[Object]} - A json Object with application metadata
+ */
+router.get('/applications', function (req, res, next) {
+  storageClient.invoke('getApplications', function (error, result, more) {
+    if (error) {
+      console.log('Error in the request /applications');
+      res.json({error: error});
+    }
+    res.json(result);
+  });
+});
+
+/**
+ * Get application metadata from the storage using its ID
+ * @param {String} - The application id.
+ * @return {[Object]} - A json Object with application metadata
+ */
+router.get('/applications/:app_id', function (req, res, next) {
+  storageClient.invoke('findApplication', req.params.app_id, function (error, result, more) {
+    if (error) {
+      console.log('Error in the request /applications');
+      res.json({error: error});
+    }
+    res.json(result);
+  });
+});
+
+/**
+ * Get experiments from the storage
+ * @return {[Object]} - A json Object with experiments metadata
+ */
+router.get('/experiments', function (req, res, next) {
+  storageClient.invoke('getExperiments', function (error, result, more) {
+    if (error) {
+      console.log('Error in the request /experiments');
+      res.json({error: error});
+    }
+    res.json(result);
+  });
+});
+
+/**
+ * Get experiment metadata from the storage using its ID
+ * @param {String} - The experiment id.
+ * @return {[Object]} - A json Object with experiment metadata
+ */
+router.get('/experiments/:exp_id', function (req, res, next) {
+  storageClient.invoke('findExperiment', req.params.exp_id, function (error, result, more) {
+    if (error) {
+      console.log('Error in the request /experiments');
+      res.json({error: error});
+    }
+    res.json(result);
+  });
+});
+
+/**
+ * This method allow to create a new application.
+ * @param {Object} - A json Object with application metadata
+ * @return {[Object]} - A json Object with application ID
+ */
+router.post('/createapplication', function (req, res, next) {
+  if (!req.body.name || !req.body.desc || !req.body.path || !req.body.creation_script || !req.body.execution_script) {
+    res.json({error: 'Error, you must pass the name, description, input app folder, creation and execution scripts.'});
+  } else {
+	console.log("Creating application: ", req.body);
+    storageClient.invoke('createApplication', req.body,
+      function (error, result, more) {
+        if (error) {
+          console.log('Error in the request /createinstance\n' + error);
+          res.json({error: error});
+        } else {
+          res.json({result: result});
+        }
+      });
+  }
+});
 
 module.exports = router;
