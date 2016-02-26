@@ -158,14 +158,17 @@ class Storage(object):
         print("Found: {0}".format(labels))
         return labels
 
-    def getApplication(self, app_id):
+    def findApplication(self, app_id):
         for app in self._db.applications.find({'id': app_id}):
             return app
         return None
 
+    def getApplications(self, filter=""):
+        return list(self._db.applications.find())
+
     def createExperiment(self, name, app_id, exec_env, labels):
         # Retrieve application
-        app = self.getApplication(app_id)
+        app = self.findApplication(app_id)
         if app is None:
             raise Exception("Application ID does not exists")
 
@@ -214,11 +217,14 @@ class Storage(object):
 
         return url
 
-    def getExperiment(self, experiment_id):
+    def findExperiment(self, experiment_id):
         # Search experiment
         for exp in self._db.experiments.find({'id': experiment_id}):
             return exp
         return None
+
+    def getExperiments(self, filter=""):
+        return list(self._db.experiments.find())
 
     def _replaceLabelsInFile(self, file, labels):
         print("Replacing labels in file: {0}".format(file))
