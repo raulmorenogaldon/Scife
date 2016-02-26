@@ -74,7 +74,14 @@ class Storage(object):
                     self._db.applications.delete_one({'id': app['id']})
         print("Initialization completed!")
 
-    def createApplication(self, app_name, app_path, app_creation_script, app_execution_script):
+    def createApplication(self, app_cfg):
+        # Get parameters
+        app_name = app_cfg['name']
+        app_desc = app_cfg['desc']
+        app_creation_script = app_cfg['creation_script']
+        app_execution_script = app_cfg['execution_script']
+        app_path = app_cfg['path']
+
         # Check if config is valid
         if not(os.path.isdir(app_path)):
             raise IOError("Invalid input path, does not exists: {0}".format(
@@ -114,7 +121,7 @@ class Storage(object):
             '_id': id,
             'id': id,
             'name': app_name,
-            'desc': "Description...",
+            'desc': app_desc,
             'creation_script': app_creation_script,
             'execution_script': app_execution_script,
         }
