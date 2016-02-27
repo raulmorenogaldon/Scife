@@ -3,6 +3,7 @@ node_modules
 *.pyc
 .DS_Store
 **/lib
+lib
 
 # Node and related ecosystem
 # ==========================
