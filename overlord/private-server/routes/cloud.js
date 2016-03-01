@@ -142,7 +142,7 @@ router.get('/instances', function (req, res, next) {
 router.get('/instances/:instance_id', function (req, res, next) {
    minionClient.invoke('findInstance',req.params.image_id, function (error, result, more) {
       if (error) {
-         console.log('Error in the request /images');
+         console.log('Error in the request /instances');
          res.status(500); //Internal server error
          res.json(error);
       }
@@ -310,6 +310,29 @@ router.get('/experiments/:exp_id', function (req, res, next) {
       }
       res.json(result);
    });
+});
+
+/**
+ * This method allow to create a new experiment.
+ * @param {Object} - A json Object with experiment metadata
+ * @return {[Object]} - A json Object with experiment ID
+ */
+router.post('/createexperiment', function (req, res, next) {
+   if (!req.body.name || !req.body.desc || !req.body.app_id || !req.body.labels) {
+      res.status(400); //Bad request
+      res.json({error: 'Error, you must pass the name, description, application id and an array of labels.'});
+   } else {
+      console.log("Creating experiment: ", req.body);
+      storageClient.invoke('createExperiment', req.body, function (error, result, more) {
+         if (error) {
+            console.log('Error in the request /createexperiment\n' + error);
+            res.status(500); //Internal server error
+            res.json(error);
+         } else {
+            res.json(result);
+         }
+      });
+   }
 });
 
 module.exports = router;
