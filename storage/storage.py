@@ -175,12 +175,19 @@ class Storage(object):
     def getApplications(self, filter=""):
         return list(self._db.applications.find())
 
-    def createExperiment(self, name, app_id, exec_env, labels):
+    def createExperiment(self, exp_cfg):
+        # Get parameters
+        exp_name = exp_cfg['name']
+        exp_desc = exp_cfg['desc']
+        exp_app_id = exp_cfg['app_id']
+        exp_labels = exp_cfg['labels']
+        exp_exec_env = exp_cfg['exec_env']
+
         # Retrieve application
-        app = self.findApplication(app_id)
+        app = self.findApplication(exp_app_id)
         if app is None:
             raise Exception('Application ID: "{0}", does not exists'.format(
-                app_id
+                exp_app_id
             ))
 
         # Create experiment metadata
@@ -188,11 +195,11 @@ class Storage(object):
         experiment = {
             '_id': id,
             'id': id,
-            'name': name,
-            'desc': "Description...",
-            'app_id': app['id'],
-            'exec_env': exec_env,
-            'labels': labels
+            'name': exp_name,
+            'desc': exp_desc,
+            'app_id': exp_app_id,
+            'exec_env': exp_exec_env,
+            'labels': exp_labels
         }
 
         # Get application storage path
