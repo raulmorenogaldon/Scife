@@ -12,9 +12,15 @@ console.log('Conecting to minion-url: ' + constants.MINION_URL +
 minionClient.connect(constants.MINION_URL);
 storageClient.connect(constants.STORAGE_URL);
 
+/***********************************************************
+ * --------------------------------------------------------
+ * LOGIN METHODS
+ * --------------------------------------------------------
+ ***********************************************************/
+
 // The config object depends on the provider
 router.get('/login', function(req, res, next){
-   minionClient.invoke("login", {name:"hola"}, function(error, result, more){
+   minionClient.invoke("login", {}, function(error, result, more){
       if(error){
          console.log("Error in the request /login");
          res.status(500); //Internal server error
@@ -28,16 +34,22 @@ router.get('/login', function(req, res, next){
 /*
 // The config object depends on the provider
 router.post('login', function (req, res, next) {
-minionClient.invoke('login', {config: 'hola'}, function (error, result, more) {
-if (error) {
-console.log('Error in the request /createstorage\n' + error);
-res.json({error: error});
-} else {
-res.json({result: result});
-}
-});
+   minionClient.invoke('login', {config: 'hola'}, function (error, result, more) {
+      if (error) {
+         console.log('Error in the request /createstorage\n' + error);
+         res.json({error: error});
+      } else {
+         res.json({result: result});
+      }
+   });
 });
 */
+
+/***********************************************************
+ * --------------------------------------------------------
+ * SIZE METHODS
+ * --------------------------------------------------------
+ ***********************************************************/
 
 /**
  * Return a list with the sizes in the server.
@@ -100,6 +112,11 @@ router.post('/createsize', function (req, res, next) {
    }
 });
 
+/***********************************************************
+ * --------------------------------------------------------
+ * INSTANCE METHODS
+ * --------------------------------------------------------
+ ***********************************************************/
 
 /**
  * Get a instance list from the server.
@@ -161,6 +178,12 @@ router.post('/createinstance', function (req, res, next) {
    }
 });
 
+/***********************************************************
+ * --------------------------------------------------------
+ * IMAGE METHODS
+ * --------------------------------------------------------
+ ***********************************************************/
+
 /**
  * Get image list from the server
  * @return {[Object]} - A  list of json objects with she follow strucutre: [{"id":"image id", "name":"name", "desc":"description"}]
@@ -191,6 +214,12 @@ router.get('/images/:image_id', function (req, res, next) {
       res.json(result);
    });
 });
+
+/***********************************************************
+ * --------------------------------------------------------
+ * APPLICATION METHODS
+ * --------------------------------------------------------
+ ***********************************************************/
 
 /**
  * Get applications from the storage
@@ -224,6 +253,35 @@ router.get('/applications/:app_id', function (req, res, next) {
 });
 
 /**
+ * This method allow to create a new application.
+ * @param {Object} - A json Object with application metadata
+ * @return {[Object]} - A json Object with application ID
+ */
+router.post('/createapplication', function (req, res, next) {
+   if (!req.body.name || !req.body.desc || !req.body.path || !req.body.creation_script || !req.body.execution_script) {
+      res.status(400); //Bad request
+      res.json({error: 'Error, you must pass the name, description, input app folder, creation and execution scripts.'});
+   } else {
+      console.log("Creating application: ", req.body);
+      storageClient.invoke('createApplication', req.body, function (error, result, more) {
+         if (error) {
+            console.log('Error in the request /createapplication\n' + error);
+            res.status(500); //Internal server error
+            res.json(error);
+         } else {
+            res.json(result);
+         }
+      });
+   }
+});
+
+/***********************************************************
+ * --------------------------------------------------------
+ * EXPERIMENT METHODS
+ * --------------------------------------------------------
+ ***********************************************************/
+
+/**
  * Get experiments from the storage
  * @return {[Object]} - A json Object with experiments metadata
  */
@@ -252,29 +310,6 @@ router.get('/experiments/:exp_id', function (req, res, next) {
       }
       res.json(result);
    });
-});
-
-/**
- * This method allow to create a new application.
- * @param {Object} - A json Object with application metadata
- * @return {[Object]} - A json Object with application ID
- */
-router.post('/createapplication', function (req, res, next) {
-   if (!req.body.name || !req.body.desc || !req.body.path || !req.body.creation_script || !req.body.execution_script) {
-      res.status(400); //Bad request
-      res.json({error: 'Error, you must pass the name, description, input app folder, creation and execution scripts.'});
-   } else {
-      console.log("Creating application: ", req.body);
-      storageClient.invoke('createApplication', req.body, function (error, result, more) {
-         if (error) {
-            console.log('Error in the request /createapplication\n' + error);
-            res.status(500); //Internal server error
-            res.json(error);
-         } else {
-            res.json(result);
-         }
-      });
-   }
 });
 
 module.exports = router;
