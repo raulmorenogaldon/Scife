@@ -12,15 +12,14 @@ console.log('Conecting to minion-url: ' + constants.MINION_URL +
 minionClient.connect(constants.MINION_URL);
 storageClient.connect(constants.STORAGE_URL);
 
-
-
+// The config object depends on the provider
 router.get('/login', function(req, res, next){
 	minionClient.invoke("login", {name:"hola"}, function(error, result, more){
 		if(error){
-			console.log("Error in the request /createstorage\n"+error);
-			res.json({error:error});
+			console.log("Error in the request /login");
+			res.json(error);
 		}else{
-			res.json({result:result});
+			res.json(result);
 		}
 	});
 });
@@ -49,7 +48,7 @@ router.get('/sizes', function (req, res, next) {
   minionClient.invoke('getSizes', function (error, result, more) {
     if (error) {
       console.log('Error in the request /sizes');
-      res.json({error: error});
+      res.json(error);
     }
     res.json(result);
   });
@@ -64,7 +63,7 @@ router.get('/sizes/:size_id', function (req, res, next) {
   minionClient.invoke('findSize',req.params.size_id, function (error, result, more) {
     if (error) {
       console.log('Error in the request /sizes');
-      res.json({error: error});
+      res.json(error);
     }
     res.json(result);
   });
@@ -78,7 +77,7 @@ router.get('/sizes/:size_id', function (req, res, next) {
 router.post('/createsize', function (req, res, next) {
   if (!req.body.name || !req.body.desc || !req.body.cpus || !req.body.ram) {
     console.log(req.body);
-    res.json({error: 'Error, you must pass the name, description, cpus and ram params'});
+    res.json('Error, you must pass the name, description, cpus and ram params');
   } else {
     minionClient.invoke('createSize',
       {name: req.body.name,
@@ -88,9 +87,9 @@ router.post('/createsize', function (req, res, next) {
       function (error, result, more) {
         if (error) {
           console.log('Error in the request /createsize\n' + error);
-          res.json({error: error});
+          res.json(error);
         } else {
-          res.json({result: result});
+          res.json(result);
         }
       });
   }
@@ -106,7 +105,7 @@ router.get('/instances', function (req, res, next) {
   minionClient.invoke('getInstances', function (error, result, more) {
     if (error) {
       console.log('Error in the request /instances');
-      res.json({error: error});
+      res.json(error);
     }
     res.json(result);
   });
@@ -121,7 +120,7 @@ router.get('/instances/:instance_id', function (req, res, next) {
   minionClient.invoke('findInstance',req.params.image_id, function (error, result, more) {
     if (error) {
       console.log('Error in the request /images');
-      res.json({error: error});
+      res.json(error);
     }
     res.json(result);
   });
@@ -145,9 +144,9 @@ router.post('/createinstance', function (req, res, next) {
       function (error, result, more) {
         if (error) {
           console.log('Error in the request /createinstance\n' + error);
-          res.json({error: error});
+          res.json(error);
         } else {
-          res.json({result: result});
+          res.json(result);
         }
       });
   }
@@ -161,7 +160,7 @@ router.get('/images', function (req, res, next) {
   minionClient.invoke('getImages', function (error, result, more) {
     if (error) {
       console.log('Error in the request /images');
-      res.json({error: error});
+      res.json(error);
     }
     res.json(result);
   });
@@ -176,7 +175,7 @@ router.get('/images/:image_id', function (req, res, next) {
   minionClient.invoke('findImage', req.params.image_id, function (error, result, more) {
     if (error) {
       console.log('Error in the request /images');
-      res.json({error: error});
+      res.json(error);
     }
     res.json(result);
   });
@@ -190,7 +189,7 @@ router.get('/applications', function (req, res, next) {
   storageClient.invoke('getApplications', function (error, result, more) {
     if (error) {
       console.log('Error in the request /applications');
-      res.json({error: error});
+      res.json(error);
     }
     res.json(result);
   });
@@ -205,7 +204,7 @@ router.get('/applications/:app_id', function (req, res, next) {
   storageClient.invoke('findApplication', req.params.app_id, function (error, result, more) {
     if (error) {
       console.log('Error in the request /applications');
-      res.json({error: error});
+      res.json(error);
     }
     res.json(result);
   });
@@ -219,7 +218,7 @@ router.get('/experiments', function (req, res, next) {
   storageClient.invoke('getExperiments', function (error, result, more) {
     if (error) {
       console.log('Error in the request /experiments');
-      res.json({error: error});
+      res.json(error);
     }
     res.json(result);
   });
@@ -234,7 +233,7 @@ router.get('/experiments/:exp_id', function (req, res, next) {
   storageClient.invoke('findExperiment', req.params.exp_id, function (error, result, more) {
     if (error) {
       console.log('Error in the request /experiments');
-      res.json({error: error});
+      res.json(error);
     }
     res.json(result);
   });
@@ -254,9 +253,9 @@ router.post('/createapplication', function (req, res, next) {
       function (error, result, more) {
         if (error) {
           console.log('Error in the request /createinstance\n' + error);
-          res.json({error: error});
+          res.json(error);
         } else {
-          res.json({result: result});
+          res.json(result);
         }
       });
   }
