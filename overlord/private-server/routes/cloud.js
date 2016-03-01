@@ -17,6 +17,7 @@ router.get('/login', function(req, res, next){
 	minionClient.invoke("login", {name:"hola"}, function(error, result, more){
 		if(error){
 			console.log("Error in the request /login");
+	        res.status(500); //Internal server error
 			res.json(error);
 		}else{
 			res.json(result);
@@ -48,6 +49,7 @@ router.get('/sizes', function (req, res, next) {
   minionClient.invoke('getSizes', function (error, result, more) {
     if (error) {
       console.log('Error in the request /sizes');
+	  res.status(500); //Internal server error
       res.json(error);
     }
     res.json(result);
@@ -63,6 +65,7 @@ router.get('/sizes/:size_id', function (req, res, next) {
   minionClient.invoke('findSize',req.params.size_id, function (error, result, more) {
     if (error) {
       console.log('Error in the request /sizes');
+	  res.status(500); //Internal server error
       res.json(error);
     }
     res.json(result);
@@ -77,6 +80,7 @@ router.get('/sizes/:size_id', function (req, res, next) {
 router.post('/createsize', function (req, res, next) {
   if (!req.body.name || !req.body.desc || !req.body.cpus || !req.body.ram) {
     console.log(req.body);
+	res.status(400); //Bad request
     res.json('Error, you must pass the name, description, cpus and ram params');
   } else {
     minionClient.invoke('createSize',
@@ -87,6 +91,7 @@ router.post('/createsize', function (req, res, next) {
       function (error, result, more) {
         if (error) {
           console.log('Error in the request /createsize\n' + error);
+	      res.status(500); //Internal server error
           res.json(error);
         } else {
           res.json(result);
@@ -105,6 +110,7 @@ router.get('/instances', function (req, res, next) {
   minionClient.invoke('getInstances', function (error, result, more) {
     if (error) {
       console.log('Error in the request /instances');
+	  res.status(500); //Internal server error
       res.json(error);
     }
     res.json(result);
@@ -120,6 +126,7 @@ router.get('/instances/:instance_id', function (req, res, next) {
   minionClient.invoke('findInstance',req.params.image_id, function (error, result, more) {
     if (error) {
       console.log('Error in the request /images');
+	  res.status(500); //Internal server error
       res.json(error);
     }
     res.json(result);
@@ -134,6 +141,7 @@ router.get('/instances/:instance_id', function (req, res, next) {
  */
 router.post('/createinstance', function (req, res, next) {
   if (!req.body.name || !req.body.desc || !req.body.imageId || !req.body.sizeId) {
+	res.status(400); //Bad request
     res.json({error: 'Error, you must pass the name, description, image id and size id params'});
   } else {
     minionClient.invoke('createInstance',
@@ -160,6 +168,7 @@ router.get('/images', function (req, res, next) {
   minionClient.invoke('getImages', function (error, result, more) {
     if (error) {
       console.log('Error in the request /images');
+	  res.status(500); //Internal server error
       res.json(error);
     }
     res.json(result);
@@ -175,6 +184,7 @@ router.get('/images/:image_id', function (req, res, next) {
   minionClient.invoke('findImage', req.params.image_id, function (error, result, more) {
     if (error) {
       console.log('Error in the request /images');
+	  res.status(500); //Internal server error
       res.json(error);
     }
     res.json(result);
@@ -189,6 +199,7 @@ router.get('/applications', function (req, res, next) {
   storageClient.invoke('getApplications', function (error, result, more) {
     if (error) {
       console.log('Error in the request /applications');
+	  res.status(500); //Internal server error
       res.json(error);
     }
     res.json(result);
@@ -204,6 +215,7 @@ router.get('/applications/:app_id', function (req, res, next) {
   storageClient.invoke('findApplication', req.params.app_id, function (error, result, more) {
     if (error) {
       console.log('Error in the request /applications');
+	  res.status(500); //Internal server error
       res.json(error);
     }
     res.json(result);
@@ -218,6 +230,7 @@ router.get('/experiments', function (req, res, next) {
   storageClient.invoke('getExperiments', function (error, result, more) {
     if (error) {
       console.log('Error in the request /experiments');
+	  res.status(500); //Internal server error
       res.json(error);
     }
     res.json(result);
@@ -233,6 +246,7 @@ router.get('/experiments/:exp_id', function (req, res, next) {
   storageClient.invoke('findExperiment', req.params.exp_id, function (error, result, more) {
     if (error) {
       console.log('Error in the request /experiments');
+	  res.status(500); //Internal server error
       res.json(error);
     }
     res.json(result);
@@ -246,6 +260,7 @@ router.get('/experiments/:exp_id', function (req, res, next) {
  */
 router.post('/createapplication', function (req, res, next) {
   if (!req.body.name || !req.body.desc || !req.body.path || !req.body.creation_script || !req.body.execution_script) {
+	res.status(400); //Bad request
     res.json({error: 'Error, you must pass the name, description, input app folder, creation and execution scripts.'});
   } else {
 	console.log("Creating application: ", req.body);
@@ -253,6 +268,7 @@ router.post('/createapplication', function (req, res, next) {
       function (error, result, more) {
         if (error) {
           console.log('Error in the request /createinstance\n' + error);
+	      res.status(500); //Internal server error
           res.json(error);
         } else {
           res.json(result);
