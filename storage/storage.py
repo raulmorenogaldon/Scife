@@ -10,6 +10,7 @@ import zerorpc
 import pymongo
 from pymongo import MongoClient
 
+
 class Storage(object):
     """Class to handle application storage in standard a FS."""
 
@@ -97,9 +98,10 @@ class Storage(object):
         # Check if application name exists
         cursor = self._db.applications.find({'name': app_name})
         for app in cursor:
-            print('App "{0}" already exists.'.format(app_name))
             self.lock = False
-            return app['id']
+            raise Exception('App "{0}" already exists.'.format(
+                app_name
+            ))
 
         # Create UUID for application
         id = str(uuid.uuid1())
@@ -177,7 +179,9 @@ class Storage(object):
         # Retrieve application
         app = self.findApplication(app_id)
         if app is None:
-            raise Exception("Application ID does not exists")
+            raise Exception('Application ID: "{0}", does not exists'.format(
+                app_id
+            ))
 
         # Create experiment metadata
         id = str(uuid.uuid1())
