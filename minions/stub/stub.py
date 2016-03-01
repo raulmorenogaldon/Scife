@@ -38,13 +38,17 @@ class StubMinion(minion.Minion):
 
         # Load stub config
         print("Loading config...")
-        print("Images:")
         self.images.append({
             'id': str(uuid.uuid1()),
             'name': "Stub image",
-            'desc': "Description"
+            'desc': "Description",
+            'inputpath': "/home/image/input",
+            'libpath': "/lib",
+            'tmppath': "/tmp"
         })
-        print("Sizes:")
+        print("Images:")
+        for image in self.images:
+            print("- {0} - {1}".format(image['name'], image['id']))
         size = ({
             'id': str(uuid.uuid1()),
             'name': "Stub size",
@@ -53,9 +57,19 @@ class StubMinion(minion.Minion):
             'ram': 4096
         })
         self.sizes.append(size)
+        size = ({
+            'id': str(uuid.uuid1()),
+            'name': "Stub size",
+            'desc': "Description",
+            'cpus': 2,
+            'ram': 2048
+        })
         self.sizes.append(size)
-        self.sizes.append(size)
-        self.sizes.append(size)
+        print("Sizes:")
+        for size in self.sizes:
+            print("- {0} - {1}, CPUS: {2}, RAM: {3}".format(
+                size['name'], size['id'], size['cpus'], size['ram']
+            ))
 
         # Set connected
         self.connected = 1
