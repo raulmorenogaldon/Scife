@@ -89,7 +89,7 @@ router.get('/sizes/:size_id', function (req, res, next) {
  * @return {Object} - A json object with the follow structure: {"result":"id of the size"}
  */
 router.post('/createsize', function (req, res, next) {
-   if (!req.body.name || !req.body.desc || !req.body.cpus || !req.body.ram) {
+   if (!req.body.name || !req.body.desc !! !req.body.desc || !req.body.cpus || !req.body.ram) {
       console.log(req.body);
       res.status(400); //Bad request
       res.json('Error, you must pass the name, description, cpus and ram params');
