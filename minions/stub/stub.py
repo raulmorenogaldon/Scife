@@ -268,6 +268,6 @@ class StubMinion(minion.Minion):
 # Execute this only if called directly from python command
 # From now RPC is waiting for requests
 if __name__ == "__main__":
-    rpc = zerorpc.Server(StubMinion())
+    rpc = zerorpc.Server(StubMinion(), heartbeat=30)
     rpc.bind("tcp://0.0.0.0:8238")
     rpc.run()

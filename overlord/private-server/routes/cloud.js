@@ -3,8 +3,14 @@ var express = require('express'),
    zerorpc = require('zerorpc'),
    constants = require('../constants.json');
 
-var minionClient = new zerorpc.Client(),
-   storageClient = new zerorpc.Client();
+var minionClient = new zerorpc.Client({
+	heartbeatInterval: 30000,
+	timeout: 3600
+});
+var storageClient = new zerorpc.Client({
+	heartbeatInterval: 30000,
+	timeout: 3600
+});
 
 console.log('Conecting to minion-url: ' + constants.MINION_URL +
             '\nConecting to storage-url: ' + constants.STORAGE_URL);
@@ -318,11 +324,10 @@ router.get('/experiments/:exp_id', function (req, res, next) {
  * @return {[Object]} - A json Object with experiment ID
  */
 router.post('/createexperiment', function (req, res, next) {
-   if (!req.body.name || !req.body.desc || !req.body.app_id || !req.body.labels) {
+   if (!req.body.name || !req.body.desc || !req.body.app_id || !req.body.labels || !req.body.exec_env) {
       res.status(400); //Bad request
-      res.json({error: 'Error, you must pass the name, description, application id and an array of labels.'});
+      res.json({error: 'Error, you must pass the name, description, application id, a JSON of labels and a JSON of execution variables.'});
    } else {
-      console.log("Creating experiment: ", req.body);
       storageClient.invoke('createExperiment', req.body, function (error, result, more) {
          if (error) {
             console.log('Error in the request /createexperiment\n' + error);
