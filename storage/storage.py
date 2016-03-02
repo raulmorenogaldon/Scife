@@ -167,24 +167,26 @@ class Storage(object):
         print("Found: {0}".format(labels))
         return labels
 
-    def findApplication(self, app_id):
-        for app in self._db.applications.find({'id': app_id}):
-            return app
-        return None
-
-    def getApplications(self, filter=""):
-        return list(self._db.applications.find())
+    def getApplications(self, filter=None):
+        if filter is None:
+            return list(self._db.applications.find())
+        else:
+            app = self._db.applications.find_one({'id': filter})
+            if app is None:
+                return list(self._db.applications.find({'name': {'$regex': '.*' + filter + '.*'}}))
+            else:
+                return [app]
 
     def createExperiment(self, exp_cfg):
         # Get parameters
         exp_name = exp_cfg['name']
         exp_desc = exp_cfg['desc']
         exp_app_id = exp_cfg['app_id']
-        exp_labels = exp_cfg['labels']
-        exp_exec_env = exp_cfg['exec_env']
+        exp_labels = json.loads(exp_cfg['labels'])
+        exp_exec_env = json.loads(exp_cfg['exec_env'])
 
         # Retrieve application
-        app = self.findApplication(exp_app_id)
+        app = self._findApplication(exp_app_id)
         if app is None:
             raise Exception('Application ID: "{0}", does not exists'.format(
                 exp_app_id
@@ -235,14 +237,15 @@ class Storage(object):
 
         return url
 
-    def findExperiment(self, experiment_id):
-        # Search experiment
-        for exp in self._db.experiments.find({'id': experiment_id}):
-            return exp
-        return None
-
-    def getExperiments(self, filter=""):
-        return list(self._db.experiments.find())
+    def getExperiments(self, filter=None):
+        if filter is None:
+            return list(self._db.experiments.find())
+        else:
+            exp = self._db.experiments.find_one({'id': filter})
+            if exp is None:
+                return list(self._db.experiments.find({'name': {'$regex': '.*' + filter + '.*'}}))
+            else:
+                return [exp]
 
     def _replaceLabelsInFile(self, file, labels):
         print("Replacing labels in file: {0}".format(file))
@@ -320,6 +323,11 @@ class Storage(object):
         gevent.subprocess.call(["git", "commit", "-m", commit_msg], cwd=app_path)
         gevent.subprocess.call(["git", "checkout", "master"], cwd=app_path)
 
+    def _findApplication(self, app_id):
+        return self._db.applications.find_one({'id': app_id})
+
+    def _findExperiment(self, exp_id):
+        return self._db.experiments.find_one({'id': exp_id})
 
 # Start RPC server
 # Execute this only if called directly from python command

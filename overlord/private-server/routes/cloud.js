@@ -3,8 +3,14 @@ var express = require('express'),
    zerorpc = require('zerorpc'),
    constants = require('../constants.json');
 
-var minionClient = new zerorpc.Client(),
-   storageClient = new zerorpc.Client();
+var minionClient = new zerorpc.Client({
+	heartbeatInterval: 30000,
+	timeout: 3600
+});
+var storageClient = new zerorpc.Client({
+	heartbeatInterval: 30000,
+	timeout: 3600
+});
 
 console.log('Conecting to minion-url: ' + constants.MINION_URL +
             '\nConecting to storage-url: ' + constants.STORAGE_URL);
@@ -20,7 +26,11 @@ storageClient.connect(constants.STORAGE_URL);
 
 // The config object depends on the provider
 router.get('/login', function(req, res, next){
-   minionClient.invoke("login", {}, function(error, result, more){
+   var config = {
+      'url': "galgo.i3a.info",
+      'username': "rmoreno",
+   }
+   minionClient.invoke("login", config, function(error, result, more){
       if(error){
          console.log("Error in the request /login");
          res.status(500); //Internal server error
@@ -73,7 +83,7 @@ router.get('/sizes', function (req, res, next) {
  * @return {Object} - A json Object with the follow structure: { "id":"size id", "name":"size name", "desc":"Description", "cpus":"Nº CPUs", "ram":"ram in mb"}
  */
 router.get('/sizes/:size_id', function (req, res, next) {
-   minionClient.invoke('findSize',req.params.size_id, function (error, result, more) {
+   minionClient.invoke('getSizes',req.params.size_id, function (error, result, more) {
       if (error) {
          console.log('Error in the request /sizes');
          res.status(500); //Internal server error
@@ -140,7 +150,7 @@ router.get('/instances', function (req, res, next) {
  * @return {Object} - A json Object with the follow structure: {"id":"instance id", "name":"name", "desc":"description", "image_id":"image id", "size_id":"size id"}
  */
 router.get('/instances/:instance_id', function (req, res, next) {
-   minionClient.invoke('findInstance',req.params.image_id, function (error, result, more) {
+   minionClient.invoke('getInstances',req.params.image_id, function (error, result, more) {
       if (error) {
          console.log('Error in the request /instances');
          res.status(500); //Internal server error
@@ -205,7 +215,7 @@ router.get('/images', function (req, res, next) {
  * @return {Object} - A json Object with the follow structure: {"id":"image id", "name":"name", "desc":"description"}
  */
 router.get('/images/:image_id', function (req, res, next) {
-   minionClient.invoke('findImage', req.params.image_id, function (error, result, more) {
+   minionClient.invoke('getImages', req.params.image_id, function (error, result, more) {
       if (error) {
          console.log('Error in the request /images');
          res.status(500); //Internal server error
@@ -242,7 +252,7 @@ router.get('/applications', function (req, res, next) {
  * @return {[Object]} - A json Object with application metadata
  */
 router.get('/applications/:app_id', function (req, res, next) {
-   storageClient.invoke('findApplication', req.params.app_id, function (error, result, more) {
+   storageClient.invoke('getApplications', req.params.app_id, function (error, result, more) {
       if (error) {
          console.log('Error in the request /applications');
          res.status(404); //Not Found
@@ -302,7 +312,7 @@ router.get('/experiments', function (req, res, next) {
  * @return {[Object]} - A json Object with experiment metadata
  */
 router.get('/experiments/:exp_id', function (req, res, next) {
-   storageClient.invoke('findExperiment', req.params.exp_id, function (error, result, more) {
+   storageClient.invoke('getExperiments', req.params.exp_id, function (error, result, more) {
       if (error) {
          console.log('Error in the request /experiments');
          res.status(404); //Not Found
@@ -318,11 +328,10 @@ router.get('/experiments/:exp_id', function (req, res, next) {
  * @return {[Object]} - A json Object with experiment ID
  */
 router.post('/createexperiment', function (req, res, next) {
-   if (!req.body.name || !req.body.desc || !req.body.app_id || !req.body.labels) {
+   if (!req.body.name || !req.body.desc || !req.body.app_id || !req.body.labels || !req.body.exec_env) {
       res.status(400); //Bad request
-      res.json({error: 'Error, you must pass the name, description, application id and an array of labels.'});
+      res.json({error: 'Error, you must pass the name, description, application id, a JSON of labels and a JSON of execution variables.'});
    } else {
-      console.log("Creating experiment: ", req.body);
       storageClient.invoke('createExperiment', req.body, function (error, result, more) {
          if (error) {
             console.log('Error in the request /createexperiment\n' + error);
