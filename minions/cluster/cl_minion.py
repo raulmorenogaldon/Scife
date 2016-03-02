@@ -80,10 +80,19 @@ class ClusterMinion(minion.Minion):
         self._config = config
 
         # Params
-        url = self._config['url']
-        username = self._config['username']
+        if 'url' not in self._config:
+            raise Exception(
+                "Malformed login config. 'url' key not present."
+            )
+        if 'username' not in self._config:
+            raise Exception(
+                "Malformed login config. 'username' key not present."
+            )
         if 'password' not in self._config:
             self._config['password'] = None
+
+        url = self._config['url']
+        username = self._config['username']
         password = self._config['password']
 
         # Get command line
@@ -177,17 +186,17 @@ class ClusterMinion(minion.Minion):
                 self._db.images.find({'minion': self.__class__.__name__})
             )
         else:
-            for image in self._db.images.find_one({
+            image = self._db.images.find_one({
                 'minion': self.__class__.__name__,
                 'id': filter
-            }):
-                if image is None:
-                    return list(self._db.images.find({
-                        'minion': self.__class__.__name__,
-                        'name': {'$regex': '.*' + filter + '.*'}
-                    }))
-                else:
-                    return [image]
+            })
+            if image is None:
+                return list(self._db.images.find({
+                    'minion': self.__class__.__name__,
+                    'name': {'$regex': '.*' + filter + '.*'}
+                }))
+            else:
+                return [image]
 
     def getSizes(self, filter=None):
         """Get size list using an optional name filter."""
@@ -196,17 +205,17 @@ class ClusterMinion(minion.Minion):
                 self._db.sizes.find({'minion': self.__class__.__name__})
             )
         else:
-            for size in self._db.sizes.find_one({
+            size = self._db.sizes.find_one({
                 'minion': self.__class__.__name__,
                 'id': filter
-            }):
-                if size is None:
-                    return list(self._db.sizes.find({
-                        'minion': self.__class__.__name__,
-                        'name': {'$regex': '.*' + filter + '.*'}
-                    }))
-                else:
-                    return [size]
+            })
+            if size is None:
+                return list(self._db.sizes.find({
+                    'minion': self.__class__.__name__,
+                    'name': {'$regex': '.*' + filter + '.*'}
+                }))
+            else:
+                return [size]
 
     def getInstances(self, filter=None):
         """Get instance list using an optional name filter."""
@@ -215,17 +224,17 @@ class ClusterMinion(minion.Minion):
                 self._db.instances.find({'minion': self.__class__.__name__})
             )
         else:
-            for inst in self._db.instances.find_one({
+            inst = self._db.instances.find_one({
                 'minion': self.__class__.__name__,
                 'id': filter
-            }):
-                if inst is None:
-                    return list(self._db.instances.find({
-                        'minion': self.__class__.__name__,
-                        'name': {'$regex': '.*' + filter + '.*'}
-                    }))
-                else:
-                    return [inst]
+            })
+            if inst is None:
+                return list(self._db.instances.find({
+                    'minion': self.__class__.__name__,
+                    'name': {'$regex': '.*' + filter + '.*'}
+                }))
+            else:
+                return [inst]
 
     def deployExperiment(self, app, experiment, system):
         """Deploy an experiment in the cluster FS."""
