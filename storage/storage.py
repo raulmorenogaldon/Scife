@@ -180,8 +180,8 @@ class Storage(object):
         exp_name = exp_cfg['name']
         exp_desc = exp_cfg['desc']
         exp_app_id = exp_cfg['app_id']
-        exp_labels = exp_cfg['labels']
-        exp_exec_env = exp_cfg['exec_env']
+        exp_labels = json.loads(exp_cfg['labels'])
+        exp_exec_env = json.loads(exp_cfg['exec_env'])
 
         # Retrieve application
         app = self.findApplication(exp_app_id)
