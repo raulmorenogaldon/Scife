@@ -167,13 +167,15 @@ class Storage(object):
         print("Found: {0}".format(labels))
         return labels
 
-    def findApplication(self, app_id):
-        for app in self._db.applications.find({'id': app_id}):
-            return app
-        return None
-
-    def getApplications(self, filter=""):
-        return list(self._db.applications.find())
+    def getApplications(self, filter=None):
+        if filter is None:
+            return list(self._db.applications.find())
+        else:
+            app = self._db.applications.find_one({'id': filter})
+            if app is None:
+                return list(self._db.applications.find({'name': {'$regex': '.*' + filter + '.*'}}))
+            else:
+                return [app]
 
     def createExperiment(self, exp_cfg):
         # Get parameters
@@ -235,14 +237,15 @@ class Storage(object):
 
         return url
 
-    def findExperiment(self, experiment_id):
-        # Search experiment
-        for exp in self._db.experiments.find({'id': experiment_id}):
-            return exp
-        return None
-
-    def getExperiments(self, filter=""):
-        return list(self._db.experiments.find())
+    def getExperiments(self, filter=None):
+        if filter is None:
+            return list(self._db.experiments.find())
+        else:
+            exp = self._db.experiments.find_one({'id': filter})
+            if exp is None:
+                return list(self._db.experiments.find({'name': {'$regex': '.*' + filter + '.*'}}))
+            else:
+                return [exp]
 
     def _replaceLabelsInFile(self, file, labels):
         print("Replacing labels in file: {0}".format(file))

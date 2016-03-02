@@ -248,7 +248,7 @@ router.get('/applications', function (req, res, next) {
  * @return {[Object]} - A json Object with application metadata
  */
 router.get('/applications/:app_id', function (req, res, next) {
-   storageClient.invoke('findApplication', req.params.app_id, function (error, result, more) {
+   storageClient.invoke('getApplications', req.params.app_id, function (error, result, more) {
       if (error) {
          console.log('Error in the request /applications');
          res.status(404); //Not Found
@@ -308,7 +308,7 @@ router.get('/experiments', function (req, res, next) {
  * @return {[Object]} - A json Object with experiment metadata
  */
 router.get('/experiments/:exp_id', function (req, res, next) {
-   storageClient.invoke('findExperiment', req.params.exp_id, function (error, result, more) {
+   storageClient.invoke('getExperiments', req.params.exp_id, function (error, result, more) {
       if (error) {
          console.log('Error in the request /experiments');
          res.status(404); //Not Found
