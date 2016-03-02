@@ -186,7 +186,7 @@ class Storage(object):
         exp_exec_env = json.loads(exp_cfg['exec_env'])
 
         # Retrieve application
-        app = self.findApplication(exp_app_id)
+        app = self._findApplication(exp_app_id)
         if app is None:
             raise Exception('Application ID: "{0}", does not exists'.format(
                 exp_app_id
@@ -323,6 +323,11 @@ class Storage(object):
         gevent.subprocess.call(["git", "commit", "-m", commit_msg], cwd=app_path)
         gevent.subprocess.call(["git", "checkout", "master"], cwd=app_path)
 
+    def _findApplication(self, app_id):
+        return self._db.applications.find_one({'id': app_id})
+
+    def _findExperiment(self, exp_id):
+        return self._db.experiments.find_one({'id': exp_id})
 
 # Start RPC server
 # Execute this only if called directly from python command

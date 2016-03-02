@@ -51,7 +51,7 @@ class StubMinion(minion.Minion):
             print("- {0} - {1}".format(image['name'], image['id']))
         size = ({
             'id': str(uuid.uuid1()),
-            'name': "Stub size",
+            'name': "Stub size 1",
             'desc': "Description",
             'cpus': 4,
             'ram': 4096
@@ -59,7 +59,7 @@ class StubMinion(minion.Minion):
         self.sizes.append(size)
         size = ({
             'id': str(uuid.uuid1()),
-            'name': "Stub size",
+            'name': "Stub size 2",
             'desc': "Description",
             'cpus': 2,
             'ram': 2048
@@ -89,13 +89,13 @@ class StubMinion(minion.Minion):
         name = instance_cfg['name']
         # Get image
         image_id = instance_cfg['image_id']
-        image = self.findImage(image_id)
+        image = self._findImage(image_id)
         if image is None:
             raise Exception("Image ID does not exists.")
 
         # Get size
         size_id = instance_cfg['size_id']
-        size = self.findSize(size_id)
+        size = self._findSize(size_id)
         if size is None:
             raise Exception("Size ID does not exists.")
 
@@ -118,17 +118,38 @@ class StubMinion(minion.Minion):
 
         return instance['id']
 
-    def getImages(self, filter=""):
-        """Get image list using an optional name filter."""
-        return self.images
+    def getImages(self, filter=None):
+        """Get image list using an optional filter."""
+        if filter is None:
+            return self.images
+        else:
+            ret = []
+            for image in self.images:
+                if image['id'] == filter or filter in image['name']:
+                    ret.append(image)
+            return ret
 
-    def getSizes(self, filter=""):
-        """Get size list using an optional name filter."""
-        return self.sizes
+    def getSizes(self, filter=None):
+        """Get size list using an optional filter."""
+        if filter is None:
+            return self.sizes
+        else:
+            ret = []
+            for size in self.sizes:
+                if size['id'] == filter or filter in size['name']:
+                    ret.append(size)
+            return ret
 
-    def getInstances(self, filter=""):
-        """Get instance list using an optional name filter."""
-        return self.instances
+    def getInstances(self, filter=None):
+        """Get instance list using an optional filter."""
+        if filter is None:
+            return self.instances
+        else:
+            ret = []
+            for inst in self.instances:
+                if inst['id'] == filter or filter in inst['name']:
+                    ret.append(inst)
+            return ret
 
     def deployExperiment(self, app, experiment, system):
         """Deploy an experiment in the cluster FS."""
@@ -138,12 +159,12 @@ class StubMinion(minion.Minion):
 
         # Get master instance
         instance_id = system['master']
-        instance = self.findInstance(instance_id)
+        instance = self._findInstance(instance_id)
         if instance is None:
             raise Exception("Instance ID does not exists")
 
         # Get size
-        size = self.findSize(instance['size_id'])
+        size = self._findSize(instance['size_id'])
         if size is None:
             raise Exception("Size ID does not exists")
 
@@ -187,12 +208,12 @@ class StubMinion(minion.Minion):
 
         # Get instance
         instance_id = system['master']
-        instance = self.findInstance(instance_id)
+        instance = self._findInstance(instance_id)
         if instance is None:
             raise Exception("Instance ID does not exists")
 
         # Get size
-        size = self.findSize(instance['size_id'])
+        size = self._findSize(instance['size_id'])
         if size is None:
             raise Exception("Size ID does not exists")
 
@@ -227,7 +248,7 @@ class StubMinion(minion.Minion):
 
         # Get instance
         instance_id = system['master']
-        instance = self.findInstance(instance_id)
+        instance = self._findInstance(instance_id)
         if instance is None:
             raise Exception("Instance ID does not exists")
 
@@ -242,21 +263,21 @@ class StubMinion(minion.Minion):
 
         return "failed_compilation"
 
-    def findImage(self, image_id):
+    def _findImage(self, image_id):
         """Return image data"""
         for image in self.images:
             if image['id'] == image_id:
                 return image
         return None
 
-    def findSize(self, size_id):
+    def _findSize(self, size_id):
         """Return size data"""
         for size in self.sizes:
             if size['id'] == size_id:
                 return size
         return None
 
-    def findInstance(self, inst_id):
+    def _findInstance(self, inst_id):
         """Return instance data"""
         for inst in self.instances:
             if inst['id'] == inst_id:

@@ -37,15 +37,15 @@ class Minion:
     def getImages(self, filter=""):
         """
         Get images list
-        filter: String with part of the name
+        filter: String with ID or part of the name
         Return a list of Images
         """
         raise NotImplementedError()
 
     def getSizes(self, filter=""):
         """
-        Get images list
-        filter: String with part of the name
+        Get sizes list
+        filter: String with ID or with part of the name
         Return a list of Size
         """
         raise NotImplementedError()
@@ -53,32 +53,8 @@ class Minion:
     def getInstances(self, filter=""):
         """
         Get instance list
-        filter: String with part of the name
+        filter: String with ID or with part of the name
         Return a list of Instances
-        """
-        raise NotImplementedError()
-
-    def findImage(self, id):
-        """
-        Find image from ID
-        id: Image string id
-        Return a Image or None
-        """
-        raise NotImplementedError()
-
-    def findFlavor(self, id):
-        """
-        Find flavor from ID
-        id: Flavor string id
-        Return a Flavor or None
-        """
-        raise NotImplementedError()
-
-    def findInstance(self, id):
-        """
-        Find instance from ID
-        id: Instance string id
-        Return a Instance or None
         """
         raise NotImplementedError()
 

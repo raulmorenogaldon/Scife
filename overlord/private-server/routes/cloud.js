@@ -26,7 +26,11 @@ storageClient.connect(constants.STORAGE_URL);
 
 // The config object depends on the provider
 router.get('/login', function(req, res, next){
-   minionClient.invoke("login", {}, function(error, result, more){
+   var config = {
+      'url': "galgo.i3a.info",
+      'username': "rmoreno",
+   }
+   minionClient.invoke("login", config, function(error, result, more){
       if(error){
          console.log("Error in the request /login");
          res.status(500); //Internal server error
@@ -79,7 +83,7 @@ router.get('/sizes', function (req, res, next) {
  * @return {Object} - A json Object with the follow structure: { "id":"size id", "name":"size name", "desc":"Description", "cpus":"Nº CPUs", "ram":"ram in mb"}
  */
 router.get('/sizes/:size_id', function (req, res, next) {
-   minionClient.invoke('findSize',req.params.size_id, function (error, result, more) {
+   minionClient.invoke('getSizes',req.params.size_id, function (error, result, more) {
       if (error) {
          console.log('Error in the request /sizes');
          res.status(500); //Internal server error
@@ -146,7 +150,7 @@ router.get('/instances', function (req, res, next) {
  * @return {Object} - A json Object with the follow structure: {"id":"instance id", "name":"name", "desc":"description", "image_id":"image id", "size_id":"size id"}
  */
 router.get('/instances/:instance_id', function (req, res, next) {
-   minionClient.invoke('findInstance',req.params.image_id, function (error, result, more) {
+   minionClient.invoke('getInstances',req.params.image_id, function (error, result, more) {
       if (error) {
          console.log('Error in the request /instances');
          res.status(500); //Internal server error
@@ -211,7 +215,7 @@ router.get('/images', function (req, res, next) {
  * @return {Object} - A json Object with the follow structure: {"id":"image id", "name":"name", "desc":"description"}
  */
 router.get('/images/:image_id', function (req, res, next) {
-   minionClient.invoke('findImage', req.params.image_id, function (error, result, more) {
+   minionClient.invoke('getImages', req.params.image_id, function (error, result, more) {
       if (error) {
          console.log('Error in the request /images');
          res.status(500); //Internal server error
