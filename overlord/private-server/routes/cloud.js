@@ -94,7 +94,7 @@ router.get('/sizes/:size_id', function (req, res, next) {
 });
 
 /**
- * This method allow to create a new size. When the size is created this function returns and result object with the Id of the size.
+ * This method allow to create a new size. When the size is created this function returns and result object with the ID of the size.
  * @param {Object} {{"name":"name", "desc":"Description", "dpus":"Nº CPUs", "ram":"ram in mb"}}
  * @return {Object} - A json object with the follow structure: {"result":"id of the size"}
  */
@@ -162,20 +162,20 @@ router.get('/instances/:instance_id', function (req, res, next) {
 
 
 /**
- * This method allow to create a new instance. When the size is created this function returns and result object with the Id of the instance.
- * @param {Object} {{"name":"name", "desc":"Description", "imageId":"image id", "sizeId":"size id"}}
+ * This method allow to create a new instance. When the size is created this function returns and result object with the ID of the instance.
+ * @param {Object} {{"name":"name", "desc":"Description", "image_id":"image id", "size_id":"size id"}}
  * @return {Object} - A json object with the follow structure: {"result":"id of the instance created"}
  */
 router.post('/createinstance', function (req, res, next) {
-   if (!req.body.name || !req.body.desc || !req.body.imageId || !req.body.sizeId) {
+   if (!req.body.name || !req.body.desc || !req.body.image_id || !req.body.size_id) {
       res.status(400); //Bad request
       res.json({error: 'Error, you must pass the name, description, image id and size id params'});
    } else {
       minionClient.invoke('createInstance', {
          name: req.body.name,
          desc: req.body.desc,
-         image_id: req.body.imageId,
-         size_id: req.body.sizeId
+         image_id: req.body.image_id,
+         size_id: req.body.size_id
       },
       function (error, result, more) {
          if (error) {
