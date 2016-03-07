@@ -178,12 +178,29 @@ class Storage(object):
                 return [app]
 
     def createExperiment(self, exp_cfg):
+        # Check parameters
+        if 'name' not in exp_cfg:
+            raise Exception("Error creating experiment, 'name' not set.")
+        if 'app_id' not in exp_cfg:
+            raise Exception("Error creating experiment, 'app_id' not set.")
+
         # Get parameters
         exp_name = exp_cfg['name']
-        exp_desc = exp_cfg['desc']
         exp_app_id = exp_cfg['app_id']
-        exp_labels = json.loads(exp_cfg['labels'])
-        exp_exec_env = json.loads(exp_cfg['exec_env'])
+
+        # Optionals
+        if 'desc' in exp_cfg:
+            exp_desc = exp_cfg['desc']
+        else:
+            exp_desc = "Empty"
+        if 'labels' in exp_cfg:
+            exp_labels = json.loads(exp_cfg['labels'])
+        else:
+            exp_labels = {}
+        if 'exec_env' in exp_cfg:
+            exp_exec_env = json.loads(exp_cfg['exec_env'])
+        else:
+            exp_exec_env = {}
 
         # Retrieve application
         app = self._findApplication(exp_app_id)
@@ -194,7 +211,7 @@ class Storage(object):
 
         # Create experiment metadata
         id = str(uuid.uuid1())
-        experiment = {
+        exp = {
             '_id': id,
             'id': id,
             'name': exp_name,
@@ -203,6 +220,54 @@ class Storage(object):
             'exec_env': exp_exec_env,
             'labels': exp_labels
         }
+
+        # Insert into DB
+        self._db.experiments.insert_one(exp)
+        print('Experiment {0} created.'.format(exp['id']))
+        return exp['id']
+
+    def updateExperiment(self, exp_id, exp_cfg):
+        # Retrieve experiment
+        exp = self._findExperiment(exp_id)
+        if exp is None:
+            raise Exception('Experiment ID: "{0}", does not exists'.format(
+                exp_id
+            ))
+
+        # Update
+        exp = {}
+        if 'name' in exp_cfg:
+            exp['name'] = exp_cfg['name']
+        if 'desc' in exp_cfg:
+            exp['desc'] = exp_cfg['desc']
+        if 'labels' in exp_cfg:
+            exp['labels'] = json.loads(exp_cfg['labels'])
+        if 'exec_env' in exp_cfg:
+            exp['exec_env'] = json.loads(exp_cfg['exec_env'])
+
+        # Update into DB
+        self._db.experiments.update_one(
+            {"id": exp_id},
+            {"$set": exp}
+        )
+
+        print('Experiment {0} updated: {1}'.format(exp_id, exp))
+        return exp_id
+
+    def prepareExperiment(self, exp_id):
+        # Retrieve experiment
+        exp = self._findExperiment(exp_id)
+        if exp is None:
+            raise Exception('Experiment ID: "{0}", does not exists'.format(
+                exp_id
+            ))
+
+        # Retrieve application
+        app = self._findApplication(exp['app_id'])
+        if app is None:
+            raise Exception('Application ID: "{0}", does not exists'.format(
+                exp['app_id']
+            ))
 
         # Get application storage path
         app_path = self.path + "/" + app['id'] + "/"
@@ -214,23 +279,28 @@ class Storage(object):
         while self.lock:
             gevent.sleep(0)
         self.lock = True
-        gevent.subprocess.call(["git", "branch", experiment['id']], cwd=app_path)
+        gevent.subprocess.call(["git", "branch", exp['id']], cwd=app_path)
 
         # Apply parameters
-        self._applyExperimentParams(app, experiment)
+        self._applyExperimentParams(app, exp)
 
         # Set public URL
-        experiment['public_url'] = self.getExperimentPublicURL(experiment)
+        exp['public_url'] = self.getExperimentPublicURL(exp_id)
 
-        self._db.experiments.insert_one(experiment)
         self.lock = False
         ########################
-        print('Experiment {0} created.'.format(experiment['id']))
-        return experiment['id']
+        return exp_id
 
-    def getExperimentPublicURL(self, experiment):
+    def getExperimentPublicURL(self, exp_id):
+        # Retrieve experiment
+        exp = self._findExperiment(exp_id)
+        if exp is None:
+            raise Exception('Experiment ID: "{0}", does not exists'.format(
+                exp_id
+            ))
+
         # Get application storage path
-        app_path = self.path + "/" + experiment['app_id']
+        app_path = self.path + "/" + exp['app_id']
 
         # Get public URL for this experiment
         url = "{0}@{1}:{2}".format(self.username, self.public_url, app_path)
