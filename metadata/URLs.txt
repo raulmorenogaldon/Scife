@@ -55,7 +55,8 @@
 /cloud/applications/update/:applicationId (PUT) "The private server receive the ID and the data of the application to update"
 
 /cloud/experiments/ (GET) "Return a list with all the experiments in ther server"
-/cloud/experiments/details/:experimentId (GET) "Return a experiment whose ID is passed by parameter"
-/cloud/experiments/create (POST) "The private server receive the data to create a new experiment"
-/cloud/experiments/delete/:experimentId (DELETE) "The private server receive the ID of the experiment to delete"
-/cloud/experiments/update/:experimentId (PUT) "The private server receive the ID and the data of the experiment to update"
+/cloud/experiments/ (PUT) "Create an experiment in ther server"
+/cloud/experiments/:experimentId (GET) "Return an experiment data, ID is passed by parameter"
+/cloud/experiments/:experimentId (PUT) "Update an existing experiment whose ID is passed by parameter"
+/cloud/experiments/:experimentId (DELETE) "Delete an existing experiment whose ID is passed by parameter"
+/cloud/experiments/:experimentId (POST) "Launch an experiment to execution. Instant return, experiment must be pulled with GET to obtain execution status."

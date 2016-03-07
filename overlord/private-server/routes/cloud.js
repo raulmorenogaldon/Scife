@@ -3,6 +3,8 @@ var express = require('express'),
    zerorpc = require('zerorpc'),
    constants = require('../constants.json');
 
+var codes = require('../error_codes.js');
+
 var minionClient = new zerorpc.Client({
 	heartbeatInterval: 30000,
 	timeout: 3600
@@ -298,12 +300,39 @@ router.post('/createapplication', function (req, res, next) {
 router.get('/experiments', function (req, res, next) {
    storageClient.invoke('getExperiments', function (error, result, more) {
       if (error) {
-         console.log('Error in the request /experiments');
-         res.status(500); //Internal server error
-         res.json(error);
+         console.log('Error in the GET request /experiments, err: ', error);
+         res.status(codes.HTTPCODE.INTERNAL_ERROR); //Internal server error
+         res.json({
+            'errors': [codes.ERRCODE.UNKNOWN]
+         });
       }
       res.json(result);
    });
+});
+
+/**
+ * Create experiment metadata
+ * @param {String} - The experiment id.
+ */
+router.put('/experiments', function (req, res, next) {
+   if (!req.body.name || !req.body.app_id) {
+      res.status(codes.HTTPCODE.BAD_REQUEST); //Bad request
+      res.json({
+         'errors': [codes.ERRCODE.EXP_INCORRECT_PARAMS]
+      });
+   } else {
+      storageClient.invoke('createExperiment', req.body, function (error, result, more) {
+         if (error) {
+            console.log('Error in the PUT creation request /experiments, err: ', error);
+            res.status(codes.HTTPCODE.INTERNAL_ERROR); //Internal server error
+            res.json({
+               'errors': [codes.ERRCODE.EXP_INCORRECT_PARAMS]
+            });
+         } else {
+            res.json(result);
+         }
+      });
+   }
 });
 
 /**
@@ -314,34 +343,60 @@ router.get('/experiments', function (req, res, next) {
 router.get('/experiments/:exp_id', function (req, res, next) {
    storageClient.invoke('getExperiments', req.params.exp_id, function (error, result, more) {
       if (error) {
-         console.log('Error in the request /experiments');
-         res.status(404); //Not Found
-         res.json(error);
+         console.log('Error in the request /experiments/:exp_id, err: ', error);
+         res.status(codes.HTTPCODE.NOT_FOUND); //Not Found
+         res.json({
+            'errors': [
+               codes.ERRCODE.ID_NOT_FOUND,
+               codes.ERRCODE.EXP_NOT_FOUND
+            ]
+         });
       }
       res.json(result);
    });
 });
 
 /**
- * This method allow to create a new experiment.
- * @param {Object} - A json Object with experiment metadata
- * @return {[Object]} - A json Object with experiment ID
+ * Update experiment metadata
+ * @param {String} - The experiment id.
  */
-router.post('/createexperiment', function (req, res, next) {
-   if (!req.body.name || !req.body.desc || !req.body.app_id || !req.body.labels || !req.body.exec_env) {
-      res.status(400); //Bad request
-      res.json({error: 'Error, you must pass the name, description, application id, a JSON of labels and a JSON of execution variables.'});
-   } else {
-      storageClient.invoke('createExperiment', req.body, function (error, result, more) {
-         if (error) {
-            console.log('Error in the request /createexperiment\n' + error);
-            res.status(500); //Internal server error
-            res.json(error);
-         } else {
-            res.json(result);
-         }
-      });
-   }
+router.put('/experiments/:exp_id', function (req, res, next) {
+   storageClient.invoke('updateExperiment', req.params.exp_id, req.body, function (error, result, more) {
+      if (error) {
+         console.log('Error in the PUT update request /experiments/:exp_id, err: ', error);
+         res.status(codes.HTTPCODE.NOT_FOUND); //Not Found
+         res.json({
+            'errors': [
+               codes.ERRCODE.ID_NOT_FOUND,
+               codes.ERRCODE.EXP_NOT_FOUND
+            ]
+         });
+      } else {
+         res.json(result);
+      }
+   });
+});
+
+/**
+ * Delete experiment
+ * @param {String} - The experiment id.
+ */
+router.delete('/experiments/:exp_id', function (req, res, next) {
+   res.status(codes.HTTPCODE.NOT_IMPLEMENTED); //Not Implemented
+   res.json({
+      'errors': [codes.ERRCODE.NOT_IMPLEMENTED]
+   });
+});
+
+/**
+ * Launch experiment
+ * @param {String} - The experiment id.
+ */
+router.post('/experiments/:exp_id', function (req, res, next) {
+   res.status(codes.HTTPCODE.NOT_IMPLEMENTED); //Not Implemented
+   res.json({
+      'errors': [codes.ERRCODE.NOT_IMPLEMENTED]
+   });
 });
 
 module.exports = router;
