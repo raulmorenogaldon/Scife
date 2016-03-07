@@ -1,61 +1,61 @@
 ****** PUBLIC SERVER ******
 /cloud/sizes/ (GET)
-/cloud/sizes/:sizeId (GET)
+/cloud/sizes/details/:sizeId (GET)
 /cloud/sizes/create (GET/POST)
 /cloud/sizes/delete/:sizeId (GET/POST)
 /cloud/sizes/update/:sizeId (GET/POST)
 
 /cloud/instances/ (GET)
-/cloud/instances/:instanceId (GET)
+/cloud/instances/details/:instanceId (GET)
 /cloud/instances/create (GET/POST)
 /cloud/instances/delete/:instanceId (GET/POST)
 /cloud/instances/update/:instanceId (GET/POST)
 
 /cloud/images/ (GET)
-/cloud/images/:imageId (GET)
+/cloud/images/details/:imageId (GET)
 /cloud/images/create (GET/POST)
 /cloud/images/delete/:imageId (GET/POST)
 /cloud/images/update/:imageId (GET/POST)
 
 /cloud/applications/ (GET)
-/cloud/applications/:applicationId (GET)
+/cloud/applications/details/:applicationId (GET)
 /cloud/applications/create (GET/POST)
 /cloud/applications/delete/:applicationId (GET/POST)
 /cloud/applications/update/:applicationId (GET/POST)
 
 /cloud/experiments/ (GET)
-/cloud/experiments/:experimentId (GET)
+/cloud/experiments/details/:experimentId (GET)
 /cloud/experiments/create (GET/POST)
 /cloud/experiments/delete/:experimentId (GET/POST)
 /cloud/experiments/update/:experimentId (GET/POST)
 
 ****** PRIVATE SERVER ******
 /cloud/sizes/ (GET) "Return a list with all the sizes in ther server"
-/cloud/sizes/:sizeId (GET) "Return a size whose ID is passed by parameter"
+/cloud/sizes/details/:sizeId (GET) "Return a size whose ID is passed by parameter"
 /cloud/sizes/create (POST) "The private server receive the data to create a new size"
 /cloud/sizes/delete/:sizeId (DELETE) "The private server receive the ID of the size to delete"
 /cloud/sizes/update/:sizeId (PUT) "The private server receive the ID and the data of the size to update"
 
 /cloud/instances/ (GET) "Return a list with all the instances in ther server"
-/cloud/instances/:instanceId (GET) "Return a instance whose ID is passed by parameter"
+/cloud/instances/details/:instanceId (GET) "Return a instance whose ID is passed by parameter"
 /cloud/instances/create (POST) "The private server receive the data to create a new instance"
 /cloud/instances/delete/:instanceId (DELETE) "The private server receive the ID of the instance to delete"
 /cloud/instances/update/:instanceId (PUT) "The private server receive the ID and the data of the instance to update"
 
 /cloud/images/ (GET) "Return a list with all the images in ther server"
-/cloud/images/:imageId (GET) "Return a image whose ID is passed by parameter"
+/cloud/images/details/:imageId (GET) "Return a image whose ID is passed by parameter"
 /cloud/images/create (POST) "The private server receive the data to create a new image"
 /cloud/images/delete/:imageId (DELETE) "The private server receive the ID of the image to delete"
 /cloud/images/update/:imageId (PUT) "The private server receive the ID and the data of the image to update"
 
 /cloud/applications/ (GET) "Return a list with all the applications in ther server"
-/cloud/applications/:applicationId (GET) "Return a application whose ID is passed by parameter"
+/cloud/applications/details/:applicationId (GET) "Return a application whose ID is passed by parameter"
 /cloud/applications/create (POST) "The private server receive the data to create a new application"
 /cloud/applications/delete/:applicationId (DELETE) "The private server receive the ID of the application to delete"
 /cloud/applications/update/:applicationId (PUT) "The private server receive the ID and the data of the application to update"
 
 /cloud/experiments/ (GET) "Return a list with all the experiments in ther server"
-/cloud/experiments/:experimentId (GET) "Return a experiment whose ID is passed by parameter"
+/cloud/experiments/details/:experimentId (GET) "Return a experiment whose ID is passed by parameter"
 /cloud/experiments/create (POST) "The private server receive the data to create a new experiment"
 /cloud/experiments/delete/:experimentId (DELETE) "The private server receive the ID of the experiment to delete"
 /cloud/experiments/update/:experimentId (PUT) "The private server receive the ID and the data of the experiment to update"
