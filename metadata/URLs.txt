@@ -55,7 +55,7 @@
 /cloud/applications/update/:applicationId (PUT) "The private server receive the ID and the data of the application to update"
 
 /cloud/experiments/ (GET) "Return a list with all the experiments in ther server"
-/cloud/experiments/ (PUT) "Create an experiment in ther server"
+/cloud/experiments/ (POST) "Create an experiment in the server"
 /cloud/experiments/:experimentId (GET) "Return an experiment data, ID is passed by parameter"
 /cloud/experiments/:experimentId (PUT) "Update an existing experiment whose ID is passed by parameter"
 /cloud/experiments/:experimentId (DELETE) "Delete an existing experiment whose ID is passed by parameter"

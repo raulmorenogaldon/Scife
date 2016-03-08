@@ -4,6 +4,7 @@ var express = require('express'),
    constants = require('../constants.json');
 
 var codes = require('../error_codes.js');
+var scheduler = require('../scheduler.js');
 
 var minionClient = new zerorpc.Client({
 	heartbeatInterval: 30000,
@@ -314,7 +315,7 @@ router.get('/experiments', function (req, res, next) {
  * Create experiment metadata
  * @param {String} - The experiment id.
  */
-router.put('/experiments', function (req, res, next) {
+router.post('/experiments', function (req, res, next) {
    if (!req.body.name || !req.body.app_id) {
       res.status(codes.HTTPCODE.BAD_REQUEST); //Bad request
       res.json({
@@ -323,7 +324,7 @@ router.put('/experiments', function (req, res, next) {
    } else {
       storageClient.invoke('createExperiment', req.body, function (error, result, more) {
          if (error) {
-            console.log('Error in the PUT creation request /experiments, err: ', error);
+            console.log('Error in the POST creation request /experiments, err: ', error);
             res.status(codes.HTTPCODE.INTERNAL_ERROR); //Internal server error
             res.json({
                'errors': [codes.ERRCODE.EXP_INCORRECT_PARAMS]
@@ -393,10 +394,23 @@ router.delete('/experiments/:exp_id', function (req, res, next) {
  * @param {String} - The experiment id.
  */
 router.post('/experiments/:exp_id', function (req, res, next) {
-   res.status(codes.HTTPCODE.NOT_IMPLEMENTED); //Not Implemented
-   res.json({
-      'errors': [codes.ERRCODE.NOT_IMPLEMENTED]
-   });
+   if (!req.body.nodes || !req.body.image_id || !req.body.size_id) {
+      res.status(codes.HTTPCODE.BAD_REQUEST); //Bad request
+      res.json({
+         'errors': [codes.ERRCODE.LAUNCH_INCORRECT_PARAMS]
+      });
+   } else {
+      // Launch experiment
+      err = scheduler.launchExperiment(req.params.exp_id, req.body.nodes, req.body.image_id, req.body.size_id);
+      if(err){
+         res.status(codes.HTTPCODE.NOT_FOUND); //Bad request
+         res.json({
+            'errors': [codes.ERRCODE.ID_NOT_FOUND]
+         });
+      } else {
+         res.json(null);
+      }
+   }
 });
 
 module.exports = router;
