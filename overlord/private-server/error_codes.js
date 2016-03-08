@@ -34,6 +34,10 @@ var ERRCODE = {
       'message': "You must pass 'name' and 'app_id'.",
       'code': 31
    },
+   LAUNCH_INCORRECT_PARAMS: {
+      'message': "You must pass 'nodes', 'image_id' and 'size_id'.",
+      'code': 32
+   },
 }
 
 exports.HTTPCODE = HTTPCODE;
