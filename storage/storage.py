@@ -280,6 +280,7 @@ class Storage(object):
         while self.lock:
             gevent.sleep(0)
         self.lock = True
+        gevent.subprocess.call(["git", "checkout", "master"], cwd=app_path)
         gevent.subprocess.call(["git", "branch", "-d", exp['id']], cwd=app_path)
         gevent.subprocess.call(["git", "branch", exp['id']], cwd=app_path)
 
@@ -287,7 +288,11 @@ class Storage(object):
         self._applyExperimentParams(app, exp)
 
         # Set public URL
-        exp['public_url'] = self.getExperimentPublicURL(exp_id)
+        public_url = self.getExperimentPublicURL(exp_id)
+        self._db.experiments.update_one(
+            {"id": exp_id},
+            {"$set": {"public_url": public_url}}
+        )
 
         self.lock = False
         ########################

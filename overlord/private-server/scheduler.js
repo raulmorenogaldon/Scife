@@ -35,97 +35,126 @@ mongo.connect(constants.MONGO_URL, function(err, database){
 /**
  * Entry point for experiment execution
  */
-var launchExperiment = function(exp_id, nodes, image_id, size_id, checkCallback){
 
-   var _minion = minionClient;
-   var _app = null;
+var launchExperiment = function(exp_id, nodes, image_id, size_id, checkCallback){
+   var minion = minionClient;
    var _exp = null;
+
+   // Check data
+   async.waterfall([
+      function(cb){
+         // Check experiment ID exists
+         _getExperiment(exp_id, cb);
+      },
+      function(exp, cb){
+         // Set exp var
+         _exp = exp;
+
+         // Check experiment status
+         if(exp.status && exp.status != "created"){
+            cb(new Error("Experiment " + exp.id + " is already deployed!, status: " + exp.status));
+         } else {
+            // Check image ID exists
+            _getImage(minion, image_id, cb);
+         }
+      },
+      function(image, cb){
+         // Check size ID exists
+         _getSize(minion, size_id, cb);
+      }
+   ],
+   function(err){
+      if(err){
+         // Error trying to launch experiment
+         checkCallback(err);
+      } else {
+         // No error in launch
+         checkCallback(null);
+
+         // Reinitialize experiment to status "created"
+         _exp.status = "created";
+         db.collection('experiments').updateOne({id: _exp.id},{$set:{status:"created"}});
+
+         // Launch workflow
+         _workflowExperiment(_exp, minion, nodes, image_id, size_id);
+      }
+   });
+}
+
+var _workflowExperiment = function(exp, minion, nodes, image_id, size_id){
+
+   var _app = null;
    var _system = null;
 
-   _getExperiment(exp_id, function(err, exp){
-      if(err){
-         checkCallback(err);
-         return;
+   // Execute operations
+   async.waterfall([
+      // Retrieve application metadata
+      function(cb){
+         console.log("Getting application");
+         _getApplication(exp.app_id, cb);
+      },
+      // First, define a system where execution will take place
+      function(app, cb){
+         console.log("Selected experiment: " + exp.name + "\n" +
+                     "-- App: " + app.name);
+         _app = app;
+         _defineSystem(minion, nodes, image_id, size_id, cb);
+      },
+      // Instance system
+      function(system, cb){
+         console.log("-----------------------\n",
+                     "System configured with:\n",
+                     "-- Image: ", system.image.name, " - ", system.image.id, "\n",
+                     "-- Size: ", system.size.name, " - ", system.size.id, "\n");
+                     _system = system;
+                     _instanceSystem(minion, system, cb);
+      },
+      // Set experiment execution environment
+      function(cb){
+         msg = "-----------------------\nSystem instances:\n";
+         for(i = 0; i < _system.nodes; i++){
+            msg += "-- " + i + ": " + _system.instances[i] + "\n";
+         }
+         console.log(msg);
+
+         // Set execution environment
+         var exec_env = {
+            nodes: _system.nodes,
+            cpus: _system.size.cpus,
+            inputpath: _system.image.inputpath,
+            libpath: _system.image.libpath,
+            tmppath: _system.image.tmppath
+         };
+         _setExecEnvironment(exp, exec_env, cb);
+      },
+      // Prepare experiment for the system
+      function(cb){
+         console.log("Execution environment has been set");
+
+         // Prepare experiment
+         _prepareExperiment(exp.id, cb);
+      },
+      // Deploy experiment in master instance
+      function(cb){
+         console.log("Deploying experiment " + exp.id);
+
+         // Prepare experiment
+         _deployExperiment(minion, _app, exp, _system, cb);
+      },
+      // Execute experiment
+      function(cb){
+         console.log("Executing experiment " + exp.id);
+
+         // Prepare experiment
+         _executeExperiment(minion, _app, exp, _system, cb);
       }
-      checkCallback(null);
-
-      // Set exp var
-      _exp = exp;
-
-      // Reinitialize experiment to status "created"
-      _exp.status = "created";
-      db.collection('experiments').updateOne({id: _exp.id},{$set:{status:"created"}});
-
-      // Execute operations
-      async.waterfall([
-         // Retrieve application metadata
-         function(cb){
-            console.log("Getting application");
-            _getApplication(_exp.app_id, cb);
-         },
-         // First, define a system where execution will take place
-         function(app, cb){
-            console.log("Selected experiment: " + _exp.name + "\n" +
-                        "-- App: " + app.name);
-            _app = app;
-            _defineSystem(_minion, nodes, image_id, size_id, cb);
-         },
-         // Instance system
-         function(system, cb){
-            console.log("-----------------------\n",
-                        "System configured with:\n",
-                        "-- Image: ", system.image.name, " - ", system.image.id, "\n",
-                        "-- Size: ", system.size.name, " - ", system.size.id, "\n");
-                        _system = system;
-                        _instanceSystem(_minion, system, cb);
-         },
-         // Set experiment execution environment
-         function(cb){
-            msg = "-----------------------\nSystem instances:\n";
-            for(i = 0; i < _system.nodes; i++){
-               msg += "-- " + i + ": " + _system.instances[i] + "\n";
-            }
-            console.log(msg);
-
-            // Set execution environment
-            var exec_env = {
-               nodes: _system.nodes,
-               cpus: _system.size.cpus,
-               inputpath: _system.image.inputpath,
-               libpath: _system.image.libpath,
-               tmppath: _system.image.tmppath
-            };
-            _setExecEnvironment(exp_id, exec_env, cb);
-         },
-         // Prepare experiment for the system
-         function(cb){
-            console.log("Execution environment has been set");
-
-            // Prepare experiment
-            _prepareExperiment(exp_id, cb);
-         },
-         // Deploy experiment in master instance
-         function(cb){
-            console.log("Deploying experiment " + exp_id);
-
-            // Prepare experiment
-            _deployExperiment(_minion, _app, _exp, _system, cb);
-         },
-         // Execute experiment
-         function(cb){
-            console.log("Executing experiment " + exp_id);
-
-            // Prepare experiment
-            _executeExperiment(_minion, _app, _exp, _system, cb);
-         }
-      ],
-      function(err){
-         if(err){
-            console.error("Failed to launch experiment " + exp_id + ", err: " + err);
-         } else {
-            console.log("Experiment " + exp_id + " has been executed");
-         }
-      });
+   ],
+   function(err){
+      if(err){
+         console.error("Failed to launch experiment " + exp.id + ", err: " + err);
+      } else {
+         console.log("Experiment " + exp.id + " has been executed");
+      }
    });
 }
 
@@ -245,10 +274,10 @@ var _instanceSystem = function(minion, system, cb){
 /**
  * Set experiment execution environment
  */
-var _setExecEnvironment = function(exp_id, exec_env, cb){
-   storageClient.invoke('updateExperiment', exp_id, {exec_env: JSON.stringify(exec_env)}, function (error, result, more) {
+var _setExecEnvironment = function(exp, exec_env, cb){
+   storageClient.invoke('updateExperiment', exp.id, {exec_env: exec_env}, function (error, result, more) {
       if (error) {
-         cb(new Error("Failed to set execution environment of experiment ", exp_id, ", err: ", error));
+         cb(new Error("Failed to set execution environment of experiment ", exp.id, ", err: ", error));
       } else {
          // Experiment have now an execution environment
          cb(null);
@@ -279,14 +308,16 @@ var _deployExperiment = function(minion, app, exp, system, cb){
    if(system.status != "instanced"){
       cb(new Error("Target system is not instanced"));
    } else {
-      // Deploy experiment
-      minion.invoke('deployExperiment', app, exp, system, function (error, result, more) {
-         if (error) {
-            cb(new Error("Failed to deploy experiment ", exp.id, ", err: ", error));
-         } else {
-            // Experiment is deployed and waiting to be compiled
-            _waitExperimentCompilation(minion, exp, system, cb);
-         }
+      _getExperiment(exp.id, function(err, exp){
+         // Deploy experiment
+         minion.invoke('deployExperiment', app, exp, system, function (error, result, more) {
+            if (error) {
+               cb(new Error("Failed to deploy experiment ", exp.id, ", err: ", error));
+            } else {
+               // Experiment is deployed and waiting to be compiled
+               _waitExperimentCompilation(minion, exp, system, cb);
+            }
+         });
       });
    }
 }
@@ -323,14 +354,16 @@ var _executeExperiment = function(minion, app, exp, system, cb){
    if(system.status != "instanced"){
       cb(new Error("Target system is not instanced"));
    } else {
-      // Deploy experiment
-      minion.invoke('executeExperiment', app, exp, system, function (error, result, more) {
-         if (error) {
-            cb(new Error("Failed to execute experiment ", exp.id, ", err: ", error));
-         } else {
-            // Experiment can now be executed
-            _waitExperimentExecution(minion, exp, system, cb);
-         }
+      _getExperiment(exp.id, function(err, exp){
+         // Deploy experiment
+         minion.invoke('executeExperiment', app, exp, system, function (error, result, more) {
+            if (error) {
+               cb(new Error("Failed to execute experiment ", exp.id, ", err: ", error));
+            } else {
+               // Experiment can now be executed
+               _waitExperimentExecution(minion, exp, system, cb);
+            }
+         });
       });
    }
 }
