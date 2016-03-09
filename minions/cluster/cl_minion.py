@@ -142,11 +142,11 @@ class ClusterMinion(minion.Minion):
 
         # Get image
         image_id = instance_cfg['image_id']
-        image = self.findImage(image_id)
+        image = self._findImage(image_id)
 
         # Get size
         size_id = instance_cfg['size_id']
-        size = self.findSize(size_id)
+        size = self._findSize(size_id)
 
         print("=============================")
         print("Creating instance:")
@@ -252,7 +252,7 @@ class ClusterMinion(minion.Minion):
         self._instance_lock[instance_id] = True
 
         # Get instance
-        instance = self.findInstance(instance_id)
+        instance = self._findInstance(instance_id)
 
         # Check if instance is already deployed
         if instance['deployed']:
@@ -268,7 +268,7 @@ class ClusterMinion(minion.Minion):
             raise Exception("Instance without SSH")
 
         # Get size
-        size = self.findSize(instance['size_id'])
+        size = self._findSize(instance['size_id'])
 
         # Copy experiment in FS
         experiment_url = experiment['public_url']
@@ -280,7 +280,7 @@ class ClusterMinion(minion.Minion):
         gevent.joinall([task])
 
         # Init EXPERIMENT_STATUS
-        cmd = 'echo -n "initialized" > {0}/{1}/EXPERIMENT_STATUS'.format(
+        cmd = 'echo -n "deployed" > {0}/{1}/EXPERIMENT_STATUS'.format(
             self._workspace, experiment['id']
         )
         task = gevent.spawn(self._executeSSH, ssh, cmd)
@@ -340,7 +340,7 @@ class ClusterMinion(minion.Minion):
         self._instance_lock[instance_id] = True
 
         # Get instance
-        instance = self.findInstance(instance_id)
+        instance = self._findInstance(instance_id)
 
         # Check if instance is already executed
         if instance['executed']:
@@ -356,7 +356,7 @@ class ClusterMinion(minion.Minion):
             raise Exception("Instance without SSH")
 
         # Get size
-        size = self.findSize(instance['size_id'])
+        size = self._findSize(instance['size_id'])
 
         # Create PBS script for experiment
         work_dir = "{0}/{1}".format(self._workspace, experiment['id'])
@@ -480,6 +480,27 @@ class ClusterMinion(minion.Minion):
         self._workspace = config['workspace']
         print("Workspace: {0}".format(self._workspace))
         print("Config loaded!")
+
+    def _findImage(self, image_id):
+        """Return image data"""
+        return self._db.images.find_one({
+            'minion': self.__class__.__name__,
+            'id': image_id
+        })
+
+    def _findSize(self, size_id):
+        """Return size data"""
+        return self._db.sizes.find_one({
+            'minion': self.__class__.__name__,
+            'id': size_id
+        })
+
+    def _findInstance(self, inst_id):
+        """Return size data"""
+        return self._db.instances.find_one({
+            'minion': self.__class__.__name__,
+            'id': inst_id
+        })
 
     def _retrieveSSH(self, url, username, password=None):
         # Get valid URL
