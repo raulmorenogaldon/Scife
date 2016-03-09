@@ -216,6 +216,7 @@ class Storage(object):
             'id': id,
             'name': exp_name,
             'desc': exp_desc,
+            'status': "created",
             'app_id': exp_app_id,
             'exec_env': exp_exec_env,
             'labels': exp_labels
@@ -378,13 +379,6 @@ class Storage(object):
             if os.path.isfile(file):
                 self._replaceLabelsInFile(file, labels)
                 self._replaceLabelsInFile(file, empty_labels)
-
-        # Execute experiment creation script
-        #if app['creation_script'] is not None:
-        #    print("===============================")
-        #    comm = "./{0}".format(app['creation_script'])
-        #    print("Executing experiment creation script: {0}".format(comm))
-        #    subprocess.call([comm], cwd=app_path)
 
         # Commit changes and return to master
         print("===============================")
