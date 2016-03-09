@@ -304,7 +304,8 @@ router.get('/experiments', function (req, res, next) {
          console.log('Error in the GET request /experiments, err: ', error);
          res.status(codes.HTTPCODE.INTERNAL_ERROR); //Internal server error
          res.json({
-            'errors': [codes.ERRCODE.UNKNOWN]
+            'errors': [codes.ERRCODE.UNKNOWN],
+            'details': error.message
          });
       }
       res.json(result);
@@ -327,7 +328,8 @@ router.post('/experiments', function (req, res, next) {
             console.log('Error in the POST creation request /experiments, err: ', error);
             res.status(codes.HTTPCODE.INTERNAL_ERROR); //Internal server error
             res.json({
-               'errors': [codes.ERRCODE.EXP_INCORRECT_PARAMS]
+               'errors': [codes.ERRCODE.EXP_INCORRECT_PARAMS],
+               'details': error.message
             });
          } else {
             res.json(result);
@@ -350,7 +352,8 @@ router.get('/experiments/:exp_id', function (req, res, next) {
             'errors': [
                codes.ERRCODE.ID_NOT_FOUND,
                codes.ERRCODE.EXP_NOT_FOUND
-            ]
+            ],
+            'details': error.message
          });
       }
       res.json(result);
@@ -370,7 +373,8 @@ router.put('/experiments/:exp_id', function (req, res, next) {
             'errors': [
                codes.ERRCODE.ID_NOT_FOUND,
                codes.ERRCODE.EXP_NOT_FOUND
-            ]
+            ],
+            'details': error.message
          });
       } else {
          res.json(result);
@@ -401,11 +405,12 @@ router.post('/experiments/:exp_id', function (req, res, next) {
       });
    } else {
       // Launch experiment
-      scheduler.launchExperiment(req.params.exp_id, req.body.nodes, req.body.image_id, req.body.size_id, function(err){
-         if(err){
+      scheduler.launchExperiment(req.params.exp_id, req.body.nodes, req.body.image_id, req.body.size_id, function(error){
+         if(error){
             res.status(codes.HTTPCODE.NOT_FOUND); // Not found
             res.json({
-               'errors': [codes.ERRCODE.ID_NOT_FOUND]
+               'errors': [codes.ERRCODE.ID_NOT_FOUND],
+               'details': error.message
             });
          } else {
             res.json(null);
