@@ -31,7 +31,7 @@ storageClient.connect(constants.STORAGE_URL);
 router.get('/login', function(req, res, next){
    var config = {
       'url': "galgo.i3a.info",
-      'username': "rmoreno",
+      'username': "rmoreno2",
    }
    minionClient.invoke("login", config, function(error, result, more){
       if(error){

@@ -1,5 +1,8 @@
 """Minion for clusters."""
 import gevent
+import getopt
+import os
+import sys
 import json
 import uuid
 import zerorpc
@@ -15,7 +18,7 @@ from pymongo import MongoClient
 class ClusterMinion(minion.Minion):
     """Class definition."""
 
-    def __init__(self):
+    def __init__(self, config):
         """Init function."""
         print("Initializing Cluster minion...")
         self._connected = False
@@ -59,6 +62,11 @@ class ClusterMinion(minion.Minion):
 
         # Command to load bash environment in SSH
         self._cmd_env = ". /etc/profile; . ~/.bash_profile"
+
+        # Login
+        if config is not None:
+            self.login(config)
+
         print("Initialization completed!")
 
     def login(self, config):
@@ -534,6 +542,36 @@ class ClusterMinion(minion.Minion):
 # Execute this only if called directly from python command
 # From now RPC is waiting for requests
 if __name__ == "__main__":
-    rpc = zerorpc.Server(ClusterMinion(), heartbeat=30)
+    # Get arguments
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "hc:", ["cfg="])
+        if len(opts) == 0:
+            raise getopt.GetoptError("Please, specify configuration file with -c")
+    except getopt.GetoptError as e:
+        # Not valid arguments
+        print(e)
+        print("Usage: python -m minions.cluster.cl_minion -c <config_file>")
+        sys.exit(2)
+
+    # Iterate arguments
+    for opt, arg in opts:
+        if opt == '-h':
+            print("python -m minion.cluster.cl_minion -c <config_file>")
+            sys.exit()
+        elif opt in ("-c", "--cfg"):
+            cfg_file = arg
+
+    print("Config file: {0}".format(cfg_file))
+
+    # Check if config file exists
+    if os.path.isfile(cfg_file):
+        with open(cfg_file) as f:
+            cfg = json.load(f)
+    else:
+        print("Inexistent file: {0}".format(cfg_file))
+        sys.exit(3)
+
+    # Read configuration file
+    rpc = zerorpc.Server(ClusterMinion(cfg), heartbeat=30)
     rpc.bind("tcp://0.0.0.0:8238")
     rpc.run()
