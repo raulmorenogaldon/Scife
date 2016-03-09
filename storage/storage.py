@@ -194,11 +194,11 @@ class Storage(object):
         else:
             exp_desc = "Empty"
         if 'labels' in exp_cfg:
-            exp_labels = json.loads(exp_cfg['labels'])
+            exp_labels = exp_cfg['labels']
         else:
             exp_labels = {}
         if 'exec_env' in exp_cfg:
-            exp_exec_env = json.loads(exp_cfg['exec_env'])
+            exp_exec_env = exp_cfg['exec_env']
         else:
             exp_exec_env = {}
 
@@ -242,9 +242,9 @@ class Storage(object):
         if 'desc' in exp_cfg:
             exp['desc'] = exp_cfg['desc']
         if 'labels' in exp_cfg:
-            exp['labels'] = json.loads(exp_cfg['labels'])
+            exp['labels'] = exp_cfg['labels']
         if 'exec_env' in exp_cfg:
-            exp['exec_env'] = json.loads(exp_cfg['exec_env'])
+            exp['exec_env'] = exp_cfg['exec_env']
 
         # Update into DB
         self._db.experiments.update_one(

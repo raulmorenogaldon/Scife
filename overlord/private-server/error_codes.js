@@ -34,9 +34,13 @@ var ERRCODE = {
       'message': "You must pass 'name' and 'app_id'.",
       'code': 31
    },
+   EXP_MALFORMED_LABELS: {
+      'message': "Error parsing labels JSON",
+      'code': 32
+   },
    LAUNCH_INCORRECT_PARAMS: {
       'message': "You must pass 'nodes', 'image_id' and 'size_id'.",
-      'code': 32
+      'code': 33
    },
 }
 

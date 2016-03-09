@@ -323,6 +323,7 @@ router.post('/experiments', function (req, res, next) {
          'errors': [codes.ERRCODE.EXP_INCORRECT_PARAMS]
       });
    } else {
+      // Create experiment
       storageClient.invoke('createExperiment', req.body, function (error, result, more) {
          if (error) {
             console.log('Error in the POST creation request /experiments, err: ', error);
