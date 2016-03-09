@@ -197,8 +197,14 @@ class StubMinion(minion.Minion):
         print("Launching creation script: {0}".format(cmd))
         print("Output:")
         print("-------")
-        experiment['status'] = "compiling"
-        self.experiments.append(experiment)
+        found = False
+        for exp in self.experiments:
+            if exp['id'] == experiment['id']:
+                exp['status'] = "compiling"
+                found = True
+        if not found:
+            experiment['status'] = "compiling"
+            self.experiments.append(experiment)
 
     def executeExperiment(self, app, experiment, system):
         """Execute an experiment in the cluster FS."""
@@ -252,9 +258,13 @@ class StubMinion(minion.Minion):
         if instance is None:
             raise Exception("Instance ID does not exists")
 
+        # Search experiment
         for exp in self.experiments:
             if exp['id'] == experiment['id']:
                 # Check status
+                if exp['status'] == "deployed":
+                    return "compiled"
+
                 if exp['status'] == "compiling":
                     return "compiled"
 
