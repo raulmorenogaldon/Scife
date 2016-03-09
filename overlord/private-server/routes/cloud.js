@@ -401,15 +401,16 @@ router.post('/experiments/:exp_id', function (req, res, next) {
       });
    } else {
       // Launch experiment
-      err = scheduler.launchExperiment(req.params.exp_id, req.body.nodes, req.body.image_id, req.body.size_id);
-      if(err){
-         res.status(codes.HTTPCODE.NOT_FOUND); //Bad request
-         res.json({
-            'errors': [codes.ERRCODE.ID_NOT_FOUND]
-         });
-      } else {
-         res.json(null);
-      }
+      scheduler.launchExperiment(req.params.exp_id, req.body.nodes, req.body.image_id, req.body.size_id, function(err){
+         if(err){
+            res.status(codes.HTTPCODE.NOT_FOUND); // Not found
+            res.json({
+               'errors': [codes.ERRCODE.ID_NOT_FOUND]
+            });
+         } else {
+            res.json(null);
+         }
+      });
    }
 });
 
