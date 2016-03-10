@@ -436,6 +436,35 @@ class ClusterMinion(minion.Minion):
 
         return status
 
+    def cleanExperiment(self, experiment, system):
+        """Remove experiment data from the system"""
+
+        # Get instance
+        instance_id = system['master']
+
+        ####################
+        # Set the lock for the instance
+        while self._instance_lock[instance_id]:
+            gevent.sleep(0)
+        self._instance_lock[instance_id] = True
+
+        # Get instance command line
+        ssh = self._instance_ssh[instance_id]
+        if ssh is None:
+            self._instance_lock[instance_id] = False
+            raise Exception("Instance without SSH")
+
+        # TODO: Check if experiment is in jobs queue
+
+        # Remove experiment folder
+        work_dir = "{0}/{1}".format(self._workspace, experiment['id'])
+        cmd = 'rm -rf {0}'.format(work_dir)
+        task = gevent.spawn(self._executeSSH, ssh, cmd)
+        gevent.joinall([task])
+
+        self._instance_lock[instance_id] = False
+        ####################
+
     """ Private functions """
     def _loadConfig(self, config):
         print("Loading config...")

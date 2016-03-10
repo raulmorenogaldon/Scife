@@ -273,6 +273,21 @@ class StubMinion(minion.Minion):
 
         return "failed_compilation"
 
+    def cleanExperiment(self, experiment, system):
+        """Remove experiment data."""
+
+        # Get instance
+        instance_id = system['master']
+        instance = self._findInstance(instance_id)
+        if instance is None:
+            raise Exception("Instance ID does not exists")
+
+        # Search experiment
+        for exp in self.experiments:
+            if exp['id'] == experiment['id']:
+                # Change status
+                exp['status'] == "created"
+
     def _findImage(self, image_id):
         """Return image data"""
         for image in self.images:
