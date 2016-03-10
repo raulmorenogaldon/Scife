@@ -442,6 +442,11 @@ class ClusterMinion(minion.Minion):
         # Get instance
         instance_id = system['master']
 
+        print("==========")
+        print("Removing experiment {0} from instance {1}".format(
+            experiment['id'], instance_id
+        ))
+
         ####################
         # Set the lock for the instance
         while self._instance_lock[instance_id]:

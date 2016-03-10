@@ -456,4 +456,19 @@ router.post('/experiments/:exp_id', function (req, res, next) {
    }
 });
 
+router.post('/experiments/:exp_id/reset', function (req, res, next) {
+   // Reset experiment
+   scheduler.resetExperiment(req.params.exp_id, function(error){
+      if(error){
+         res.status(codes.HTTPCODE.NOT_FOUND); // Not found
+         res.json({
+            'errors': [codes.ERRCODE.ID_NOT_FOUND],
+            'details': error.message
+         });
+      } else {
+         res.json(null);
+      }
+   });
+});
+
 module.exports = router;
