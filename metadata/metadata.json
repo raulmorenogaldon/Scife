@@ -42,7 +42,8 @@
 		'id': "f745c536-d55a-11e5-90c8-5254003eece4",
 		'name': "Image name",
 		'desc': "Description",
-      'inputpath': "/home/image/input",
+      'workpath': "/home/image/workspace",
+      'inputpath': "/home/image/inputdata",
       'libpath': "/home/image/libs",
       'tmppath': "/tmp"
 	},

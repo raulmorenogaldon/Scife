@@ -278,10 +278,13 @@ class ClusterMinion(minion.Minion):
         # Get size
         size = self._findSize(instance['size_id'])
 
+        # Get image
+        image = self._findImage(instance['image_id'])
+
         # Copy experiment in FS
         experiment_url = experiment['public_url']
         cmd = "git clone -b {0} {1} {2}/{3}".format(
-            experiment['id'], experiment_url, self._workspace, experiment['id']
+            experiment['id'], experiment_url, image['workpath'], experiment['id']
         )
         print("Cloning: {0}".format(cmd))
         task = gevent.spawn(self._executeSSH, ssh, cmd)
@@ -289,13 +292,13 @@ class ClusterMinion(minion.Minion):
 
         # Init EXPERIMENT_STATUS
         cmd = 'echo -n "deployed" > {0}/{1}/EXPERIMENT_STATUS'.format(
-            self._workspace, experiment['id']
+            image['workpath'], experiment['id']
         )
         task = gevent.spawn(self._executeSSH, ssh, cmd)
         gevent.joinall([task])
 
         # PBS command for compile creation
-        work_dir = "{0}/{1}".format(self._workspace, experiment['id'])
+        work_dir = "{0}/{1}".format(image['workpath'], experiment['id'])
         exe_script = """
             #!/bin/sh
             cd {0}
@@ -366,8 +369,11 @@ class ClusterMinion(minion.Minion):
         # Get size
         size = self._findSize(instance['size_id'])
 
+        # Get image
+        image = self._findImage(instance['image_id'])
+
         # Create PBS script for experiment
-        work_dir = "{0}/{1}".format(self._workspace, experiment['id'])
+        work_dir = "{0}/{1}".format(image['workpath'], experiment['id'])
         exe_script = """
             #!/bin/bash
             cd {0}
@@ -407,7 +413,7 @@ class ClusterMinion(minion.Minion):
     def pollExperiment(self, experiment, system):
         """Update experiment status."""
 
-        # Get instance
+        # Get instance ID
         instance_id = system['master']
 
         ####################
@@ -422,8 +428,14 @@ class ClusterMinion(minion.Minion):
             self._instance_lock[instance_id] = False
             raise Exception("Instance without SSH")
 
+        # Get instance
+        instance = self._findInstance(instance_id)
+
+        # Get image
+        image = self._findImage(instance['image_id'])
+
         # Check status
-        work_dir = "{0}/{1}".format(self._workspace, experiment['id'])
+        work_dir = "{0}/{1}".format(image['workpath'], experiment['id'])
         cmd = 'cat {0}/EXPERIMENT_STATUS'.format(work_dir)
         task = gevent.spawn(self._executeSSH, ssh, cmd)
         gevent.joinall([task])
@@ -459,10 +471,16 @@ class ClusterMinion(minion.Minion):
             self._instance_lock[instance_id] = False
             raise Exception("Instance without SSH")
 
+        # Get instance
+        instance = self._findInstance(instance_id)
+
+        # Get image
+        image = self._findImage(instance['image_id'])
+
         # TODO: Check if experiment is in jobs queue
 
         # Remove experiment folder
-        work_dir = "{0}/{1}".format(self._workspace, experiment['id'])
+        work_dir = "{0}/{1}".format(image['workpath'], experiment['id'])
         cmd = 'rm -rf {0}'.format(work_dir)
         task = gevent.spawn(self._executeSSH, ssh, cmd)
         gevent.joinall([task])
@@ -518,9 +536,6 @@ class ClusterMinion(minion.Minion):
                 print("-- Adding size: {0}".format(size))
                 self._db.sizes.insert_one(size)
 
-        # Parse working directory path
-        self._workspace = config['workspace']
-        print("Workspace: {0}".format(self._workspace))
         print("Config loaded!")
 
     def _findImage(self, image_id):
