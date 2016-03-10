@@ -49,10 +49,10 @@
 /cloud/images/update/:imageId (PUT) "The private server receive the ID and the data of the image to update"
 
 /cloud/applications/ (GET) "Return a list with all the applications in ther server"
-/cloud/applications/details/:applicationId (GET) "Return a application whose ID is passed by parameter"
-/cloud/applications/create (POST) "The private server receive the data to create a new application"
-/cloud/applications/delete/:applicationId (DELETE) "The private server receive the ID of the application to delete"
-/cloud/applications/update/:applicationId (PUT) "The private server receive the ID and the data of the application to update"
+/cloud/applications/ (POST) "Create an application in the server"
+/cloud/applications/:applicationId (GET) "Return an application data, ID is passed by parameter"
+/cloud/applications/:applicationId (PUT) "Update an existing application whose ID is passed by parameter"
+/cloud/applications/:applicationId (DELETE) "Delete an existing application whose ID is passed by parameter""
 
 /cloud/experiments/ (GET) "Return a list with all the experiments in ther server"
 /cloud/experiments/ (POST) "Create an experiment in the server"
