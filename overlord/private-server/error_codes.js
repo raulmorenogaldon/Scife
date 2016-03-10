@@ -25,22 +25,32 @@ var ERRCODE = {
       'code': 20
    },
 
+   // Application
+   APP_NOT_FOUND: {
+      'message': "Requested application has not been found!",
+      'code': 30
+   },
+   APP_INCORRECT_PARAMS: {
+      'message': "You must pass 'name', 'creation_script', 'execution_script' and 'path'.",
+      'code': 31
+   },
+
    // Experiment
    EXP_NOT_FOUND: {
       'message': "Requested experiments has not been found!",
-      'code': 30
+      'code': 40
    },
    EXP_INCORRECT_PARAMS: {
       'message': "You must pass 'name' and 'app_id'.",
-      'code': 31
+      'code': 41
    },
    EXP_MALFORMED_LABELS: {
       'message': "Error parsing labels JSON",
-      'code': 32
+      'code': 42
    },
    LAUNCH_INCORRECT_PARAMS: {
       'message': "You must pass 'nodes', 'image_id' and 'size_id'.",
-      'code': 33
+      'code': 43
    },
 }
 

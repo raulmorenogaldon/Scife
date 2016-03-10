@@ -31,7 +31,7 @@ storageClient.connect(constants.STORAGE_URL);
 router.get('/login', function(req, res, next){
    var config = {
       'url': "galgo.i3a.info",
-      'username': "rmoreno",
+      'username': "rmoreno2",
    }
    minionClient.invoke("login", config, function(error, result, more){
       if(error){
@@ -241,25 +241,12 @@ router.get('/images/:image_id', function (req, res, next) {
 router.get('/applications', function (req, res, next) {
    storageClient.invoke('getApplications', function (error, result, more) {
       if (error) {
-         console.log('Error in the request /applications');
-         res.status(500); //Internal server error
-         res.json(error);
-      }
-      res.json(result);
-   });
-});
-
-/**
- * Get application metadata from the storage using its ID
- * @param {String} - The application id.
- * @return {[Object]} - A json Object with application metadata
- */
-router.get('/applications/:app_id', function (req, res, next) {
-   storageClient.invoke('getApplications', req.params.app_id, function (error, result, more) {
-      if (error) {
-         console.log('Error in the request /applications');
-         res.status(404); //Not Found
-         res.json(error);
+         console.log('Error in the GET request /applications, err: ', error);
+         res.status(codes.HTTPCODE.INTERNAL_ERROR); //Internal server error
+         res.json({
+            'errors': [codes.ERRCODE.UNKNOWN],
+            'details': error.message
+         });
       }
       res.json(result);
    });
@@ -270,22 +257,71 @@ router.get('/applications/:app_id', function (req, res, next) {
  * @param {Object} - A json Object with application metadata
  * @return {[Object]} - A json Object with application ID
  */
-router.post('/createapplication', function (req, res, next) {
-   if (!req.body.name || !req.body.desc || !req.body.path || !req.body.creation_script || !req.body.execution_script) {
-      res.status(400); //Bad request
-      res.json({error: 'Error, you must pass the name, description, input app folder, creation and execution scripts.'});
+router.post('/applications', function (req, res, next) {
+   if (!req.body.name || !req.body.creation_script || !req.body.execution_script || !req.body.path) {
+      res.status(codes.HTTPCODE.BAD_REQUEST); //Bad request
+      res.json({
+         'errors': [codes.ERRCODE.APP_INCORRECT_PARAMS]
+      });
    } else {
-      console.log("Creating application: ", req.body);
+      // Create experiment
       storageClient.invoke('createApplication', req.body, function (error, result, more) {
          if (error) {
-            console.log('Error in the request /createapplication\n' + error);
-            res.status(500); //Internal server error
-            res.json(error);
+            console.log('Error in the POST creation request /applications, err: ', error);
+            res.status(codes.HTTPCODE.INTERNAL_ERROR); //Internal server error
+            res.json({
+               'errors': [codes.ERRCODE.EXP_INCORRECT_PARAMS],
+               'details': error.message
+            });
          } else {
             res.json(result);
          }
       });
    }
+});
+
+/**
+ * Get application metadata from the storage using its ID
+ * @param {String} - The application id.
+ * @return {[Object]} - A json Object with application metadata
+ */
+router.get('/applications/:app_id', function (req, res, next) {
+   storageClient.invoke('getApplications', req.params.app_id, function (error, result, more) {
+      if (error) {
+         console.log('Error in the request /applications/:app_id, err: ', error);
+         res.status(codes.HTTPCODE.NOT_FOUND); //Not Found
+         res.json({
+            'errors': [
+               codes.ERRCODE.ID_NOT_FOUND,
+               codes.ERRCODE.APP_NOT_FOUND
+            ],
+            'details': error.message
+         });
+      }
+      res.json(result);
+   });
+});
+
+/**
+ * Update application metadata
+ * @param {String} - The application id.
+ */
+router.put('/applications/:app_id', function (req, res, next) {
+   res.status(codes.HTTPCODE.NOT_IMPLEMENTED); //Not Implemented
+   res.json({
+      'errors': [codes.ERRCODE.NOT_IMPLEMENTED]
+   });
+});
+
+/**
+ * Delete application
+ * @param {String} - The application id.
+ */
+router.delete('/applications/:app_id', function (req, res, next) {
+   res.status(codes.HTTPCODE.NOT_IMPLEMENTED); //Not Implemented
+   res.json({
+      'errors': [codes.ERRCODE.NOT_IMPLEMENTED]
+   });
 });
 
 /***********************************************************
