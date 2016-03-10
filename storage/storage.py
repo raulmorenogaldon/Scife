@@ -281,7 +281,7 @@ class Storage(object):
             gevent.sleep(0)
         self.lock = True
         gevent.subprocess.call(["git", "checkout", "master"], cwd=app_path)
-        gevent.subprocess.call(["git", "branch", "-d", exp['id']], cwd=app_path)
+        gevent.subprocess.call(["git", "branch", "-D", exp['id']], cwd=app_path)
         gevent.subprocess.call(["git", "branch", exp['id']], cwd=app_path)
 
         # Apply parameters
