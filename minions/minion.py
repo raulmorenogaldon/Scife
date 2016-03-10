@@ -85,6 +85,14 @@ class Minion:
         """
         raise NotImplementedError()
 
+    def cleanExperiment(self, experiment, system):
+        """
+        Remove experiment data from instances
+        experiment: Experiment data
+        system: Cluster of instances
+        """
+        raise NotImplementedError()
+
     # More methods will be needed
     # getKey, getIP
     # exec(script)
