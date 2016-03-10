@@ -76,9 +76,22 @@ class Storage(object):
         print("Initialization completed!")
 
     def createApplication(self, app_cfg):
+        # Check parameters
+        if 'name' not in app_cfg:
+            raise Exception("Error creating application, 'name' not set.")
+        if 'creation_script' not in app_cfg:
+            raise Exception("Error creating application, 'creation_script' not set.")
+        if 'execution_script' not in app_cfg:
+            raise Exception("Error creating application, 'execution_script' not set.")
+        if 'path' not in app_cfg:
+            raise Exception("Error creating application, 'path' not set.")
+
         # Get parameters
         app_name = app_cfg['name']
-        app_desc = app_cfg['desc']
+        if 'desc' not in app_cfg:
+            app_desc = app_cfg['desc']
+        else:
+            app_desc = "Description"
         app_creation_script = app_cfg['creation_script']
         app_execution_script = app_cfg['execution_script']
         app_path = app_cfg['path']
@@ -355,9 +368,9 @@ class Storage(object):
         # Get labels and add system ones
         labels = experiment['labels']
         labels['#EXPERIMENT_ID'] = experiment['id']
-        labels['#EXPERIMENT_NAME'] = experiment['name']
+        labels['#EXPERIMENT_NAME'] = experiment['name'].replace(" ", "_")
         labels['#APPLICATION_ID'] = app['id']
-        labels['#APPLICATION_NAME'] = app['name']
+        labels['#APPLICATION_NAME'] = app['name'].replace(" ", "_")
         labels['#INPUTPATH'] = exec_env['inputpath']
         labels['#LIBPATH'] = exec_env['libpath']
         labels['#TMPPATH'] = exec_env['tmppath']
