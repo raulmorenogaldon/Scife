@@ -14,11 +14,12 @@ from pymongo import MongoClient
 class Storage(object):
     """Class to handle application storage in standard a FS."""
 
-    def __init__(self, path, public_url, username):
+    def __init__(self, apppath, inputpath, public_url, username):
         print("Initializing storage...")
 
         # Set path for storage
-        self.path = path
+        self.apppath = apppath
+        self.inputpath = inputpath
 
         # Set user
         self.username = username
@@ -52,10 +53,15 @@ class Storage(object):
         # Init lock
         self.lock = False
 
-        # Check if datastorage exists
-        if not os.path.isdir(self.path):
+        # Check if appstorage exists
+        if not os.path.isdir(self.apppath):
             # Create storage folder
-            os.mkdir(self.path)
+            os.mkdir(self.apppath)
+
+        # Check if inputstorage exists
+        if not os.path.isdir(self.inputpath):
+            # Create storage folder
+            os.mkdir(self.inputpath)
 
         # Load apps
         print("Loading apps in DB...")
@@ -65,7 +71,7 @@ class Storage(object):
         else:
             for app in cursor:
                 # Check if exists in folder
-                app_path = os.path.join(self.path, app['id'])
+                app_path = os.path.join(self.apppath, app['id'])
                 if os.path.isdir(app_path):
                     print("App loaded:", app['name'], app['id'])
                 else:
@@ -123,13 +129,17 @@ class Storage(object):
         src_path = app_path
 
         # Get destination path and create it
-        dst_path = self.path + "/" + id
+        dst_path = self.apppath + "/" + id
 
         # Copy application to storage
         print('Copying app "{0}": {1} --> {2}'.format(
             app_path, src_path, dst_path
         ))
         gevent.subprocess.call(["scp", "-r", src_path, dst_path])
+
+        # Create input data folder
+        input_path = self.inputpath + "/" + id
+        os.mkdir(input_path)
 
         # Create application data
         app = {
@@ -235,6 +245,16 @@ class Storage(object):
             'labels': exp_labels
         }
 
+        # Get application and experiment input storage path
+        app_path = self.inputpath + "/" + app['id'] + "/"
+        exp_path = self.inputpath + "/" + exp['id'] + "/"
+
+        # Copy inputs to storage
+        print('Copying app default inputdata: {0} --> {1}'.format(
+            app_path, exp_path
+        ))
+        gevent.subprocess.call(["cp", "-as", app_path, exp_path])
+
         # Insert into DB
         self._db.experiments.insert_one(exp)
         print('Experiment {0} created.'.format(exp['id']))
@@ -284,7 +304,7 @@ class Storage(object):
             ))
 
         # Get application storage path
-        app_path = self.path + "/" + app['id'] + "/"
+        app_path = self.apppath + "/" + app['id'] + "/"
 
         # Create experiment branch
         print('Creating experiment branch...')
@@ -300,18 +320,19 @@ class Storage(object):
         # Apply parameters
         self._applyExperimentParams(app, exp)
 
-        # Set public URL
-        public_url = self.getExperimentPublicURL(exp_id)
+        # Set URLs
+        exp_url = self.getExperimentAppURL(exp_id)
+        input_url = self.getExperimentInputURL(exp_id)
         self._db.experiments.update_one(
             {"id": exp_id},
-            {"$set": {"public_url": public_url}}
+            {"$set": {"exp_url": exp_url, "input_url": input_url}}
         )
 
         self.lock = False
         ########################
         return exp_id
 
-    def getExperimentPublicURL(self, exp_id):
+    def getExperimentAppURL(self, exp_id):
         # Retrieve experiment
         exp = self._findExperiment(exp_id)
         if exp is None:
@@ -320,7 +341,23 @@ class Storage(object):
             ))
 
         # Get application storage path
-        app_path = self.path + "/" + exp['app_id']
+        app_path = self.apppath + "/" + exp['app_id']
+
+        # Get public URL for this experiment
+        url = "{0}@{1}:{2}".format(self.username, self.public_url, app_path)
+
+        return url
+
+    def getExperimentInputURL(self, exp_id):
+        # Retrieve experiment
+        exp = self._findExperiment(exp_id)
+        if exp is None:
+            raise Exception('Experiment ID: "{0}", does not exists'.format(
+                exp_id
+            ))
+
+        # Get input storage path
+        app_path = self.inputpath + "/" + exp['app_id']
 
         # Get public URL for this experiment
         url = "{0}@{1}:{2}".format(self.username, self.public_url, app_path)
@@ -355,7 +392,7 @@ class Storage(object):
 
     def _applyExperimentParams(self, app, experiment):
         # Get application storage path
-        app_path = self.path + "/" + app['id'] + "/"
+        app_path = self.apppath + "/" + app['id'] + "/"
 
         # Check out experiment
         print("===============================")
@@ -447,7 +484,8 @@ if __name__ == "__main__":
 
     # Read configuration file
     rpc = zerorpc.Server(Storage(
-        path=cfg['path'],
+        apppath=cfg['appstorage'],
+        inputpath=cfg['inputstorage'],
         public_url=cfg['public_url'],
         username=cfg['username']
     ), heartbeat=30)

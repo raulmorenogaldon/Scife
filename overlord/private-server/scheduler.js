@@ -152,7 +152,7 @@ var _workflowExperiment = function(exp_id, minion, nodes, image_id, size_id){
             var exec_env = {
                nodes: _system.nodes,
                cpus: _system.size.cpus,
-               inputpath: _system.image.inputpath,
+               inputpath: _system.image.inputpath + "/" + exp_id,
                libpath: _system.image.libpath,
                tmppath: _system.image.tmppath
             };

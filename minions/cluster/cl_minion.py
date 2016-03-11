@@ -282,13 +282,19 @@ class ClusterMinion(minion.Minion):
         image = self._findImage(instance['image_id'])
 
         # Copy experiment in FS
-        experiment_url = experiment['public_url']
+        experiment_url = experiment['exp_url']
         cmd = "git clone -b {0} {1} {2}/{3}".format(
             experiment['id'], experiment_url, image['workpath'], experiment['id']
         )
-        print("Cloning: {0}".format(cmd))
-        task = gevent.spawn(self._executeSSH, ssh, cmd)
-        gevent.joinall([task])
+        task1 = gevent.spawn(self._executeSSH, ssh, cmd)
+
+        input_url = experiment['input_url']
+        cmd = "rsync -r {0}/* {1}/{2}".format(
+            input_url, image['inputpath'], experiment['id']
+        )
+        task2 = gevent.spawn(self._executeSSH, ssh, cmd)
+
+        gevent.joinall([task1, task2])
 
         # Init EXPERIMENT_STATUS
         cmd = 'echo -n "deployed" > {0}/{1}/EXPERIMENT_STATUS'.format(
