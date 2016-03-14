@@ -465,6 +465,14 @@ class ClusterMinion(minion.Minion):
             experiment['id'], instance_id
         ))
 
+        # TODO: Remove when instances were in DB
+        if not instance_id in self._instance_lock:
+            self._instance_lock[instance_id] = False
+            url = self._config['url']
+            username = self._config['username']
+            password = self._config['password']
+            self._instance_ssh[instance_id] = self._retrieveSSH(url, username, password)
+
         ####################
         # Set the lock for the instance
         while self._instance_lock[instance_id]:
