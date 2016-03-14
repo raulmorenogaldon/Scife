@@ -458,10 +458,10 @@ var _getImage = function(minion, image_id, cb){
          cb(error);
       } else {
          // Return image
-         if(images.length != 1){
+         if(images instanceof Array){
             cb(new Error("Image " + image_id + " not found"));
          } else {
-            cb(null, images[0]);
+            cb(null, images);
          }
       }
    });
@@ -476,10 +476,10 @@ var _getSize = function(minion, size_id, cb){
       if(error){
          cb(error);
       } else {
-         if(sizes.length != 1){
+         if(sizes instanceof Array){
             cb(new Error("Size " + size_id + " not found"));
          } else {
-            cb(null, sizes[0]);
+            cb(null, sizes);
          }
       }
    });
