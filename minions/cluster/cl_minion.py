@@ -289,7 +289,7 @@ class ClusterMinion(minion.Minion):
         task1 = gevent.spawn(self._executeSSH, ssh, cmd)
 
         input_url = experiment['input_url']
-        cmd = "rsync -r {0}/* {1}/{2}".format(
+        cmd = "mkdir -p {0}; rsync -r {0}/* {1}/{2}".format(
             input_url, image['inputpath'], experiment['id']
         )
         task2 = gevent.spawn(self._executeSSH, ssh, cmd)
