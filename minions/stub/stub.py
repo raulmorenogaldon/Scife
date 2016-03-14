@@ -125,7 +125,9 @@ class StubMinion(minion.Minion):
         else:
             ret = []
             for image in self.images:
-                if image['id'] == filter or filter in image['name']:
+                if image['id'] == filter:
+                    return image
+                if filter in image['name']:
                     ret.append(image)
             return ret
 
@@ -136,7 +138,9 @@ class StubMinion(minion.Minion):
         else:
             ret = []
             for size in self.sizes:
-                if size['id'] == filter or filter in size['name']:
+                if size['id'] == filter:
+                    return size
+                if filter in size['name']:
                     ret.append(size)
             return ret
 
@@ -147,7 +151,9 @@ class StubMinion(minion.Minion):
         else:
             ret = []
             for inst in self.instances:
-                if inst['id'] == filter or filter in inst['name']:
+                if inst['id'] == filter:
+                    return inst
+                if filter in inst['name']:
                     ret.append(inst)
             return ret
 
