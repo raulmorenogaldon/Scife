@@ -204,7 +204,7 @@ class ClusterMinion(minion.Minion):
                     'name': {'$regex': '.*' + filter + '.*'}
                 }))
             else:
-                return [image]
+                return image
 
     def getSizes(self, filter=None):
         """Get size list using an optional name filter."""
@@ -223,7 +223,7 @@ class ClusterMinion(minion.Minion):
                     'name': {'$regex': '.*' + filter + '.*'}
                 }))
             else:
-                return [size]
+                return size
 
     def getInstances(self, filter=None):
         """Get instance list using an optional name filter."""
@@ -242,7 +242,7 @@ class ClusterMinion(minion.Minion):
                     'name': {'$regex': '.*' + filter + '.*'}
                 }))
             else:
-                return [inst]
+                return inst
 
     def deployExperiment(self, app, experiment, system):
         """Deploy an experiment in the cluster FS."""

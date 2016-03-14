@@ -198,7 +198,7 @@ class Storage(object):
             if app is None:
                 return list(self._db.applications.find({'name': {'$regex': '.*' + filter + '.*'}}))
             else:
-                return [app]
+                return app
 
     def createExperiment(self, exp_cfg):
         # Check parameters
@@ -372,7 +372,7 @@ class Storage(object):
             if exp is None:
                 return list(self._db.experiments.find({'name': {'$regex': '.*' + filter + '.*'}}))
             else:
-                return [exp]
+                return exp
 
     def _replaceLabelsInFile(self, file, labels):
         print("Replacing labels in file: {0}".format(file))
