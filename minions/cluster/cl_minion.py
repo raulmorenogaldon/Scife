@@ -309,7 +309,7 @@ class ClusterMinion(minion.Minion):
             #!/bin/sh
             cd {0}
             echo -n "compiling" > EXPERIMENT_STATUS
-            ./{1}
+            ./{1} &>COMPILATION_LOG
             RETVAL=\$?
             if [ \$RETVAL -eq 0 ]; then
                 echo -n "compiled" > EXPERIMENT_STATUS
@@ -384,7 +384,7 @@ class ClusterMinion(minion.Minion):
             #!/bin/bash
             cd {0}
             echo -n "executing" > EXPERIMENT_STATUS
-            ./{1}
+            ./{1} &>EXECUTION_LOG
             RETVAL=\$?
             if [ \$RETVAL -eq 0 ]; then
                 echo -n "done" > EXPERIMENT_STATUS
