@@ -14,3 +14,8 @@ public/lib/
 app/tests/coverage/
 .bower-*/
 .idea/
+
+!overlord/public-angular/public/lib/tree-view/**/*
+!overlord/public-angular/public/lib/tree-view/js/*
+!overlord/public-angular/public/lib/tree-view/img/*
+!overlord/public-angular/public/lib/tree-view/css/*
