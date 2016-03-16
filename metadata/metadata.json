@@ -20,8 +20,16 @@
 			'ARG1': "-n 128",
 			'...': "..."
 		},
-      'tree': [{
-         'name': "atm",
+      'input_tree': [{
+         'label': "atm",
+         'id': "f745c536-8888-8888-8888-5254003eece4",
+         'children': [
+            {'label': "...", 'id':"...", 'children':[]},
+            {'label': "...", 'id':"...", 'children':["..."]}
+         ]
+      }],
+      'src_tree': [{
+         'label': "src.py",
          'id': "f745c536-8888-8888-8888-5254003eece4",
          'children': [
             {'label': "...", 'id':"...", 'children':[]},

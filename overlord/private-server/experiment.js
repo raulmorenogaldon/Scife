@@ -127,16 +127,28 @@ var createExperiment = function(exp_cfg, createCallback){
       },
       // Obtain experiment input data tree
       function(wfcb){
-         storageClient.invoke('getFolderTree', exp_cfg.id, function (error, tree) {
+         storageClient.invoke('getInputFolderTree', exp_cfg.id, function (error, tree) {
             if(error){
                wfcb(error);
             } else {
-               wfcb(null, tree);
+               exp_cfg.input_tree = tree;
+               wfcb(null);
+            }
+         });
+      },
+      // Obtain experiment source data tree
+      function(wfcb){
+         storageClient.invoke('getExperimentSrcFolderTree', exp_cfg.app_id, function (error, tree) {
+            if(error){
+               wfcb(error);
+            } else {
+               exp_cfg.src_tree = tree;
+               wfcb(null);
             }
          });
       },
       //Create experiment data
-      function(tree, wfcb){
+      function(wfcb){
          exp = {
             _id: exp_cfg.id,
             id: exp_cfg.id,
@@ -144,7 +156,8 @@ var createExperiment = function(exp_cfg, createCallback){
             desc: ('desc' in exp_cfg) ? exp_cfg.desc : "Description...",
             status: "created",
             app_id: exp_cfg.app_id,
-            tree: tree,
+            input_tree: exp_cfg.input_tree,
+            src_tree: exp_cfg.src_tree,
             labels: ('labels' in exp_cfg) ? exp_cfg.labels : {},
             exec_env: ('exec_env' in exp_cfg) ? exp_cfg.exec_env : {}
          };

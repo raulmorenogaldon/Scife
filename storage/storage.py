@@ -172,32 +172,56 @@ class Storage(object):
 
         return url
 
-    def getFolderTree(self, id):
+    def getInputFolderTree(self, id):
         # Get input storage path
         path = self.inputpath + "/" + id
 
         # Create tree
         return self._fillFolderTree(path)
 
+    def getExperimentSrcFolderTree(self, exp_id):
+        # Get input storage path
+        path = self.apppath + "/" + exp_id
+
+        ########################
+        # Wait for the lock
+        while self.lock:
+            gevent.sleep(0)
+        self.lock = True
+
+        # Check out experiment
+        gevent.subprocess.call(["git", "checkout", exp_id], cwd=path)
+
+        # Get tree
+        tree = self._fillFolderTree(path)
+
+        # Checkout master
+        gevent.subprocess.call(["git", "checkout", "master"], cwd=path)
+
+        self.lock = False
+        ########################
+        return tree
+
     def _fillFolderTree(self, path):
         # Iterate current level tree
         tree = []
         for file in os.listdir(path):
-            filepath = os.path.join(path, file)
-            if os.path.isfile(filepath):
-                # Add leaf
-                tree.append({
-                    "label": file,
-                    "id": str(uuid.uuid1()),
-                    "children": []
-                })
-            else:
-                # Add subtree
-                tree.append({
-                    "label": file,
-                    "id": str(uuid.uuid1()),
-                    "children": self._fillFolderTree(filepath)
-                })
+            if file[0] != '.':
+                filepath = os.path.join(path, file)
+                if os.path.isfile(filepath):
+                    # Add leaf
+                    tree.append({
+                        "label": file,
+                        "id": str(uuid.uuid1()),
+                        "children": []
+                    })
+                else:
+                    # Add subtree
+                    tree.append({
+                        "label": file,
+                        "id": str(uuid.uuid1()),
+                        "children": self._fillFolderTree(filepath)
+                    })
         return tree
 
     def _getLabelsInFile(self, file):
