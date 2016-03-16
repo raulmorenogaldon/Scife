@@ -81,88 +81,25 @@ class Storage(object):
                     self._db.applications.delete_one({'id': app['id']})
         print("Initialization completed!")
 
-    def createApplication(self, app_cfg):
-        # Check parameters
-        if 'name' not in app_cfg:
-            raise Exception("Error creating application, 'name' not set.")
-        if 'creation_script' not in app_cfg:
-            raise Exception("Error creating application, 'creation_script' not set.")
-        if 'execution_script' not in app_cfg:
-            raise Exception("Error creating application, 'execution_script' not set.")
-        if 'path' not in app_cfg:
-            raise Exception("Error creating application, 'path' not set.")
-
-        # Get parameters
-        app_name = app_cfg['name']
-        if 'desc' not in app_cfg:
-            app_desc = app_cfg['desc']
-        else:
-            app_desc = "Description"
-        app_creation_script = app_cfg['creation_script']
-        app_execution_script = app_cfg['execution_script']
-        app_path = app_cfg['path']
-
+    def copyApplication(self, app_id, src_path):
         # Check if config is valid
-        if not(os.path.isdir(app_path)):
+        if not(os.path.isdir(src_path)):
             raise IOError("Invalid input path, does not exists: {0}".format(
-                app_path
+                src_path
             ))
-
-        ########################
-        # Wait for the lock
-        while self.lock:
-            gevent.sleep(0)
-        self.lock = True
-
-        # Check if application name exists
-        cursor = self._db.applications.find({'name': app_name})
-        for app in cursor:
-            self.lock = False
-            raise Exception('App "{0}" already exists.'.format(
-                app_name
-            ))
-
-        # Create UUID for application
-        id = str(uuid.uuid1())
-
-        # Get source path
-        src_path = app_path
 
         # Get destination path and create it
-        dst_path = self.apppath + "/" + id
+        dst_path = self.apppath + "/" + app_id
 
         # Copy application to storage
         print('Copying app "{0}": {1} --> {2}'.format(
-            app_path, src_path, dst_path
+            app_id, src_path, dst_path
         ))
         gevent.subprocess.call(["scp", "-r", src_path, dst_path])
 
         # Create input data folder
-        input_path = self.inputpath + "/" + id
+        input_path = self.inputpath + "/" + app_id
         os.mkdir(input_path)
-
-        # Create application data
-        app = {
-            '_id': id,
-            'id': id,
-            'name': app_name,
-            'desc': app_desc,
-            'creation_script': app_creation_script,
-            'execution_script': app_execution_script,
-        }
-
-        # Create labels list
-        app['labels'] = []
-        print('Discovering parameters...')
-        for file in os.listdir(dst_path):
-            file = os.path.join(dst_path, file)
-            if os.path.isfile(file):
-                app['labels'] = list(set(app['labels'] + self._getLabelsInFile(file)))
-
-        # Create application json
-        file_path = "{0}/app.json".format(dst_path)
-        with open(file_path, "w") as file:
-            json.dump(app, file)
 
         # Create git repository for this app
         print('Creating repository...')
@@ -170,13 +107,28 @@ class Storage(object):
         gevent.subprocess.call(["git", "add", "*"], cwd=dst_path)
         gevent.subprocess.call(["git", "commit", "-q", "-m", "'Application created'"], cwd=dst_path)
 
-        # Add application to DB
-        self._db.applications.insert_one(app)
+    def discoverLabels(self, app_id):
+        # Get application path
+        app_path = self.apppath + "/" + app_id
 
-        self.lock = False
-        ########################
+        labels = []
+        print('Discovering parameters...')
+        for file in os.listdir(app_path):
+            file = os.path.join(app_path, file)
+            if os.path.isfile(file):
+                labels = list(set(labels + self._getLabelsInFile(file)))
+        return labels
 
-        return app['id']
+    def copyExperiment(self, exp_id, app_id):
+        # Get application and experiment input storage path
+        app_path = self.inputpath + "/" + app_id + "/"
+        exp_path = self.inputpath + "/" + exp_id + "/"
+
+        # Copy inputs to storage
+        print('Copying app default inputdata: {0} --> {1}'.format(
+            app_path, exp_path
+        ))
+        gevent.subprocess.call(["cp", "-as", app_path, exp_path])
 
     def _getLabelsInFile(self, file):
         print("Getting labels from file: {0}".format(file))
@@ -190,121 +142,9 @@ class Storage(object):
         print("Found: {0}".format(labels))
         return labels
 
-    def getApplications(self, filter=None):
-        if filter is None:
-            return list(self._db.applications.find())
-        else:
-            app = self._db.applications.find_one({'id': filter})
-            if app is None:
-                return list(self._db.applications.find({'name': {'$regex': '.*' + filter + '.*'}}))
-            else:
-                return app
-
-    def createExperiment(self, exp_cfg):
-        # Check parameters
-        if 'name' not in exp_cfg:
-            raise Exception("Error creating experiment, 'name' not set.")
-        if 'app_id' not in exp_cfg:
-            raise Exception("Error creating experiment, 'app_id' not set.")
-
-        # Get parameters
-        exp_name = exp_cfg['name']
-        exp_app_id = exp_cfg['app_id']
-
-        # Optionals
-        if 'desc' in exp_cfg:
-            exp_desc = exp_cfg['desc']
-        else:
-            exp_desc = "Empty"
-        if 'labels' in exp_cfg:
-            exp_labels = exp_cfg['labels']
-        else:
-            exp_labels = {}
-        if 'exec_env' in exp_cfg:
-            exp_exec_env = exp_cfg['exec_env']
-        else:
-            exp_exec_env = {}
-
-        # Retrieve application
-        app = self._findApplication(exp_app_id)
-        if app is None:
-            raise Exception('Application ID: "{0}", does not exists'.format(
-                exp_app_id
-            ))
-
-        # Create experiment metadata
-        id = str(uuid.uuid1())
-        exp = {
-            '_id': id,
-            'id': id,
-            'name': exp_name,
-            'desc': exp_desc,
-            'status': "created",
-            'app_id': exp_app_id,
-            'exec_env': exp_exec_env,
-            'labels': exp_labels
-        }
-
-        # Get application and experiment input storage path
-        app_path = self.inputpath + "/" + app['id'] + "/"
-        exp_path = self.inputpath + "/" + exp['id'] + "/"
-
-        # Copy inputs to storage
-        print('Copying app default inputdata: {0} --> {1}'.format(
-            app_path, exp_path
-        ))
-        gevent.subprocess.call(["cp", "-as", app_path, exp_path])
-
-        # Insert into DB
-        self._db.experiments.insert_one(exp)
-        print('Experiment {0} created.'.format(exp['id']))
-        return exp['id']
-
-    def updateExperiment(self, exp_id, exp_cfg):
-        # Retrieve experiment
-        exp = self._findExperiment(exp_id)
-        if exp is None:
-            raise Exception('Experiment ID: "{0}", does not exists'.format(
-                exp_id
-            ))
-
-        # Update
-        exp = {}
-        if 'name' in exp_cfg:
-            exp['name'] = exp_cfg['name']
-        if 'desc' in exp_cfg:
-            exp['desc'] = exp_cfg['desc']
-        if 'labels' in exp_cfg:
-            exp['labels'] = exp_cfg['labels']
-        if 'exec_env' in exp_cfg:
-            exp['exec_env'] = exp_cfg['exec_env']
-
-        # Update into DB
-        self._db.experiments.update_one(
-            {"id": exp_id},
-            {"$set": exp}
-        )
-
-        print('Experiment {0} updated: {1}'.format(exp_id, exp))
-        return exp_id
-
-    def prepareExperiment(self, exp_id):
-        # Retrieve experiment
-        exp = self._findExperiment(exp_id)
-        if exp is None:
-            raise Exception('Experiment ID: "{0}", does not exists'.format(
-                exp_id
-            ))
-
-        # Retrieve application
-        app = self._findApplication(exp['app_id'])
-        if app is None:
-            raise Exception('Application ID: "{0}", does not exists'.format(
-                exp['app_id']
-            ))
-
+    def prepareExperiment(self, app_id, exp_id, labels):
         # Get application storage path
-        app_path = self.apppath + "/" + app['id'] + "/"
+        app_path = self.apppath + "/" + app_id + "/"
 
         # Create experiment branch
         print('Creating experiment branch...')
@@ -313,35 +153,22 @@ class Storage(object):
         while self.lock:
             gevent.sleep(0)
         self.lock = True
+
+        # Branch for experiment
         gevent.subprocess.call(["git", "checkout", "master"], cwd=app_path)
-        gevent.subprocess.call(["git", "branch", "-D", exp['id']], cwd=app_path)
-        gevent.subprocess.call(["git", "branch", exp['id']], cwd=app_path)
+        gevent.subprocess.call(["git", "branch", "-D", exp_id], cwd=app_path)
+        gevent.subprocess.call(["git", "branch", exp_id], cwd=app_path)
 
         # Apply parameters
-        self._applyExperimentParams(app, exp)
-
-        # Set URLs
-        exp_url = self.getExperimentAppURL(exp_id)
-        input_url = self.getExperimentInputURL(exp_id)
-        self._db.experiments.update_one(
-            {"id": exp_id},
-            {"$set": {"exp_url": exp_url, "input_url": input_url}}
-        )
+        self._applyExperimentLabels(app_id, exp_id, labels)
 
         self.lock = False
         ########################
         return exp_id
 
-    def getExperimentAppURL(self, exp_id):
-        # Retrieve experiment
-        exp = self._findExperiment(exp_id)
-        if exp is None:
-            raise Exception('Experiment ID: "{0}", does not exists'.format(
-                exp_id
-            ))
-
+    def getApplicationURL(self, app_id):
         # Get application storage path
-        app_path = self.apppath + "/" + exp['app_id']
+        app_path = self.apppath + "/" + app_id
 
         # Get public URL for this experiment
         url = "{0}@{1}:{2}".format(self.username, self.public_url, app_path)
@@ -349,30 +176,13 @@ class Storage(object):
         return url
 
     def getExperimentInputURL(self, exp_id):
-        # Retrieve experiment
-        exp = self._findExperiment(exp_id)
-        if exp is None:
-            raise Exception('Experiment ID: "{0}", does not exists'.format(
-                exp_id
-            ))
-
         # Get input storage path
-        app_path = self.inputpath + "/" + exp['app_id']
+        input_path = self.inputpath + "/" + exp_id
 
         # Get public URL for this experiment
-        url = "{0}@{1}:{2}".format(self.username, self.public_url, app_path)
+        url = "{0}@{1}:{2}".format(self.username, self.public_url, input_path)
 
         return url
-
-    def getExperiments(self, filter=None):
-        if filter is None:
-            return list(self._db.experiments.find())
-        else:
-            exp = self._db.experiments.find_one({'id': filter})
-            if exp is None:
-                return list(self._db.experiments.find({'name': {'$regex': '.*' + filter + '.*'}}))
-            else:
-                return exp
 
     def _replaceLabelsInFile(self, file, labels):
         print("Replacing labels in file: {0}".format(file))
@@ -390,41 +200,20 @@ class Storage(object):
         f.write(filedata)
         f.close()
 
-    def _applyExperimentParams(self, app, experiment):
+    def _applyExperimentLabels(self, app_id, exp_id, labels):
         # Get application storage path
-        app_path = self.apppath + "/" + app['id'] + "/"
+        app_path = self.apppath + "/" + app_id + "/"
 
         # Check out experiment
         print("===============================")
         print('Checking out experiment branch...')
-        gevent.subprocess.call(["git", "checkout", experiment['id']], cwd=app_path)
-
-        # Get execution environment
-        exec_env = experiment['exec_env']
-
-        # Get labels and add system ones
-        labels = experiment['labels']
-        labels['#EXPERIMENT_ID'] = experiment['id']
-        labels['#EXPERIMENT_NAME'] = experiment['name'].replace(" ", "_")
-        labels['#APPLICATION_ID'] = app['id']
-        labels['#APPLICATION_NAME'] = app['name'].replace(" ", "_")
-        labels['#INPUTPATH'] = exec_env['inputpath']
-        labels['#LIBPATH'] = exec_env['libpath']
-        labels['#TMPPATH'] = exec_env['tmppath']
-        labels['#CPUS'] = str(exec_env['cpus'])
-        labels['#NODES'] = str(exec_env['nodes'])
-        labels['#TOTALCPUS'] = str(exec_env['nodes'] * exec_env['cpus'])
+        gevent.subprocess.call(["git", "checkout", exp_id], cwd=app_path)
 
         # List labels
         for label in labels.keys():
             key = "[[[{0}]]]".format(label)
             value = labels[label]
             print("Replacing: {0} <-- {1}".format(key, value))
-
-        # List of empty labels
-        empty_labels = {}
-        for label in app['labels']:
-            empty_labels[label] = ""
 
         # Apply labels
         print("===============================")
@@ -433,21 +222,14 @@ class Storage(object):
             file = os.path.join(app_path, file)
             if os.path.isfile(file):
                 self._replaceLabelsInFile(file, labels)
-                self._replaceLabelsInFile(file, empty_labels)
 
         # Commit changes and return to master
         print("===============================")
         print('Committing...')
-        commit_msg = "Created experiment {0}".format(experiment['id'])
+        commit_msg = "Created experiment {0}".format(exp_id)
         gevent.subprocess.call(["git", "add", "*"], cwd=app_path)
         gevent.subprocess.call(["git", "commit", "-m", commit_msg], cwd=app_path)
         gevent.subprocess.call(["git", "checkout", "master"], cwd=app_path)
-
-    def _findApplication(self, app_id):
-        return self._db.applications.find_one({'id': app_id})
-
-    def _findExperiment(self, exp_id):
-        return self._db.experiments.find_one({'id': exp_id})
 
 # Start RPC server
 # Execute this only if called directly from python command

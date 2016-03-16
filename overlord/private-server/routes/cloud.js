@@ -10,16 +10,11 @@ var minionClient = new zerorpc.Client({
 	heartbeatInterval: 30000,
 	timeout: 3600
 });
-var storageClient = new zerorpc.Client({
-	heartbeatInterval: 30000,
-	timeout: 3600
-});
 
 console.log('Conecting to minion-url: ' + constants.MINION_URL +
             '\nConecting to storage-url: ' + constants.STORAGE_URL);
 
 minionClient.connect(constants.MINION_URL);
-storageClient.connect(constants.STORAGE_URL);
 
 /***********************************************************
  * --------------------------------------------------------
@@ -239,7 +234,7 @@ router.get('/images/:image_id', function (req, res, next) {
  * @return {[Object]} - A json Object with application metadata
  */
 router.get('/applications', function (req, res, next) {
-   storageClient.invoke('getApplications', function (error, result, more) {
+   scheduler.searchApplications(null, function (error, result) {
       if (error) {
          console.log('Error in the GET request /applications, err: ', error);
          res.status(codes.HTTPCODE.INTERNAL_ERROR); //Internal server error
@@ -265,7 +260,7 @@ router.post('/applications', function (req, res, next) {
       });
    } else {
       // Create experiment
-      storageClient.invoke('createApplication', req.body, function (error, result, more) {
+      scheduler.createApplication(req.body, function (error, result) {
          if (error) {
             console.log('Error in the POST creation request /applications, err: ', error);
             res.status(codes.HTTPCODE.INTERNAL_ERROR); //Internal server error
@@ -286,7 +281,7 @@ router.post('/applications', function (req, res, next) {
  * @return {[Object]} - A json Object with application metadata
  */
 router.get('/applications/:app_id', function (req, res, next) {
-   storageClient.invoke('getApplications', req.params.app_id, function (error, result, more) {
+   scheduler.getApplication(req.params.app_id, function (error, result, more) {
       if (error) {
          console.log('Error in the request /applications/:app_id, err: ', error);
          res.status(codes.HTTPCODE.NOT_FOUND); //Not Found
@@ -335,7 +330,7 @@ router.delete('/applications/:app_id', function (req, res, next) {
  * @return {[Object]} - A json Object with experiments metadata
  */
 router.get('/experiments', function (req, res, next) {
-   storageClient.invoke('getExperiments', function (error, result, more) {
+   scheduler.searchExperiments(null, function (error, result) {
       if (error) {
          console.log('Error in the GET request /experiments, err: ', error);
          res.status(codes.HTTPCODE.INTERNAL_ERROR); //Internal server error
@@ -360,7 +355,7 @@ router.post('/experiments', function (req, res, next) {
       });
    } else {
       // Create experiment
-      storageClient.invoke('createExperiment', req.body, function (error, result, more) {
+      scheduler.createExperiment(req.body, function (error, result) {
          if (error) {
             console.log('Error in the POST creation request /experiments, err: ', error);
             res.status(codes.HTTPCODE.INTERNAL_ERROR); //Internal server error
@@ -381,7 +376,7 @@ router.post('/experiments', function (req, res, next) {
  * @return {[Object]} - A json Object with experiment metadata
  */
 router.get('/experiments/:exp_id', function (req, res, next) {
-   storageClient.invoke('getExperiments', req.params.exp_id, function (error, result, more) {
+   scheduler.getExperiment(req.params.exp_id, function (error, result, more) {
       if (error) {
          console.log('Error in the request /experiments/:exp_id, err: ', error);
          res.status(codes.HTTPCODE.NOT_FOUND); //Not Found
@@ -402,7 +397,7 @@ router.get('/experiments/:exp_id', function (req, res, next) {
  * @param {String} - The experiment id.
  */
 router.put('/experiments/:exp_id', function (req, res, next) {
-   storageClient.invoke('updateExperiment', req.params.exp_id, req.body, function (error, result, more) {
+   scheduler.updateExperiment(req.params.exp_id, req.body, function (error, result, more) {
       if (error) {
          console.log('Error in the PUT update request /experiments/:exp_id, err: ', error);
          res.status(codes.HTTPCODE.NOT_FOUND); //Not Found
@@ -456,6 +451,9 @@ router.post('/experiments/:exp_id', function (req, res, next) {
    }
 });
 
+/**
+ * Reset an experiment to initial state
+ */
 router.post('/experiments/:exp_id/reset', function (req, res, next) {
    // Reset experiment
    scheduler.resetExperiment(req.params.exp_id, function(error){
