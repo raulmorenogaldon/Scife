@@ -426,18 +426,39 @@ router.delete('/experiments/:exp_id', function (req, res, next) {
 });
 
 /**
- * Launch experiment
+ * Perform an operation in an experiment
  * @param {String} - The experiment id.
  */
 router.post('/experiments/:exp_id', function (req, res, next) {
-   if (!req.body.nodes || !req.body.image_id || !req.body.size_id) {
+   if (!req.body.op){
+      // No operation requested
       res.status(codes.HTTPCODE.BAD_REQUEST); //Bad request
       res.json({
-         'errors': [codes.ERRCODE.LAUNCH_INCORRECT_PARAMS]
+         'errors': [codes.ERRCODE.EXP_NO_OPERATION]
       });
-   } else {
-      // Launch experiment
-      scheduler.launchExperiment(req.params.exp_id, req.body.nodes, req.body.image_id, req.body.size_id, function(error){
+   } else if (req.body.op == "launch"){
+      if (!req.body.nodes || !req.body.image_id || !req.body.size_id) {
+         res.status(codes.HTTPCODE.BAD_REQUEST); //Bad request
+         res.json({
+            'errors': [codes.ERRCODE.LAUNCH_INCORRECT_PARAMS]
+         });
+      } else {
+         // Launch experiment
+         scheduler.launchExperiment(req.params.exp_id, req.body.nodes, req.body.image_id, req.body.size_id, function(error){
+            if(error){
+               res.status(codes.HTTPCODE.NOT_FOUND); // Not found
+               res.json({
+                  'errors': [codes.ERRCODE.ID_NOT_FOUND],
+                  'details': error.message
+               });
+            } else {
+               res.json(null);
+            }
+         });
+      }
+   } else if (req.body.op == "reset") {
+      // Reset experiment
+      scheduler.resetExperiment(req.params.exp_id, function(error){
          if(error){
             res.status(codes.HTTPCODE.NOT_FOUND); // Not found
             res.json({
@@ -448,25 +469,13 @@ router.post('/experiments/:exp_id', function (req, res, next) {
             res.json(null);
          }
       });
+   } else {
+      // Unknown operation
+      res.status(codes.HTTPCODE.BAD_REQUEST); //Bad request
+      res.json({
+         'errors': [codes.ERRCODE.EXP_UNKNOWN_OPERATION]
+      });
    }
-});
-
-/**
- * Reset an experiment to initial state
- */
-router.post('/experiments/:exp_id/reset', function (req, res, next) {
-   // Reset experiment
-   scheduler.resetExperiment(req.params.exp_id, function(error){
-      if(error){
-         res.status(codes.HTTPCODE.NOT_FOUND); // Not found
-         res.json({
-            'errors': [codes.ERRCODE.ID_NOT_FOUND],
-            'details': error.message
-         });
-      } else {
-         res.json(null);
-      }
-   });
 });
 
 module.exports = router;
