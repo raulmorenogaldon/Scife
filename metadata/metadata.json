@@ -24,8 +24,8 @@
          'name': "atm",
          'id': "f745c536-8888-8888-8888-5254003eece4",
          'children': [
-            {'name': "...", 'id':"...", 'children':[]},
-            {'name': "...", 'id':"...", 'children':["..."]}
+            {'label': "...", 'id':"...", 'children':[]},
+            {'label': "...", 'id':"...", 'children':["..."]}
          ]
       }]
    },
