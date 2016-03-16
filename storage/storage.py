@@ -130,18 +130,6 @@ class Storage(object):
         ))
         gevent.subprocess.call(["cp", "-as", app_path, exp_path])
 
-    def _getLabelsInFile(self, file):
-        print("Getting labels from file: {0}".format(file))
-        # Load file
-        f = open(file, 'r')
-        filedata = f.read()
-        f.close()
-        # Find labels
-        labels = re.findall(r"\[\[\[(\w+)\]\]\]", filedata)
-        labels = list(set(labels))
-        print("Found: {0}".format(labels))
-        return labels
-
     def prepareExperiment(self, app_id, exp_id, labels):
         # Get application storage path
         app_path = self.apppath + "/" + app_id + "/"
@@ -183,6 +171,46 @@ class Storage(object):
         url = "{0}@{1}:{2}".format(self.username, self.public_url, input_path)
 
         return url
+
+    def getFolderTree(self, id):
+        # Get input storage path
+        path = self.inputpath + "/" + id
+
+        # Create tree
+        return self._fillFolderTree(path)
+
+    def _fillFolderTree(self, path):
+        # Iterate current level tree
+        tree = []
+        for file in os.listdir(path):
+            filepath = os.path.join(path, file)
+            if os.path.isfile(filepath):
+                # Add leaf
+                tree.append({
+                    "label": file,
+                    "id": str(uuid.uuid1()),
+                    "children": []
+                })
+            else:
+                # Add subtree
+                tree.append({
+                    "label": file,
+                    "id": str(uuid.uuid1()),
+                    "children": self._fillFolderTree(filepath)
+                })
+        return tree
+
+    def _getLabelsInFile(self, file):
+        print("Getting labels from file: {0}".format(file))
+        # Load file
+        f = open(file, 'r')
+        filedata = f.read()
+        f.close()
+        # Find labels
+        labels = re.findall(r"\[\[\[(\w+)\]\]\]", filedata)
+        labels = list(set(labels))
+        print("Found: {0}".format(labels))
+        return labels
 
     def _replaceLabelsInFile(self, file, labels):
         print("Replacing labels in file: {0}".format(file))

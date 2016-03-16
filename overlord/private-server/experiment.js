@@ -112,11 +112,11 @@ var createExperiment = function(exp_cfg, createCallback){
             }
          });
       },
+      // Copy experiment to storage from application
       function(wfcb){
          // Create UUID
          exp_cfg.id = utils.generateUUID();
 
-         // Copy experiment to storage from application
          storageClient.invoke('copyExperiment', exp_cfg.id, exp_cfg.app_id, function (error) {
             if(error){
                wfcb(error);
@@ -125,8 +125,18 @@ var createExperiment = function(exp_cfg, createCallback){
             }
          });
       },
+      // Obtain experiment input data tree
       function(wfcb){
-         //Create experiment data
+         storageClient.invoke('getFolderTree', exp_cfg.id, function (error, tree) {
+            if(error){
+               wfcb(error);
+            } else {
+               wfcb(null, tree);
+            }
+         });
+      },
+      //Create experiment data
+      function(tree, wfcb){
          exp = {
             _id: exp_cfg.id,
             id: exp_cfg.id,
@@ -134,6 +144,7 @@ var createExperiment = function(exp_cfg, createCallback){
             desc: ('desc' in exp_cfg) ? exp_cfg.desc : "Description...",
             status: "created",
             app_id: exp_cfg.app_id,
+            tree: tree,
             labels: ('labels' in exp_cfg) ? exp_cfg.labels : {},
             exec_env: ('exec_env' in exp_cfg) ? exp_cfg.exec_env : {}
          };
