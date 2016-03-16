@@ -90,39 +90,42 @@ var searchExperiments = function(name, searchCallback){
  * Entry point for experiment execution
  */
 
-var launchExperiment = function(exp_id, nodes, image_id, size_id, checkCallback){
+var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback){
    var minion = minionClient;
 
    // Check data
    async.waterfall([
-      // Get experiment
-      function(wfcb){
-         getExperiment(exp_id, wfcb);
-      },
       // Check experiment status
-      function(exp, wfcb){
-         if(exp.status && exp.status != "created"){
-            wfcb(new Error("Experiment " + exp.id + " is already deployed!, status: " + exp.status));
-         } else {
-            // Check image ID exists
-            _getImage(minion, image_id, wfcb);
-         }
+      function(wfcb){
+         // Check image ID exists
+         _getImage(minion, image_id, wfcb);
       },
       // Check size ID exists
       function(image, wfcb){
          _getSize(minion, size_id, wfcb);
-      }
+      },
+      // Get experiment
+      function(size, wfcb){
+         getExperiment(exp_id, wfcb);
+      },
+      function(exp, wfcb){
+         if(exp.status && exp.status != "created"){
+            wfcb(new Error("Experiment " + exp.id + " is already launched!, status: " + exp.status));
+         } else {
+            wfcb(null);
+         }
+      },
    ],
    function(error){
       if(error){
          // Error trying to launch experiment
-         checkCallback(error);
+         launchCallback(error);
       } else {
-         // No error in launch
-         checkCallback(null);
-
          // Update status
-         db.collection('experiments').updateOne({id: exp_id},{$set:{status:"created"}});
+         db.collection('experiments').updateOne({id: exp_id},{$set:{status:"launched"}});
+
+         // Callback
+         launchCallback(null);
 
          // Launch workflow
          _workflowExperiment(exp_id, minion, nodes, image_id, size_id);
@@ -373,7 +376,7 @@ var _prepareExperiment = function(exp_id, system, prepareCallback){
          exp.labels['#EXPERIMENT_NAME'] = exp.name.replace(/ /g, "_");
          exp.labels['#APPLICATION_ID'] = app.id;
          exp.labels['#APPLICATION_NAME'] = exp.name.replace(/ /g, "_");
-         exp.labels['#INPUTPATH'] = system.image.inputpath;
+         exp.labels['#INPUTPATH'] = system.image.inputpath + "/" + exp.id;
          exp.labels['#LIBPATH'] = system.image.libpath;
          exp.labels['#TMPPATH'] = system.image.tmppath;
          exp.labels['#CPUS'] = cpus;
@@ -489,7 +492,7 @@ var _waitExperimentCompilation = function(minion, exp_id, system, waitCallback){
             db.collection('experiments').updateOne({id: exp.id},{$set:{status:status}});
 
             // Check status
-            if(status == "deployed" || status == "compiling"){
+            if(status == "launched" || status == "deployed" || status == "compiling"){
                // Recheck later
                setTimeout(_waitExperimentCompilation, 5000, minion, exp_id, system, waitCallback);
             } else if(status == "compiled") {

@@ -52,6 +52,14 @@ var ERRCODE = {
       'message': "You must pass 'nodes', 'image_id' and 'size_id'.",
       'code': 43
    },
+   EXP_NO_OPERATION: {
+      'message': "You must pass 'op' argument. Possible: launch, reset.",
+      'code': 44
+   },
+   EXP_UNKNOWN_OPERATION: {
+      'message': "Unknown operation, possible operations: [launch, reset].",
+      'code': 45
+   },
 }
 
 exports.HTTPCODE = HTTPCODE;
