@@ -13,6 +13,10 @@ var storageClient = new zerorpc.Client({
 	timeout: 3600
 });
 
+// Submodules
+var apps = require('./application.js');
+var exps = require('./experiment.js');
+
 // Connect to minions
 console.log('Conecting to minion-url: ' + constants.MINION_URL +
             '\nConecting to storage-url: ' + constants.STORAGE_URL);
@@ -33,6 +37,56 @@ mongo.connect(constants.MONGO_URL, function(err, database){
 });
 
 /**
+ * Get application metadata
+ */
+var getApplication = function(app_id, getCallback){
+   apps.getApplication(app_id, getCallback);
+}
+
+/**
+ * Create an aplication from config
+ */
+var createApplication = function(app_cfg, createCallback){
+   apps.createApplication(app_cfg, createCallback);
+}
+
+/**
+ * Search applications
+ */
+var searchApplications = function(name, searchCallback){
+   apps.searchApplications(name, searchCallback);
+}
+
+/**
+ * Get experiment metadata
+ */
+var getExperiment = function(exp_id, getCallback){
+   exps.getExperiment(exp_id, getCallback);
+}
+
+/**
+ * Create an experiment from config
+ */
+var createExperiment = function(exp_cfg, createCallback){
+   exps.createExperiment(exp_cfg, createCallback);
+}
+
+/**
+ * Update an experiment
+ */
+var updateExperiment = function(exp_id, exp_cfg, updateCallback){
+   exps.updateExperiment(exp_id, exp_cfg, updateCallback);
+}
+
+/**
+ * Search experiments
+ */
+var searchExperiments = function(name, searchCallback){
+   exps.searchExperiments(name, searchCallback);
+}
+
+
+/**
  * Entry point for experiment execution
  */
 
@@ -41,28 +95,28 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, checkCallback)
 
    // Check data
    async.waterfall([
-      function(cb){
-         // Check experiment ID exists
-         _getExperiment(exp_id, cb);
+      // Get experiment
+      function(wfcb){
+         getExperiment(exp_id, wfcb);
       },
-      function(exp, cb){
-         // Check experiment status
+      // Check experiment status
+      function(exp, wfcb){
          if(exp.status && exp.status != "created"){
-            cb(new Error("Experiment " + exp.id + " is already deployed!, status: " + exp.status));
+            wfcb(new Error("Experiment " + exp.id + " is already deployed!, status: " + exp.status));
          } else {
             // Check image ID exists
-            _getImage(minion, image_id, cb);
+            _getImage(minion, image_id, wfcb);
          }
       },
-      function(image, cb){
-         // Check size ID exists
-         _getSize(minion, size_id, cb);
+      // Check size ID exists
+      function(image, wfcb){
+         _getSize(minion, size_id, wfcb);
       }
    ],
-   function(err){
-      if(err){
+   function(error){
+      if(error){
          // Error trying to launch experiment
-         checkCallback(err);
+         checkCallback(error);
       } else {
          // No error in launch
          checkCallback(null);
@@ -83,9 +137,9 @@ var resetExperiment = function(exp_id, resetCallback){
    var minion = minionClient;
 
    // Get experiment data
-   _getExperiment(exp_id, function(err, exp){
-      if(err){
-         resetCallback(err);
+   getExperiment(exp_id, function(error, exp){
+      if(error){
+         resetCallback(error);
          return;
       }
       console.log("Reseting experiment " + exp_id);;
@@ -95,7 +149,7 @@ var resetExperiment = function(exp_id, resetCallback){
          // Call clean
          minion.invoke('cleanExperiment', exp, exp.system, function (error, result, more) {
             if (error) {
-               resetCallback(new Error("Failed to set execution environment of experiment ", exp_id, ", err: ", error));
+               resetCallback(new Error("Failed to set execution environment of experiment ", exp_id, ", error: ", error));
             } else {
                // Update status
                db.collection('experiments').updateOne({id: exp_id},{$set:{status:"created", system:""}});
@@ -113,35 +167,32 @@ var resetExperiment = function(exp_id, resetCallback){
 
 var _workflowExperiment = function(exp_id, minion, nodes, image_id, size_id){
 
-   var _app = null;
    var _system = null;
 
-   _getExperiment(exp_id, function(err, exp){
+   getExperiment(exp_id, function(error, exp){
       // Execute operations on experiment
       async.waterfall([
-         // Retrieve application metadata
-         function(cb){
-            console.log("Getting application");
-            _getApplication(exp.app_id, cb);
+         // Get application
+         function(wfcb){
+            getApplication(exp.app_id, wfcb);
          },
          // First, define a system where execution will take place
-         function(app, cb){
+         function(app, wfcb){
             console.log("Selected experiment: " + exp.name + "\n" +
                         "-- App: " + app.name);
-            _app = app;
-            _defineSystem(minion, nodes, image_id, size_id, cb);
+            _defineSystem(minion, nodes, image_id, size_id, wfcb);
          },
          // Instance system
-         function(system, cb){
+         function(system, wfcb){
             console.log("-----------------------\n",
                         "System configured with:\n",
                         "-- Image: ", system.image.name, " - ", system.image.id, "\n",
                         "-- Size: ", system.size.name, " - ", system.size.id, "\n");
                         _system = system;
-                        _instanceSystem(minion, system, cb);
+                        _instanceSystem(minion, system, wfcb);
          },
          // Set experiment execution environment
-         function(cb){
+         function(wfcb){
             msg = "-----------------------\nSystem instances:\n";
             for(i = 0; i < _system.nodes; i++){
                msg += "-- " + i + ": " + _system.instances[i] + "\n";
@@ -156,33 +207,33 @@ var _workflowExperiment = function(exp_id, minion, nodes, image_id, size_id){
                libpath: _system.image.libpath,
                tmppath: _system.image.tmppath
             };
-            _setExecEnvironment(exp, exec_env, cb);
+            _setExecEnvironment(exp_id, exec_env, wfcb);
          },
          // Prepare experiment for the system
-         function(cb){
+         function(wfcb){
             console.log("Execution environment has been set");
 
             // Prepare experiment
-            _prepareExperiment(exp.id, cb);
+            _prepareExperiment(exp_id, _system, wfcb);
          },
          // Deploy experiment in master instance
-         function(cb){
+         function(wfcb){
             console.log("Deploying experiment " + exp.id);
 
             // Prepare experiment
-            _deployExperiment(minion, _app, exp, _system, cb);
+            _deployExperiment(minion, exp_id, _system, wfcb);
          },
          // Execute experiment
-         function(cb){
+         function(wfcb){
             console.log("Executing experiment " + exp.id);
 
             // Prepare experiment
-            _executeExperiment(minion, _app, exp, _system, cb);
+            _executeExperiment(minion, exp_id, _system, wfcb);
          }
       ],
-      function(err){
-         if(err){
-            console.error("Failed to launch experiment " + exp.id + ", err: " + err);
+      function(error){
+         if(error){
+            console.error("Failed to launch experiment " + exp.id + ", error: " + error);
          } else {
             console.log("Experiment " + exp.id + " has been executed");
          }
@@ -190,56 +241,19 @@ var _workflowExperiment = function(exp_id, minion, nodes, image_id, size_id){
    });
 }
 
-var _getApplication = function(app_id, cb){
-   // Connected to DB?
-   if(db == null){
-      cb(new Error("Not connected to DB"));
-   }
-
-   // Retrieve experiment metadata
-   db.collection('applications').findOne({id: app_id}, function(err, app){
-      if(err){
-         cb(new Error("Query for application " + app_id + " failed"));
-      } else if (!app){
-         cb(new Error("Application " + app_id + " not found"));
-      } else {
-         cb(null, app);
-      }
-   });
-}
-
-var _getExperiment = function(exp_id, cb){
-   // Connected to DB?
-   if(db == null){
-      cb(new Error("Not connected to DB"));
-   }
-
-   // Retrieve experiment metadata
-   db.collection('experiments').findOne({id: exp_id}, function(err, exp){
-      if(err){
-         cb(new Error("Query for experiment " + exp_id + " failed"));
-      } else if (!exp){
-         cb(new Error("Experiment " + exp_id + " not found"));
-      } else {
-         cb(null, exp);
-      }
-   });
-}
-
 /**
  * Define a system of instances
  */
-var _defineSystem = function(minion, nodes, image_id, size_id, cb){
+var _defineSystem = function(minion, nodes, image_id, size_id, defineCallback){
    // Get image and size IDs for the system in this minion
-   _getImage(minion, image_id, function(err, image){
-      if(err){
-         cb(err);
+   _getImage(minion, image_id, function(error, image){
+      if(error){
+         defineCallback(error);
          return;
       }
-      _getSize(minion, size_id, function(err, size){
-         if(err){
-            console.error(err);
-            cb(err);
+      _getSize(minion, size_id, function(error, size){
+         if(error){
+            defineCallback(error);
             return;
          }
 
@@ -252,15 +266,15 @@ var _defineSystem = function(minion, nodes, image_id, size_id, cb){
          };
 
          // Return system
-         cb(null, system);
+         defineCallback(null, system);
       });
    });
 }
 
-var _instanceSystem = function(minion, system, cb){
+var _instanceSystem = function(minion, system, instanceCallback){
    // Check if is already being instanced
    if(system.status != "defined"){
-      cb(new Error("System is already instanced..."));
+      instanceCallback(new Error("System is already instanced..."));
       return;
    }
 
@@ -291,44 +305,91 @@ var _instanceSystem = function(minion, system, cb){
    // Execute tasks
    async.parallel(tasks, function(err){
       if(err){
-         cb(err);
+         instanceCallback(err);
       } else {
          // Set first instance as master
          system.master = system.instances[0];
          // Set system status
          system.status = "instanced";
          // Callback with instanced system
-         cb(null);
+         instanceCallback(null);
       }
    });
 }
 
 /**
  * Set experiment execution environment
+ * DEPRECATED
  */
-var _setExecEnvironment = function(exp, exec_env, cb){
-   storageClient.invoke('updateExperiment', exp.id, {exec_env: exec_env}, function (error, result, more) {
-      if (error) {
-         cb(new Error("Failed to set execution environment of experiment ", exp.id, ", err: ", error));
-      } else {
-         // Experiment have now an execution environment
-         cb(null);
-      }
-   });
+var _setExecEnvironment = function(exp_id, exec_env, setCallback){
+   setCallback(null);
+   //storageClient.invoke('updateExperiment', exp_id, {exec_env: exec_env}, function (error, result, more) {
+   //   if (error) {
+   //      setCallback(new Error("Failed to set execution environment of experiment ", exp_id, ", err: ", error));
+   //   } else {
+   //      // Experiment have now an execution environment
+   //      setCallback(null);
+   //   }
+   //});
 }
 
 /**
- * Prepares an experiment to be deployed.
+ * Prepare an experiment to be deployed.
  * Labels will be applied.
  */
-var _prepareExperiment = function(exp_id, cb){
-   // First step is to prepare experiment for the selected configuration
-   storageClient.invoke('prepareExperiment', exp_id, function (error, result, more) {
-      if (error) {
-         cb(new Error("Failed to prepare experiment ", exp_id, ", err: ", error));
+var _prepareExperiment = function(exp_id, system, prepareCallback){
+   async.waterfall([
+      // Get experiment
+      function(wfcb){
+         getExperiment(exp_id, wfcb);
+      },
+      // Get application
+      function(exp, wfcb){
+         getApplication(exp.app_id, function(error, app){
+            if(error){
+               wfcb(error);
+            } else {
+               wfcb(null, app, exp);
+            }
+         });
+      },
+      // Update labels for this system
+      function(app, exp, wfcb){
+         // Get application labels and join with experiment ones
+         for(var i in app.labels){
+            if(!exp.labels[app.labels[i]]){
+               exp.labels[app.labels[i]] = "";
+            }
+         }
+
+         // Set system labels
+         exp.labels['#EXPERIMENT_ID'] = exp.id;
+         exp.labels['#EXPERIMENT_NAME'] = exp.name.replace(/ /g, "_");
+         exp.labels['#APPLICATION_ID'] = app.id;
+         exp.labels['#APPLICATION_NAME'] = exp.name.replace(/ /g, "_");
+         exp.labels['#INPUTPATH'] = system.image.inputpath;
+         exp.labels['#LIBPATH'] = system.image.libpath;
+         exp.labels['#TMPPATH'] = system.image.tmppath;
+         exp.labels['#CPUS'] = system.size.cpus+'';
+         exp.labels['#NODES'] = system.size.nodes+'';
+         exp.labels['#TOTALCPUS'] = (system.size.nodes * system.size.cpus)+'';
+
+         // Apply labels
+         storageClient.invoke('prepareExperiment', app.id, exp.id, exp.labels, function(error){
+            if(error){
+               wfcb(error);
+            } else {
+               wfcb(null);
+            }
+         });
+      }
+   ],
+   function(error){
+      if(error){
+         prepareCallback(error);
       } else {
-         // Experiment can now be deployed in target instances
-         cb(null);
+         console.log("Experiment " + exp_id + " is prepared for deployment");
+         prepareCallback(null);
       }
    });
 }
@@ -336,54 +397,111 @@ var _prepareExperiment = function(exp_id, cb){
 /**
  * Deploy an experiment in target system
  */
-var _deployExperiment = function(minion, app, exp, system, cb){
+var _deployExperiment = function(minion, exp_id, system, deployCallback){
    if(system.status != "instanced"){
-      cb(new Error("Target system is not instanced"));
-   } else {
-      _getExperiment(exp.id, function(err, exp){
-         // Check experiment status
-         if(exp.status != "created"){
-            cb(new Error("Failed to deploy experiment ", exp.id, ", Invalid status: ", status));
-         } else {
-            // Deploy experiment
-            minion.invoke('deployExperiment', app, exp, system, function (error, result, more) {
-               if (error) {
-                  cb(new Error("Failed to deploy experiment ", exp.id, ", err: ", error));
-               } else {
-                  // Set experiment system
-                  db.collection('experiments').updateOne({id: exp.id},{$set:{system:system}});
-
-                  // Experiment is deployed and waiting to be compiled
-                  _waitExperimentCompilation(minion, exp, system, cb);
-               }
-            });
-         }
-      });
+      deployCallback(new Error("Target system is not instanced"));
+      return;
    }
+
+   async.waterfall([
+      // Get experiment
+      function(wfcb){
+         getExperiment(exp_id, wfcb);
+      },
+      // Get application
+      function(exp, wfcb){
+         getApplication(exp.app_id, function(error, app){
+            if(error){
+               wfcb(error);
+            } else {
+               wfcb(null, app, exp);
+            }
+         });
+      },
+      // Get experiment URL
+      function(app, exp, wfcb){
+         storageClient.invoke('getApplicationURL', app.id, function(error, url){
+            if(error){
+               wfcb(error);
+            } else {
+               exp.exp_url = url;
+               wfcb(null, app, exp);
+            }
+         });
+      },
+      // Get input URL
+      function(app, exp, wfcb){
+         storageClient.invoke('getExperimentInputURL', exp_id, function(error, url){
+            if(error){
+               wfcb(error);
+            } else {
+               exp.input_url = url;
+               wfcb(null, app, exp);
+            }
+         });
+      },
+      // Deploy
+      function(app, exp, wfcb){
+         minion.invoke('deployExperiment', app, exp, system, function (error, result, more) {
+            if (error) {
+               wfcb(new Error("Failed to deploy experiment ", exp.id, ", err: ", error));
+            } else {
+               // Set experiment system
+               db.collection('experiments').updateOne({id: exp.id},{$set:{system:system}});
+
+               // Experiment is deployed and waiting to be compiled
+               _waitExperimentCompilation(minion, exp_id, system, wfcb);
+            }
+         });
+      }
+   ],
+   function(error){
+      if(error){
+         deployCallback(error);
+      } else {
+         console.log("Experiment " + exp_id + " has been deployed");
+         deployCallback(null);
+      }
+   });
 }
 
-var _waitExperimentCompilation = function(minion, exp, system, cb){
-   // Poll experiment
-   minion.invoke('pollExperiment', exp, system, function (error, status, more) {
-      if(error){
-         cb(new Error("Failed to poll experiment ", exp.id, ", err: ", error));
-         return;
+var _waitExperimentCompilation = function(minion, exp_id, system, waitCallback){
+   async.waterfall([
+      // Get experiment
+      function(wfcb){
+         getExperiment(exp_id, wfcb);
+      },
+      // Poll experiment
+      function(exp, wfcb){
+         minion.invoke('pollExperiment', exp, system, function (error, status) {
+            if(error){
+               wfcb(new Error("Failed to poll experiment ", exp.id, ", err: ", error));
+               return;
+            }
+
+            // Update status
+            db.collection('experiments').updateOne({id: exp.id},{$set:{status:status}});
+
+            // Check status
+            if(status == "deployed" || status == "compiling"){
+               // Recheck later
+               setTimeout(_waitExperimentCompilation, 5000, minion, exp_id, system, waitCallback);
+            } else if(status == "compiled") {
+               // Compilation successful
+               wfcb(null);
+            } else {
+               // Compilation failed
+               wfcb(new Error("Experiment " + exp.id + " failed to compiled, status: " + status));
+            }
+         });
       }
-
-      // Update status
-      exp.status = status;
-      db.collection('experiments').updateOne({id: exp.id},{$set:{status:status}});
-
-      // Check status
-      if(status == "deployed" || status == "compiling"){
-         // Recheck later
-         setTimeout(_waitExperimentCompilation, 5000, minion, exp, system, cb);
-      } else if(status == "compiled") {
-         // Compilation successful
-         cb(null);
+   ],
+   function(error){
+      if(error){
+         waitCallback(error);
       } else {
-         // Compilation failed
-         cb(new Error("Experiment " + exp.id + " failed to compiled, status: " + status));
+         console.log("Experiment " + exp_id + " compilation succeded");
+         waitCallback(null);
       }
    });
 }
@@ -391,51 +509,96 @@ var _waitExperimentCompilation = function(minion, exp, system, cb){
 /**
  * Execute an experiment in target system
  */
-var _executeExperiment = function(minion, app, exp, system, cb){
+var _executeExperiment = function(minion, exp_id, system, executionCallback){
    if(system.status != "instanced"){
-      cb(new Error("Target system is not instanced"));
-   } else {
-      _getExperiment(exp.id, function(err, exp){
-         // Check experiment status
-         if(exp.status != "compiled"){
-            cb(new Error("Failed to execute experiment ", exp.id, ", Invalid status: ", exp.status));
-         } else {
-            // Deploy experiment
-            minion.invoke('executeExperiment', app, exp, system, function (error, result, more) {
-               if (error) {
-                  cb(new Error("Failed to execute experiment ", exp.id, ", err: ", error));
-               } else {
-                  // Experiment can now be executed
-                  _waitExperimentExecution(minion, exp, system, cb);
-               }
-            });
-         }
-      });
+      executionCallback(new Error("Target system is not instanced"));
+      return;
    }
+
+   async.waterfall([
+      // Get experiment
+      function(wfcb){
+         getExperiment(exp_id, wfcb);
+      },
+      // Get application
+      function(exp, wfcb){
+         // First, check experiment status
+         if(exp.status != "compiled"){
+            wfcb(new Error("Failed to execute experiment ", exp.id, ", Invalid status: ", exp.status));
+            return;
+         }
+
+         // Now, get application
+         getApplication(exp.app_id, function(error, app){
+            if(error){
+               wfcb(error);
+            } else {
+               wfcb(null, app, exp);
+            }
+         });
+      },
+      // Execute experiment
+      function(app, exp, wfcb){
+         minion.invoke('executeExperiment', app, exp, system, function (error, result, more) {
+            if (error) {
+               wfcb(new Error("Failed to deploy experiment ", exp.id, ", err: ", error));
+            } else {
+               // Set experiment system
+               db.collection('experiments').updateOne({id: exp.id},{$set:{system:system}});
+
+               // Experiment is deployed and waiting to be compiled
+               _waitExperimentExecution(minion, exp_id, system, wfcb);
+            }
+         });
+      }
+   ],
+   function(error){
+      if(error){
+         executionCallback(error);
+      } else {
+         console.log("Experiment " + exp_id + " has been deployed");
+         executionCallback(null);
+      }
+   });
 }
 
-var _waitExperimentExecution = function(minion, exp, system, cb){
-   // Poll experiment
-   minion.invoke('pollExperiment', exp, system, function (error, status, more) {
-      if(error){
-         cb(new Error("Failed to poll experiment ", exp.id, ", err: ", error));
-         return;
+var _waitExperimentExecution = function(minion, exp_id, system, waitCallback){
+   async.waterfall([
+      // Get experiment
+      function(wfcb){
+         getExperiment(exp_id, wfcb);
+      },
+      // Poll experiment
+      function(exp, wfcb){
+         minion.invoke('pollExperiment', exp, system, function (error, status) {
+            if(error){
+               wfcb(new Error("Failed to poll experiment ", exp.id, ", err: ", error));
+               return;
+            }
+
+            // Update status
+            db.collection('experiments').updateOne({id: exp.id},{$set:{status:status}});
+
+            // Check status
+            if(status == "compiled" || status == "executing"){
+               // Recheck later
+               setTimeout(_waitExperimentExecution, 5000, minion, exp_id, system, waitCallback);
+            } else if(status == "done") {
+               // Execution successful
+               wfcb(null);
+            } else {
+               // Execution failed
+               wfcb(new Error("Experiment " + exp.id + " failed to execute, status: " + status));
+            }
+         });
       }
-
-      // Update status
-      exp.status = status;
-      db.collection('experiments').updateOne({id: exp.id},{$set:{status:status}});
-
-      // Check status
-      if(status == "compiled" || status == "executing"){
-         // Recheck later
-         setTimeout(_waitExperimentExecution, 5000, minion, exp, system, cb);
-      } else if(status == "done") {
-         // Execution successful
-         cb(null);
+   ],
+   function(error){
+      if(error){
+         waitCallback(error);
       } else {
-         // Execution failed
-         cb(new Error("Experiment " + exp.id + " failed to execute, status: " + status));
+         console.log("Experiment " + exp_id + " execution succeded");
+         waitCallback(null);
       }
    });
 }
@@ -486,4 +649,13 @@ var _getSize = function(minion, size_id, cb){
 }
 
 exports.launchExperiment = launchExperiment;
+
+exports.getApplication = getApplication;
+exports.createApplication = createApplication;
+exports.searchApplications = searchApplications;
+
+exports.getExperiment = getExperiment;
+exports.createExperiment = createExperiment;
+exports.updateExperiment = updateExperiment;
 exports.resetExperiment = resetExperiment;
+exports.searchExperiments = searchExperiments;
