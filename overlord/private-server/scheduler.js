@@ -362,6 +362,12 @@ var _prepareExperiment = function(exp_id, system, prepareCallback){
             }
          }
 
+         // Numeric vars
+         var nodes = system.nodes + '';
+         var cpus = system.size.cpus + '';
+         var totalcpus = system.size.cpus * system.nodes;
+         totalcpus = totalcpus + '';
+
          // Set system labels
          exp.labels['#EXPERIMENT_ID'] = exp.id;
          exp.labels['#EXPERIMENT_NAME'] = exp.name.replace(/ /g, "_");
@@ -370,9 +376,9 @@ var _prepareExperiment = function(exp_id, system, prepareCallback){
          exp.labels['#INPUTPATH'] = system.image.inputpath;
          exp.labels['#LIBPATH'] = system.image.libpath;
          exp.labels['#TMPPATH'] = system.image.tmppath;
-         exp.labels['#CPUS'] = system.size.cpus+'';
-         exp.labels['#NODES'] = system.size.nodes+'';
-         exp.labels['#TOTALCPUS'] = (system.size.nodes * system.size.cpus)+'';
+         exp.labels['#CPUS'] = cpus;
+         exp.labels['#NODES'] = nodes;
+         exp.labels['#TOTALCPUS'] = totalcpus;
 
          // Apply labels
          storageClient.invoke('prepareExperiment', app.id, exp.id, exp.labels, function(error){
