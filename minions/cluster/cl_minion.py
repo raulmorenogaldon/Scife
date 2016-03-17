@@ -57,9 +57,6 @@ class ClusterMinion(minion.Minion):
         self._login_lock = False
         self._instance_lock = {}
 
-        # SSH connections
-        self._instance_ssh = {}
-
         # Command to load bash environment in SSH
         self._cmd_env = ". /etc/profile; . ~/.bash_profile"
 
@@ -68,6 +65,9 @@ class ClusterMinion(minion.Minion):
             self.login(config)
 
         print("Initialization completed!")
+
+    def getMinionName(self):
+        return self.__class__.__name__
 
     def login(self, config):
         """Login to cluster using SSH."""
@@ -99,12 +99,8 @@ class ClusterMinion(minion.Minion):
         if 'password' not in self._config:
             self._config['password'] = None
 
-        url = self._config['url']
-        username = self._config['username']
-        password = self._config['password']
-
         # Get command line
-        ssh = self._retrieveSSH(url, username, password)
+        ssh = self._retrieveSSH()
 
         # Get configuration from cloud.json
         stdin, stdout, stderr = ssh.exec_command("cat cloud.json")
@@ -118,6 +114,15 @@ class ClusterMinion(minion.Minion):
 
         # Close connection
         ssh.close()
+
+        # Load instances
+        instances = self._db.instances.find({
+            "minion": self.getMinionName()
+        })
+        for inst in instances:
+            # Init lock
+            self._instance_lock[inst['id']] = False
+            print("Loaded instance '{0}'".format(inst['id']))
 
         # Set connected
         self._connected = 1
@@ -162,12 +167,6 @@ class ClusterMinion(minion.Minion):
         print("--> Image: {0}".format(image))
         print("--> Size : {0}".format(size))
 
-        # Get instance as a SSH connection
-        url = self._config['url']
-        username = self._config['username']
-        password = self._config['password']
-        ssh = self._retrieveSSH(url, username, password)
-
         # Save instance
         id = str(uuid.uuid1())
         instance = {
@@ -180,12 +179,55 @@ class ClusterMinion(minion.Minion):
             'deployed': False,
             'executed': False
         }
-        self._instance_ssh[id] = ssh
         self._instance_lock[id] = False
         self._db.instances.insert_one(instance)
         print('Instance "{0}" (DUMMY) created'.format(instance['id']))
 
         return instance['id']
+
+    def destroyInstance(self, instance_id):
+        """Destroy an existing instance"""
+
+        ####################
+        # Set the lock for the instance
+        while self._instance_lock[instance_id]:
+            gevent.sleep(0)
+        self._instance_lock[instance_id] = True
+
+        # Get instance
+        instance = self._findInstance(instance_id)
+
+        # Get instance command line
+        ssh = self._retrieveSSH()
+        if ssh is None:
+            self._instance_lock[instance_id] = False
+            raise Exception("Instance without SSH")
+
+        # Delete job
+        if 'job_id' in instance:
+            cmd = 'qdel -W force {0}'.format(instance['job_id'])
+            task = gevent.spawn(self._executeSSH, ssh, cmd)
+            gevent.joinall([task])
+
+        # Execute creation
+        print("==========")
+        print("Launching creation script: {0}".format(cmd))
+        print("Output:")
+        print("-------")
+        task = gevent.spawn(self._executeSSH, ssh, cmd)
+        gevent.joinall([task])
+
+        # Close SSH
+        ssh.close()
+
+        # Remove from DB
+        self._db.instances.remove(
+            {'id': instance_id, 'minion': self.getMinionName()}
+        )
+
+        # Remove lock
+        self._instance_lock.pop(instance_id, None)
+        ####################
 
     def getImages(self, filter=None):
         """Get image list using an optional filter."""
@@ -270,7 +312,7 @@ class ClusterMinion(minion.Minion):
             ))
 
         # Get instance command line
-        ssh = self._instance_ssh[instance_id]
+        ssh = self._retrieveSSH()
         if ssh is None:
             self._instance_lock[instance_id] = False
             raise Exception("Instance without SSH")
@@ -283,7 +325,7 @@ class ClusterMinion(minion.Minion):
 
         # Copy experiment in FS
         experiment_url = experiment['exp_url']
-        cmd = "git clone -b {0} {1} {2}/{3}".format(
+        cmd = "git clone -b {0}-L {1} {2}/{3}".format(
             experiment['id'], experiment_url, image['workpath'], experiment['id']
         )
         task1 = gevent.spawn(self._executeSSH, ssh, cmd)
@@ -328,15 +370,19 @@ class ClusterMinion(minion.Minion):
         # Execute creation
         print("==========")
         print("Launching creation script: {0}".format(cmd))
-        print("Output:")
-        print("-------")
         task = gevent.spawn(self._executeSSH, ssh, cmd)
         gevent.joinall([task])
+        job_id = task.value[0].read()
+        print("Output: {0}".format(job_id))
+        print("-------")
+
+        # Close connection
+        ssh.close()
 
         # Update in DB
         self._db.instances.update_one(
             {'id': instance_id},
-            {"$set": {"deployed": True}}
+            {"$set": {"deployed": True, "job_id": job_id}}
         )
         self._instance_lock[instance_id] = False
         ####################
@@ -359,6 +405,13 @@ class ClusterMinion(minion.Minion):
         # Get instance
         instance = self._findInstance(instance_id)
 
+        # Check if instance is already deployed
+        if not instance['deployed']:
+            self._instance_lock[instance_id] = False
+            raise Exception("Experiment {0} is not deployed in this instance {1}".format(
+                experiment['id'], instance['id']
+            ))
+
         # Check if instance is already executed
         if instance['executed']:
             self._instance_lock[instance_id] = False
@@ -367,7 +420,7 @@ class ClusterMinion(minion.Minion):
             ))
 
         # Get instance command line
-        ssh = self._instance_ssh[instance_id]
+        ssh = self._retrieveSSH()
         if ssh is None:
             self._instance_lock[instance_id] = False
             raise Exception("Instance without SSH")
@@ -403,15 +456,19 @@ class ClusterMinion(minion.Minion):
         # Execute experiment
         print("==========")
         print("Launching execution: {0}".format(cmd))
-        print("Output:")
-        print("-------")
         task = gevent.spawn(self._executeSSH, ssh, cmd)
         gevent.joinall([task])
+        job_id = task.value[0].read()
+        print("Output: {0}".format(job_id))
+        print("-------")
+
+        # Close connection
+        ssh.close()
 
         # Update in DB
         self._db.instances.update_one(
             {'id': instance_id},
-            {"$set": {"executed": True}}
+            {"$set": {"executed": True, "job_id": job_id}}
         )
         self._instance_lock[instance_id] = False
         ####################
@@ -429,7 +486,7 @@ class ClusterMinion(minion.Minion):
         self._instance_lock[instance_id] = True
 
         # Get instance command line
-        ssh = self._instance_ssh[instance_id]
+        ssh = self._retrieveSSH()
         if ssh is None:
             self._instance_lock[instance_id] = False
             raise Exception("Instance without SSH")
@@ -449,29 +506,24 @@ class ClusterMinion(minion.Minion):
         if status == "":
             status = None
 
+        # Close connection
+        ssh.close()
+
         self._instance_lock[instance_id] = False
         ####################
 
         return status
 
-    def cleanExperiment(self, experiment, system):
+    def cleanExperiment(self, experiment, system, hardclean):
         """Remove experiment data from the system"""
 
         # Get instance
         instance_id = system['master']
 
         print("==========")
-        print("Removing experiment {0} from instance {1}".format(
-            experiment['id'], instance_id
+        print("Removing experiment {0} from instance {1}. Hard: {2}".format(
+            experiment['id'], instance_id, hardclean
         ))
-
-        # TODO: Remove when instances were in DB
-        if not instance_id in self._instance_lock:
-            self._instance_lock[instance_id] = False
-            url = self._config['url']
-            username = self._config['username']
-            password = self._config['password']
-            self._instance_ssh[instance_id] = self._retrieveSSH(url, username, password)
 
         ####################
         # Set the lock for the instance
@@ -480,7 +532,7 @@ class ClusterMinion(minion.Minion):
         self._instance_lock[instance_id] = True
 
         # Get instance command line
-        ssh = self._instance_ssh[instance_id]
+        ssh = self._retrieveSSH()
         if ssh is None:
             self._instance_lock[instance_id] = False
             raise Exception("Instance without SSH")
@@ -491,13 +543,27 @@ class ClusterMinion(minion.Minion):
         # Get image
         image = self._findImage(instance['image_id'])
 
-        # TODO: Check if experiment is in jobs queue
+        # Check if experiment is in jobs queue and terminate
+        if 'job_id' in instance:
+            cmd = 'qdel -W force {0}'.format(instance['job_id'])
+            task = gevent.spawn(self._executeSSH, ssh, cmd)
+            gevent.joinall([task])
 
         # Remove experiment folder
         work_dir = "{0}/{1}".format(image['workpath'], experiment['id'])
         cmd = 'rm -rf {0}'.format(work_dir)
         task = gevent.spawn(self._executeSSH, ssh, cmd)
         gevent.joinall([task])
+
+        # Remove experiment inputdata
+        if hardclean is True:
+            input_dir = "{0}/{1}".format(image['inputpath'], experiment['id'])
+            cmd = 'rm -rf {0}'.format(input_dir)
+            task = gevent.spawn(self._executeSSH, ssh, cmd)
+            gevent.joinall([task])
+
+        # Close connection
+        ssh.close()
 
         self._instance_lock[instance_id] = False
         ####################
@@ -573,20 +639,19 @@ class ClusterMinion(minion.Minion):
             'id': inst_id
         })
 
-    def _retrieveSSH(self, url, username, password=None):
+    def _retrieveSSH(self):
+        # Get config
+        url = self._config['url']
+        username = self._config['username']
+        # password = self._config['password']
+
         # Get valid URL
         url = urlparse(url).path
         try:
-            print("Connecting...")
-            print("User: {0}".format(username))
-            print("Endpoint: {0}".format(url))
-
             # Create command line and connect to the cluster
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             ssh.connect(url, username=username)
-
-            print("Connected!")
 
         except Exception as e:
             print("FAILED to connect to", url, "- Reason:", e)
