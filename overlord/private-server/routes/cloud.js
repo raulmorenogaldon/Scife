@@ -419,9 +419,17 @@ router.put('/experiments/:exp_id', function (req, res, next) {
  * @param {String} - The experiment id.
  */
 router.delete('/experiments/:exp_id', function (req, res, next) {
-   res.status(codes.HTTPCODE.NOT_IMPLEMENTED); //Not Implemented
-   res.json({
-      'errors': [codes.ERRCODE.NOT_IMPLEMENTED]
+   // Remove experiment
+   scheduler.destroyExperiment(req.params.exp_id, function(error){
+      if(error){
+         res.status(codes.HTTPCODE.NOT_FOUND); // Not found
+         res.json({
+            'errors': [codes.ERRCODE.ID_NOT_FOUND],
+            'details': error.message
+         });
+      } else {
+         res.json(null);
+      }
    });
 });
 
@@ -458,7 +466,7 @@ router.post('/experiments/:exp_id', function (req, res, next) {
       }
    } else if (req.body.op == "reset") {
       // Reset experiment
-      scheduler.resetExperiment(req.params.exp_id, function(error){
+      scheduler.resetExperiment(req.params.exp_id, false, function(error){
          if(error){
             res.status(codes.HTTPCODE.NOT_FOUND); // Not found
             res.json({

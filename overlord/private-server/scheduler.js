@@ -136,7 +136,7 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback
 /**
  * Reset experiment to create status
  */
-var resetExperiment = function(exp_id, resetCallback){
+var resetExperiment = function(exp_id, hardreset, resetCallback){
    var minion = minionClient;
 
    // Get experiment data
@@ -150,12 +150,12 @@ var resetExperiment = function(exp_id, resetCallback){
       // Remove data from instance
       if(exp.system){
          // Call clean
-         minion.invoke('cleanExperiment', exp, exp.system, function (error, result, more) {
+         minion.invoke('cleanExperiment', exp, exp.system, hardreset, function (error, result, more) {
             if (error) {
                resetCallback(new Error("Failed to set execution environment of experiment ", exp_id, ", error: ", error));
             } else {
                // Update status
-               db.collection('experiments').updateOne({id: exp_id},{$set:{status:"created", system:""}});
+               db.collection('experiments').updateOne({id: exp_id},{$set:{status:"created"}});
                // Callback
                resetCallback(null);
             }
@@ -164,6 +164,38 @@ var resetExperiment = function(exp_id, resetCallback){
          // Update status
          db.collection('experiments').updateOne({id: exp_id},{$set:{status:"created", system:""}});
          resetCallback(null);
+      }
+   });
+}
+
+/**
+ * Remove an experiment.
+ */
+var destroyExperiment = function(exp_id, destroyCallback){
+   async.waterfall([
+      // Get experiment
+      function(wfcb){
+         getExperiment(exp_id, wfcb);
+      },
+      // Reset it
+      function(exp, wfcb){
+         resetExperiment(exp_id, true, wfcb);
+      },
+      // TODO: Remove associations with instances
+      // Remove from DB
+      function(wfcb){
+         db.collection('experiments').remove({id: exp_id});
+         wfcb(null);
+      },
+   ],
+   function(error){
+      if(error){
+         console.log("Error destroying experiment");
+         destroyCallback(error);
+      } else {
+         // Log success
+         console.log("Deleted experiment: " + exp_id);
+         destroyCallback(null);
       }
    });
 }
@@ -667,4 +699,5 @@ exports.getExperiment = getExperiment;
 exports.createExperiment = createExperiment;
 exports.updateExperiment = updateExperiment;
 exports.resetExperiment = resetExperiment;
+exports.destroyExperiment = destroyExperiment;
 exports.searchExperiments = searchExperiments;

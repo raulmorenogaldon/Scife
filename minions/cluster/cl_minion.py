@@ -514,15 +514,15 @@ class ClusterMinion(minion.Minion):
 
         return status
 
-    def cleanExperiment(self, experiment, system):
+    def cleanExperiment(self, experiment, system, hardclean):
         """Remove experiment data from the system"""
 
         # Get instance
         instance_id = system['master']
 
         print("==========")
-        print("Removing experiment {0} from instance {1}".format(
-            experiment['id'], instance_id
+        print("Removing experiment {0} from instance {1}. Hard: {2}".format(
+            experiment['id'], instance_id, hardclean
         ))
 
         ####################
@@ -554,6 +554,13 @@ class ClusterMinion(minion.Minion):
         cmd = 'rm -rf {0}'.format(work_dir)
         task = gevent.spawn(self._executeSSH, ssh, cmd)
         gevent.joinall([task])
+
+        # Remove experiment inputdata
+        if hardclean is True:
+            input_dir = "{0}/{1}".format(image['inputpath'], experiment['id'])
+            cmd = 'rm -rf {0}'.format(input_dir)
+            task = gevent.spawn(self._executeSSH, ssh, cmd)
+            gevent.joinall([task])
 
         # Close connection
         ssh.close()
