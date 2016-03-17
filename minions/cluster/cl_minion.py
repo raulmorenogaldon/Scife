@@ -325,7 +325,7 @@ class ClusterMinion(minion.Minion):
 
         # Copy experiment in FS
         experiment_url = experiment['exp_url']
-        cmd = "git clone -b {0} {1} {2}/{3}".format(
+        cmd = "git clone -b {0}-L {1} {2}/{3}".format(
             experiment['id'], experiment_url, image['workpath'], experiment['id']
         )
         task1 = gevent.spawn(self._executeSSH, ssh, cmd)

@@ -120,9 +120,24 @@ class Storage(object):
         return labels
 
     def copyExperiment(self, exp_id, app_id):
+        # Get application repository path
+        repo_path = self.apppath + "/" + app_id + "/"
+
         # Get application and experiment input storage path
         app_path = self.inputpath + "/" + app_id + "/"
         exp_path = self.inputpath + "/" + exp_id + "/"
+
+        ########################
+        # Wait for the lock
+        while self.lock:
+            gevent.sleep(0)
+        self.lock = True
+
+        # Create experiment branch
+        print('Creating experiment branch...')
+        gevent.subprocess.call(["git", "checkout", "master"], cwd=repo_path)
+        gevent.subprocess.call(["git", "branch", "-D", exp_id], cwd=repo_path)
+        gevent.subprocess.call(["git", "branch", exp_id], cwd=repo_path)
 
         # Copy inputs to storage
         print('Copying app default inputdata: {0} --> {1}'.format(
@@ -130,22 +145,24 @@ class Storage(object):
         ))
         gevent.subprocess.call(["cp", "-as", app_path, exp_path])
 
+        self.lock = False
+        ########################
+
     def prepareExperiment(self, app_id, exp_id, labels):
         # Get application storage path
         app_path = self.apppath + "/" + app_id + "/"
 
-        # Create experiment branch
-        print('Creating experiment branch...')
         ########################
         # Wait for the lock
         while self.lock:
             gevent.sleep(0)
         self.lock = True
 
-        # Branch for experiment
-        gevent.subprocess.call(["git", "checkout", "master"], cwd=app_path)
-        gevent.subprocess.call(["git", "branch", "-D", exp_id], cwd=app_path)
-        gevent.subprocess.call(["git", "branch", exp_id], cwd=app_path)
+        # Create experiment launching branch
+        print('Creating experiment branch...')
+        gevent.subprocess.call(["git", "checkout", exp_id], cwd=app_path)
+        gevent.subprocess.call(["git", "branch", "-D", exp_id + "-L"], cwd=app_path)
+        gevent.subprocess.call(["git", "branch", exp_id + "-L"], cwd=app_path)
 
         # Apply parameters
         self._applyExperimentLabels(app_id, exp_id, labels)
@@ -258,8 +275,8 @@ class Storage(object):
 
         # Check out experiment
         print("===============================")
-        print('Checking out experiment branch...')
-        gevent.subprocess.call(["git", "checkout", exp_id], cwd=app_path)
+        print('Checking out experiment launch branch...')
+        gevent.subprocess.call(["git", "checkout", exp_id + "L"], cwd=app_path)
 
         # List labels
         for label in labels.keys():
