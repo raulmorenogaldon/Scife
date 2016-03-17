@@ -276,7 +276,7 @@ class Storage(object):
         # Check out experiment
         print("===============================")
         print('Checking out experiment launch branch...')
-        gevent.subprocess.call(["git", "checkout", exp_id + "L"], cwd=app_path)
+        gevent.subprocess.call(["git", "checkout", exp_id + "-L"], cwd=app_path)
 
         # List labels
         for label in labels.keys():
@@ -295,7 +295,7 @@ class Storage(object):
         # Commit changes and return to master
         print("===============================")
         print('Committing...')
-        commit_msg = "Created experiment {0}".format(exp_id)
+        commit_msg = "Launched experiment {0}".format(exp_id)
         gevent.subprocess.call(["git", "add", "*"], cwd=app_path)
         gevent.subprocess.call(["git", "commit", "-m", commit_msg], cwd=app_path)
         gevent.subprocess.call(["git", "checkout", "master"], cwd=app_path)
