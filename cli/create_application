@@ -1,0 +1,43 @@
+#!/bin/python
+
+from os import environ as env
+import sys
+import clicommon
+
+# Usage msg
+USAGE_MSG = "Usage: create_application <name> <desc> <creation_script> <execution_script> <input_path>"
+OVERLORD = env['OVERLORD']
+ARGS = 5
+
+# Create CLI
+cli = clicommon.CLI(
+    overlord=OVERLORD,
+    usage=USAGE_MSG,
+    args_expected=ARGS,
+)
+
+# Get params
+app_name = sys.argv[1]
+app_desc = sys.argv[2]
+app_cs = sys.argv[3]
+app_es = sys.argv[4]
+app_path = sys.argv[5]
+
+JSON = {
+    'name': app_name,
+    'desc': app_desc,
+    'creation_script': app_cs,
+    'execution_script': app_es,
+    'path': app_path
+}
+
+# POST
+app_id = cli.POST('/cloud/applications', data=JSON)
+
+# Print info
+print('-------------------------------------------------------')
+if app_id is not None:
+    print('Application {0} created!: {1}'.format(app_name, app_id))
+else:
+    print('Application creation failed!')
+print('-------------------------------------------------------')

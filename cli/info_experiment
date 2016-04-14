@@ -1,0 +1,41 @@
+#!/bin/python
+
+from os import environ as env
+import sys
+import clicommon
+
+# Usage msg
+USAGE_MSG = "Usage: info_experiment <exp_id>"
+OVERLORD = env['OVERLORD']
+ARGS = 1
+
+# Create CLI
+cli = clicommon.CLI(
+    overlord=OVERLORD,
+    usage=USAGE_MSG,
+    args_expected=ARGS,
+)
+
+# Get params
+exp_id = sys.argv[1]
+
+# GET
+exps = cli.GET('/cloud/experiments/{0}'.format(exp_id))
+if type(exps) is not list:
+    exps = [exps]
+
+# Print info
+print('-------------------------------------------------------')
+if len(exps) > 1:
+    print('Experiments with name "{0}": {1}'.format(exp_id, len(exps)))
+elif len(exps) == 1:
+    exp = exps[0]
+    print('Exp {0} info:'.format(exp['id']))
+    print('-- Name   : {0}'.format(exp['name']))
+    print('-- Desc   : {0}'.format(exp['desc']))
+    print('-- APPID  : {0}'.format(exp['app_id']))
+    print('-- Status : {0}'.format(exp['status']))
+    print('-- Labels : {0}'.format(exp['labels']))
+else:
+    print('Experiment not found!')
+print('-------------------------------------------------------')

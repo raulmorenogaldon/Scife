@@ -1,0 +1,28 @@
+#!/bin/python
+
+from os import environ as env
+import clicommon
+
+# Usage msg
+USAGE_MSG = "Usage: list_images"
+OVERLORD = env['OVERLORD']
+ARGS = 0
+
+# Create CLI
+cli = clicommon.CLI(
+    overlord=OVERLORD,
+    usage=USAGE_MSG,
+    args_expected=ARGS,
+)
+
+# GET
+images = cli.GET('/cloud/images')
+
+# Print images
+print('-------------------------------------------------------')
+print('- Images:')
+i = 0
+for image in images:
+    print("-- {0}: {1} - {2}".format(i, image['name'], image['id']))
+    i = i + 1
+print('-------------------------------------------------------')

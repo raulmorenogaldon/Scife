@@ -1,0 +1,39 @@
+#!/bin/python
+
+from os import environ as env
+import sys
+import clicommon
+
+# Usage msg
+USAGE_MSG = "Usage: info_application <app_id>"
+OVERLORD = env['OVERLORD']
+ARGS = 1
+
+# Create CLI
+cli = clicommon.CLI(
+    overlord=OVERLORD,
+    usage=USAGE_MSG,
+    args_expected=ARGS,
+)
+
+# Get params
+app_id = sys.argv[1]
+
+# GET
+apps = cli.GET('/cloud/applications/{0}'.format(app_id))
+if type(apps) is not list:
+    apps = [apps]
+
+# Print info
+print('-------------------------------------------------------')
+if len(apps) > 1:
+    print('Apps with name "{0}": {1}'.format(app_id, len(apps)))
+elif len(apps) == 1:
+    app = apps[0]
+    print('App {0} info:'.format(app['id']))
+    print('-- Name   : {0}'.format(app['name']))
+    print('-- Desc   : {0}'.format(app['desc']))
+    print('-- Labels : {0}'.format(app['labels']))
+else:
+    print('App not found!')
+print('-------------------------------------------------------')
