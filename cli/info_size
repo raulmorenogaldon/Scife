@@ -1,0 +1,40 @@
+#!/bin/python
+
+from os import environ as env
+import sys
+import clicommon
+
+# Usage msg
+USAGE_MSG = "Usage: info_size <size_id>"
+OVERLORD = env['OVERLORD']
+ARGS = 1
+
+# Create CLI
+cli = clicommon.CLI(
+    overlord=OVERLORD,
+    usage=USAGE_MSG,
+    args_expected=ARGS,
+)
+
+# Get params
+size_id = sys.argv[1]
+
+# GET
+sizes = cli.GET('/cloud/sizes/{0}'.format(size_id))
+if type(sizes) is not list:
+    sizes = [sizes]
+
+# Print info
+print('-------------------------------------------------------')
+if len(sizes) > 1:
+    print('Sizes with name "{0}": {1}'.format(size_id, len(sizes)))
+elif len(sizes) == 1:
+    size = sizes[0]
+    print('Size {0} info:'.format(size['id']))
+    print('-- Name: {0}'.format(size['name']))
+    print('-- Desc: {0}'.format(size['desc']))
+    print('-- CPUS: {0}'.format(size['cpus']))
+    print('-- RAM : {0}'.format(size['ram']))
+else:
+    print('Size not found!')
+print('-------------------------------------------------------')

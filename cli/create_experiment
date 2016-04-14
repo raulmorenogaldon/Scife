@@ -1,0 +1,66 @@
+#!/bin/python
+
+from os import environ as env
+import json
+import sys
+import clicommon
+
+# Usage msg
+USAGE_MSG = "Usage: create_experiment <name> <desc> <app_id> <labels> <image_id> <size_id> <nodes>"
+OVERLORD = env['OVERLORD']
+ARGS = 7
+
+# Create CLI
+cli = clicommon.CLI(
+    overlord=OVERLORD,
+    usage=USAGE_MSG,
+    args_expected=ARGS,
+)
+
+# Get params
+exp_name = sys.argv[1]
+exp_desc = sys.argv[2]
+exp_app_id = sys.argv[3]
+exp_labels = sys.argv[4]
+exp_image_id = sys.argv[5]
+exp_size_id = sys.argv[6]
+exp_nodes = sys.argv[7]
+
+# Retrieve image
+images = cli.GET('/cloud/images/{0}'.format(exp_image_id))
+if len(images) != 1:
+    print('Image not found!')
+    exit(1)
+image = images[0]
+
+# Retrieve size
+sizes = cli.GET('/cloud/sizes/{0}'.format(exp_size_id))
+if len(sizes) != 1:
+    print('Size not found!')
+    exit(1)
+size = sizes[0]
+
+JSON = {
+    'name': exp_name,
+    'desc': exp_desc,
+    'app_id': exp_app_id,
+    'labels': exp_labels,
+    'exec_env': json.dumps({
+        'nodes': int(exp_nodes),
+        'cpus': size['cpus'],
+        'inputpath': image['inputpath'],
+        'libpath': image['libpath'],
+        'tmppath': image['tmppath']
+    })
+}
+
+# POST
+exp_id = cli.POST('/cloud/createexperiment', data=JSON)
+
+# Print info
+print('-------------------------------------------------------')
+if exp_id is not None:
+    print('Experiment {0} created!: {1}'.format(exp_name, exp_id))
+else:
+    print('Experiment creation failed!')
+print('-------------------------------------------------------')

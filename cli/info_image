@@ -1,0 +1,41 @@
+#!/bin/python
+
+from os import environ as env
+import sys
+import clicommon
+
+# Usage msg
+USAGE_MSG = "Usage: image_size <image_id>"
+OVERLORD = env['OVERLORD']
+ARGS = 1
+
+# Create CLI
+cli = clicommon.CLI(
+    overlord=OVERLORD,
+    usage=USAGE_MSG,
+    args_expected=ARGS,
+)
+
+# Get params
+image_id = sys.argv[1]
+
+# GET
+images = cli.GET('/cloud/images/{0}'.format(image_id))
+if type(images) is not list:
+    images = [images]
+
+# Print info
+print('-------------------------------------------------------')
+if len(images) > 1:
+    print('Images with name "{0}": {1}'.format(image_id, len(images)))
+elif len(images) == 1:
+    image = images[0]
+    print('Image {0} info:'.format(image['id']))
+    print('-- Name : {0}'.format(image['name']))
+    print('-- Desc : {0}'.format(image['desc']))
+    print('-- Input: {0}'.format(image['inputpath']))
+    print('-- LIB  : {0}'.format(image['libpath']))
+    print('-- TMP  : {0}'.format(image['tmppath']))
+else:
+    print('Image not found!')
+print('-------------------------------------------------------')
