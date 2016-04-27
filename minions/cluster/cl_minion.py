@@ -176,6 +176,7 @@ class ClusterMinion(minion.Minion):
             'image_id': image_id,
             'size_id': size_id,
             'minion': self.__class__.__name__,
+            'ready': True,
             'deployed': False,
             'executed': False
         }
@@ -208,14 +209,6 @@ class ClusterMinion(minion.Minion):
             cmd = 'qdel -W force {0}'.format(instance['job_id'])
             task = gevent.spawn(self._executeSSH, ssh, cmd)
             gevent.joinall([task])
-
-        # Execute creation
-        print("==========")
-        print("Launching creation script: {0}".format(cmd))
-        print("Output:")
-        print("-------")
-        task = gevent.spawn(self._executeSSH, ssh, cmd)
-        gevent.joinall([task])
 
         # Close SSH
         ssh.close()
@@ -304,12 +297,20 @@ class ClusterMinion(minion.Minion):
         # Get instance
         instance = self._findInstance(instance_id)
 
-        # Check if instance is already deployed
-        if instance['deployed']:
+        # Check if instance is ready
+        if not instance['ready']:
             self._instance_lock[instance_id] = False
-            raise Exception("Experiment {0} is already deployed in instance {1}".format(
-                experiment['id'], instance['id']
+            raise Exception("Instance {0} is not ready, experiment '{1}' cannot be deployed".format(
+                instance['id'], experiment['id']
             ))
+
+        # Check if instance is already deployed
+        # TODO: Remove this, scheduler task
+        ###if instance['deployed']:
+        ###    self._instance_lock[instance_id] = False
+        ###    raise Exception("Experiment {0} is already deployed in instance {1}".format(
+        ###        experiment['id'], instance['id']
+        ###    ))
 
         # Get instance command line
         ssh = self._retrieveSSH()

@@ -18,18 +18,28 @@ var apps = require('./application.js');
 var exps = require('./experiment.js');
 
 // Connect to minions
-console.log('Conecting to minion-url: ' + constants.MINION_URL +
-            '\nConecting to storage-url: ' + constants.STORAGE_URL);
+console.log('Connecting to minion-url: ' + constants.MINION_URL +
+            '\nConnecting to storage-url: ' + constants.STORAGE_URL);
 
 minionClient.connect(constants.MINION_URL);
 storageClient.connect(constants.STORAGE_URL);
 
+// Set minions shortcuts
+var minions = {}
+minionClient.invoke('getMinionName', function(error, name){
+   if(error){
+      console.error("Failed to get minion name, error: ", error);
+   } else {
+      minions[name] = minionClient;
+   }
+});
+
 // Connect to DB
-console.log('Conecting to MongoDB: ' + constants.MONGO_URL);
+console.log('Connecting to MongoDB: ' + constants.MONGO_URL);
 var db = null;
-mongo.connect(constants.MONGO_URL, function(err, database){
-   if(err){
-      console.error("Failed to connect to MongoDB, err: ", err);
+mongo.connect(constants.MONGO_URL, function(error, database){
+   if(error){
+      console.error("Failed to connect to MongoDB, error: ", error);
    } else {
       console.log("Successfull connection to DB");
       db = database;
@@ -91,7 +101,7 @@ var searchExperiments = function(name, searchCallback){
  */
 
 var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback){
-   var minion = minionClient;
+   var minion = 'ClusterMinion'
 
    // Check data
    async.waterfall([
@@ -137,7 +147,6 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback
  * Reset experiment to create status
  */
 var resetExperiment = function(exp_id, hardreset, resetCallback){
-   var minion = minionClient;
 
    // Get experiment data
    getExperiment(exp_id, function(error, exp){
@@ -145,14 +154,17 @@ var resetExperiment = function(exp_id, hardreset, resetCallback){
          resetCallback(error);
          return;
       }
-      console.log("Reseting experiment " + exp_id);;
+      console.log("Resetting experiment " + exp_id);;
 
       // Remove data from instance
       if(exp.system){
+         // Get minion
+         var minionRPC = minions[exp.system.minion];
+
          // Call clean
-         minion.invoke('cleanExperiment', exp, exp.system, hardreset, function (error, result, more) {
+         minionRPC.invoke('cleanExperiment', exp, exp.system, hardreset, function (error, result, more) {
             if (error) {
-               resetCallback(new Error("Failed to set execution environment of experiment ", exp_id, ", error: ", error));
+               resetCallback(new Error("Failed to reset experiment ", exp_id, ", error: ", error));
             } else {
                // Update status
                db.collection('experiments').updateOne({id: exp_id},{$set:{status:"created"}});
@@ -181,7 +193,18 @@ var destroyExperiment = function(exp_id, destroyCallback){
       function(exp, wfcb){
          resetExperiment(exp_id, true, wfcb);
       },
-      // TODO: Remove associations with instances
+      // Get experiment
+      function(wfcb){
+         getExperiment(exp_id, wfcb);
+      },
+      // Destroy system
+      function(exp, wfcb){
+         if(exp.system){
+            _destroySystem(exp.system, wfcb);
+         } else {
+            wfcb(null);
+         }
+      },
       // Remove from DB
       function(wfcb){
          db.collection('experiments').remove({id: exp_id});
@@ -294,6 +317,7 @@ var _defineSystem = function(minion, nodes, image_id, size_id, defineCallback){
 
          // Create system object
          var system = {
+            minion: minion,
             nodes: nodes,
             image: image,
             size: size,
@@ -316,12 +340,16 @@ var _instanceSystem = function(minion, system, instanceCallback){
    // Change system status
    system.instances = [];
    system.status = "instancing";
+   system.minion = minion;
+
+   // Get minion RPC
+   var minionRPC = minions[minion];
 
    // Create instances
    var tasks = [];
    for(i = 0; i < system.nodes; i++){
       tasks.push(function(taskcb){
-         minion.invoke('createInstance', {
+         minionRPC.invoke('createInstance', {
             name:"Unnamed",
             image_id: system.image.id,
             size_id: system.size.id
@@ -348,6 +376,53 @@ var _instanceSystem = function(minion, system, instanceCallback){
          system.status = "instanced";
          // Callback with instanced system
          instanceCallback(null);
+      }
+   });
+}
+
+var _destroySystem = function(system, destroyCallback){
+   // Check if system has instances
+   if(!system.minion || !system.instances || system.instances.length == 0){
+      destroyCallback(null);
+      return;
+   }
+
+   // Get minion RPC
+   var minionRPC = minions[system.minion];
+
+   // Destroy instances
+   var tasks = [];
+   for(var inst in system.instances){
+      (function(inst){
+         tasks.push(function(taskcb){
+            console.log("Instance: " + inst + " / " + system.instances[inst]);
+            if(system.instances[inst]){
+               console.log("Destroying instance " + system.instances[inst]);
+               minionRPC.invoke('destroyInstance', system.instances[inst], function (error) {
+                  if(error){
+                     taskcb(new Error("Failed to destroy instance from minion " + system.minion+ ", err: " + error));
+                  } else {
+                     taskcb(null);
+                  }
+               });
+            } else {
+               taskcb(null);
+            }
+         });
+      })(inst);
+   }
+
+   // Execute tasks
+   async.parallel(tasks, function(error){
+      if(error){
+         destroyCallback(error);
+      } else {
+         // Change system status
+         system.instances = [];
+         system.status = "defined";
+
+         // Callback
+         destroyCallback(null);
       }
    });
 }
@@ -483,7 +558,11 @@ var _deployExperiment = function(minion, exp_id, system, deployCallback){
       },
       // Deploy
       function(app, exp, wfcb){
-         minion.invoke('deployExperiment', app, exp, system, function (error, result, more) {
+         // Get minion RPC
+         var minionRPC = minions[minion];
+
+         // Invoke deploy
+         minionRPC.invoke('deployExperiment', app, exp, system, function (error, result, more) {
             if (error) {
                wfcb(new Error("Failed to deploy experiment ", exp.id, ", err: ", error));
             } else {
@@ -514,7 +593,10 @@ var _waitExperimentCompilation = function(minion, exp_id, system, waitCallback){
       },
       // Poll experiment
       function(exp, wfcb){
-         minion.invoke('pollExperiment', exp, system, function (error, status) {
+         // Get minion RPC
+         var minionRPC = minions[minion];
+
+         minionRPC.invoke('pollExperiment', exp, system, function (error, status) {
             if(error){
                wfcb(new Error("Failed to poll experiment ", exp.id, ", err: ", error));
                return;
@@ -580,7 +662,10 @@ var _executeExperiment = function(minion, exp_id, system, executionCallback){
       },
       // Execute experiment
       function(app, exp, wfcb){
-         minion.invoke('executeExperiment', app, exp, system, function (error, result, more) {
+         // Get minion RPC
+         var minionRPC = minions[minion];
+
+         minionRPC.invoke('executeExperiment', app, exp, system, function (error, result, more) {
             if (error) {
                wfcb(new Error("Failed to deploy experiment ", exp.id, ", err: ", error));
             } else {
@@ -611,7 +696,9 @@ var _waitExperimentExecution = function(minion, exp_id, system, waitCallback){
       },
       // Poll experiment
       function(exp, wfcb){
-         minion.invoke('pollExperiment', exp, system, function (error, status) {
+         // Get minion RPC
+         var minionRPC = minions[minion];
+         minionRPC.invoke('pollExperiment', exp, system, function (error, status) {
             if(error){
                wfcb(new Error("Failed to poll experiment ", exp.id, ", err: ", error));
                return;
@@ -656,8 +743,11 @@ var _selectBestMinion = function(nodes){
  * Select an appropiate image from a minion
  */
 var _getImage = function(minion, image_id, cb){
+   // Get minion RPC
+   var minionRPC = minions[minion];
+
    // Select first image
-   minion.invoke('getImages', image_id, function (error, images, more) {
+   minionRPC.invoke('getImages', image_id, function (error, images, more) {
       if(error){
          cb(error);
       } else {
@@ -675,8 +765,11 @@ var _getImage = function(minion, image_id, cb){
  * Select an appropiate size from a minion
  */
 var _getSize = function(minion, size_id, cb){
+   // Get minion RPC
+   var minionRPC = minions[minion];
+
    // Select sizes with this parameters
-   minion.invoke('getSizes', size_id, function (error, sizes, more) {
+   minionRPC.invoke('getSizes', size_id, function (error, sizes, more) {
       if(error){
          cb(error);
       } else {

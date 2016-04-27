@@ -11,7 +11,7 @@ var storageClient = new zerorpc.Client({
 storageClient.connect(constants.STORAGE_URL);
 
 // Connect to DB
-console.log('Conecting to MongoDB: ' + constants.MONGO_URL);
+console.log('Connecting to MongoDB: ' + constants.MONGO_URL);
 var db = null;
 mongo.connect(constants.MONGO_URL, function(error, database){
    if(error){
