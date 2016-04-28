@@ -176,9 +176,7 @@ class ClusterMinion(minion.Minion):
             'image_id': image_id,
             'size_id': size_id,
             'minion': self.__class__.__name__,
-            'ready': True,
-            'deployed': False,
-            'executed': False
+            'ready': True
         }
         self._instance_lock[id] = False
         self._db.instances.insert_one(instance)
@@ -279,14 +277,8 @@ class ClusterMinion(minion.Minion):
             else:
                 return inst
 
-    def deployExperiment(self, app, experiment, system):
-        """Deploy an experiment in the cluster FS."""
-        print('Deploying app "{0}": {1} - {2}'.format(
-            app['name'], experiment['name'], experiment['id']
-        ))
-
-        # Get master instance
-        instance_id = system['master']
+    def executeCommand(self, cmd, instance_id):
+        # TODO: Check instance minion
 
         ####################
         # Set the lock for the instance
@@ -300,17 +292,9 @@ class ClusterMinion(minion.Minion):
         # Check if instance is ready
         if not instance['ready']:
             self._instance_lock[instance_id] = False
-            raise Exception("Instance {0} is not ready, experiment '{1}' cannot be deployed".format(
-                instance['id'], experiment['id']
+            raise Exception("Instance {0} is not ready, unable to execute command: \n'{1}'".format(
+                instance['id'], cmd
             ))
-
-        # Check if instance is already deployed
-        # TODO: Remove this, scheduler task
-        ###if instance['deployed']:
-        ###    self._instance_lock[instance_id] = False
-        ###    raise Exception("Experiment {0} is already deployed in instance {1}".format(
-        ###        experiment['id'], instance['id']
-        ###    ))
 
         # Get instance command line
         ssh = self._retrieveSSH()
@@ -318,84 +302,22 @@ class ClusterMinion(minion.Minion):
             self._instance_lock[instance_id] = False
             raise Exception("Instance without SSH")
 
-        # Get size
-        size = self._findSize(instance['size_id'])
-
-        # Get image
-        image = self._findImage(instance['image_id'])
-
-        # Copy experiment in FS
-        experiment_url = experiment['exp_url']
-        cmd = "git clone -b {0}-L {1} {2}/{3}".format(
-            experiment['id'], experiment_url, image['workpath'], experiment['id']
-        )
-        task1 = gevent.spawn(self._executeSSH, ssh, cmd)
-
-        input_url = experiment['input_url']
-        cmd = "mkdir -p {1}/{2}; rsync -Lr {0}/* {1}/{2}".format(
-            input_url, image['inputpath'], experiment['id']
-        )
-        task2 = gevent.spawn(self._executeSSH, ssh, cmd)
-
-        gevent.joinall([task1, task2])
-
-        # Init EXPERIMENT_STATUS
-        cmd = 'echo -n "deployed" > {0}/{1}/EXPERIMENT_STATUS'.format(
-            image['workpath'], experiment['id']
-        )
+        # Execute task
+        cmd = """{0}; {1}""".format(self._cmd_env, cmd)
         task = gevent.spawn(self._executeSSH, ssh, cmd)
         gevent.joinall([task])
-
-        # PBS command for compile creation
-        work_dir = "{0}/{1}".format(image['workpath'], experiment['id'])
-        exe_script = """
-            #!/bin/sh
-            cd {0}
-            echo -n "compiling" > EXPERIMENT_STATUS
-            ./{1} &>COMPILATION_LOG
-            RETVAL=\$?
-            if [ \$RETVAL -eq 0 ]; then
-                echo -n "compiled" > EXPERIMENT_STATUS
-            else
-                echo -n "failed_compilation" > EXPERIMENT_STATUS
-            fi
-            echo -n \$RETVAL > COMPILATION_EXIT_CODE
-        """.format(work_dir, app['creation_script'])
-        qsub_cmd = "qsub -N COMPILE -l select={0}:ncpus={1}:mem={2}MB -o {3} -e {3}".format(
-            1, size['cpus'], size['ram'], work_dir
-        )
-        cmd = '{0}; echo "{1}" | {2} '.format(
-            self._cmd_env, exe_script, qsub_cmd
-        )
-
-        # Execute creation
-        print("==========")
-        print("Launching creation script: {0}".format(cmd))
-        task = gevent.spawn(self._executeSSH, ssh, cmd)
-        gevent.joinall([task])
-        job_id = task.value[0].read()
-        print("Output: {0}".format(job_id))
-        print("-------")
+        ret_val = task.value[0].read()
 
         # Close connection
         ssh.close()
 
-        # Update in DB
-        self._db.instances.update_one(
-            {'id': instance_id},
-            {"$set": {"deployed": True, "job_id": job_id}}
-        )
         self._instance_lock[instance_id] = False
         ####################
 
-    def executeExperiment(self, app, experiment, system):
-        """Execute an experiment in the cluster FS."""
-        print('EXECUTING app "{0}": {1} - {2}'.format(
-            app['name'], experiment['name'], experiment['id']
-        ))
+        return ret_val
 
-        # Get instance
-        instance_id = system['master']
+    def executeScript(self, script, work_dir, instance_id, nodes):
+        # TODO: Check instance minion
 
         ####################
         # Set the lock for the instance
@@ -406,18 +328,11 @@ class ClusterMinion(minion.Minion):
         # Get instance
         instance = self._findInstance(instance_id)
 
-        # Check if instance is already deployed
-        if not instance['deployed']:
+        # Check if instance is ready
+        if not instance['ready']:
             self._instance_lock[instance_id] = False
-            raise Exception("Experiment {0} is not deployed in this instance {1}".format(
-                experiment['id'], instance['id']
-            ))
-
-        # Check if instance is already executed
-        if instance['executed']:
-            self._instance_lock[instance_id] = False
-            raise Exception("Experiment {0} is already executed in instance {1}".format(
-                experiment['id'], instance['id']
+            raise Exception("Instance {0} is not ready, unable to execute script: \n'{1}'".format(
+                instance['id'], script
             ))
 
         # Get instance command line
@@ -429,56 +344,29 @@ class ClusterMinion(minion.Minion):
         # Get size
         size = self._findSize(instance['size_id'])
 
-        # Get image
-        image = self._findImage(instance['image_id'])
-
-        # Create PBS script for experiment
-        work_dir = "{0}/{1}".format(image['workpath'], experiment['id'])
-        exe_script = """
-            #!/bin/bash
-            cd {0}
-            echo -n "executing" > EXPERIMENT_STATUS
-            ./{1} &>EXECUTION_LOG
-            RETVAL=\$?
-            if [ \$RETVAL -eq 0 ]; then
-                echo -n "done" > EXPERIMENT_STATUS
-            else
-                echo -n "failed_execution" > EXPERIMENT_STATUS
-            fi
-            echo -n \$RETVAL > EXECUTION_EXIT_CODE
-        """.format(work_dir, app['execution_script'])
-        qsub_cmd = "qsub -N EXEC -l select={0}:ncpus={1}:mem={2}MB -o {3} -e {3}".format(
-            len(system['instances']), size['cpus'], size['ram'], work_dir
+        # QSUB launch command
+        qsub_cmd = "qsub -N {0}-{1}-{2} -l select={0}:ncpus={1}:mem={2}MB -o {3} -e {3}".format(
+            nodes, size['cpus'], size['ram'], work_dir
         )
-        cmd = '{0}; echo "{1}" | {2} '.format(
-            self._cmd_env, exe_script, qsub_cmd
+        cmd = """{0}; echo '{1}' | {2} """.format(
+            self._cmd_env, script, qsub_cmd
         )
 
-        # Execute experiment
-        print("==========")
-        print("Launching execution: {0}".format(cmd))
+        # Execute script
         task = gevent.spawn(self._executeSSH, ssh, cmd)
         gevent.joinall([task])
         job_id = task.value[0].read()
-        print("Output: {0}".format(job_id))
-        print("-------")
 
         # Close connection
         ssh.close()
 
-        # Update in DB
-        self._db.instances.update_one(
-            {'id': instance_id},
-            {"$set": {"executed": True, "job_id": job_id}}
-        )
         self._instance_lock[instance_id] = False
         ####################
 
-    def pollExperiment(self, experiment, system):
-        """Update experiment status."""
+        return job_id
 
-        # Get instance ID
-        instance_id = system['master']
+    def cleanJob(self, job_id, instance_id):
+        """Delete job from queue system"""
 
         ####################
         # Set the lock for the instance
@@ -491,77 +379,20 @@ class ClusterMinion(minion.Minion):
         if ssh is None:
             self._instance_lock[instance_id] = False
             raise Exception("Instance without SSH")
-
-        # Get instance
-        instance = self._findInstance(instance_id)
-
-        # Get image
-        image = self._findImage(instance['image_id'])
-
-        # Check status
-        work_dir = "{0}/{1}".format(image['workpath'], experiment['id'])
-        cmd = 'cat {0}/EXPERIMENT_STATUS'.format(work_dir)
-        task = gevent.spawn(self._executeSSH, ssh, cmd)
-        gevent.joinall([task])
-        status = task.value[0].read()
-        if status == "":
-            status = None
-
-        # Close connection
-        ssh.close()
-
-        self._instance_lock[instance_id] = False
-        ####################
-
-        return status
-
-    def cleanExperiment(self, experiment, system, hardclean):
-        """Remove experiment data from the system"""
-
-        # Get instance
-        instance_id = system['master']
-
-        print("==========")
-        print("Removing experiment {0} from instance {1}. Hard: {2}".format(
-            experiment['id'], instance_id, hardclean
-        ))
-
-        ####################
-        # Set the lock for the instance
-        while self._instance_lock[instance_id]:
-            gevent.sleep(0)
-        self._instance_lock[instance_id] = True
-
-        # Get instance command line
-        ssh = self._retrieveSSH()
-        if ssh is None:
-            self._instance_lock[instance_id] = False
-            raise Exception("Instance without SSH")
-
-        # Get instance
-        instance = self._findInstance(instance_id)
-
-        # Get image
-        image = self._findImage(instance['image_id'])
 
         # Check if experiment is in jobs queue and terminate
-        if 'job_id' in instance:
-            cmd = 'qdel -W force {0}'.format(instance['job_id'])
-            task = gevent.spawn(self._executeSSH, ssh, cmd)
-            gevent.joinall([task])
-
-        # Remove experiment folder
-        work_dir = "{0}/{1}".format(image['workpath'], experiment['id'])
-        cmd = 'rm -rf {0}'.format(work_dir)
-        task = gevent.spawn(self._executeSSH, ssh, cmd)
-        gevent.joinall([task])
-
-        # Remove experiment inputdata
-        if hardclean is True:
-            input_dir = "{0}/{1}".format(image['inputpath'], experiment['id'])
-            cmd = 'rm -rf {0}'.format(input_dir)
-            task = gevent.spawn(self._executeSSH, ssh, cmd)
-            gevent.joinall([task])
+        if job_id is not None:
+            print("Cleaning job ID: {0}".format(job_id))
+            while True:
+                cmd = """{0}; qdel -W force {1}""".format(
+                    self._cmd_env, job_id
+                )
+                task = gevent.spawn(self._executeSSH, ssh, cmd)
+                gevent.joinall([task])
+                ret = task.value[1].read()
+                gevent.sleep(1)
+                if ret != "":
+                    break
 
         # Close connection
         ssh.close()
