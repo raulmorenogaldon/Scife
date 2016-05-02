@@ -60,3 +60,5 @@
 /cloud/experiments/:experimentId (PUT) "Update an existing experiment whose ID is passed by parameter"
 /cloud/experiments/:experimentId (DELETE) "Delete an existing experiment whose ID is passed by parameter"
 /cloud/experiments/:experimentId (POST) "Perform an operation on an experiment. Instant return, experiment must be pulled with GET to obtain status."
+
+/cloud/experiments/:experimentId/logs (GET) "Return experiment logs, ID is passed by parameter"

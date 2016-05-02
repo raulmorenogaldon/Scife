@@ -376,9 +376,31 @@ router.post('/experiments', function (req, res, next) {
  * @return {[Object]} - A json Object with experiment metadata
  */
 router.get('/experiments/:exp_id', function (req, res, next) {
-   scheduler.getExperiment(req.params.exp_id, function (error, result, more) {
+   scheduler.getExperiment(req.params.exp_id, null, function (error, result, more) {
       if (error) {
          console.log('Error in the request /experiments/:exp_id, err: ', error);
+         res.status(codes.HTTPCODE.NOT_FOUND); //Not Found
+         res.json({
+            'errors': [
+               codes.ERRCODE.ID_NOT_FOUND,
+               codes.ERRCODE.EXP_NOT_FOUND
+            ],
+            'details': error.message
+         });
+      }
+      res.json(result);
+   });
+});
+
+/**
+ * Get experiment logs
+ * @param {String} - The experiment id.
+ * @return {[Object]} - A json Object with experiment logs
+ */
+router.get('/experiments/:exp_id/logs', function (req, res, next) {
+   scheduler.getExperiment(req.params.exp_id, {logs: 1}, function (error, result, more) {
+      if (error) {
+         console.log('Error in the request /experiments/:exp_id/logs, err: ', error);
          res.status(codes.HTTPCODE.NOT_FOUND); //Not Found
          res.json({
             'errors': [

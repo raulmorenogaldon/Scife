@@ -26,15 +26,24 @@ mongo.connect(constants.MONGO_URL, function(error, database){
 /**
  * Get experiment data
  */
-var getExperiment = function(exp_id, getCallback){
+var getExperiment = function(exp_id, fields, getCallback){
    // Connected to DB?
    if(db == null){
       getCallback(new Error("Not connected to DB"));
       return;
    }
 
+   // Check experiment arg
+   if(!exp_id){
+      getCallback(new Error("Incorrect parameters in getExperiment, no Experiment ID has been passed"));
+      return;
+   }
+
+   // Parse fields
+   if(!fields) fields = {};
+
    // Retrieve experiment metadata
-   db.collection('experiments').findOne({id: exp_id}, function(error, exp){
+   db.collection('experiments').findOne({id: exp_id}, fields, function(error, exp){
       if(error){
          getCallback(new Error("Query for experiment " + exp_id + " failed"));
       } else if (!exp){

@@ -70,8 +70,8 @@ var searchApplications = function(name, searchCallback){
 /**
  * Get experiment metadata
  */
-var getExperiment = function(exp_id, getCallback){
-   exps.getExperiment(exp_id, getCallback);
+var getExperiment = function(exp_id, fields, getCallback){
+   exps.getExperiment(exp_id, fields, getCallback);
 }
 
 /**
@@ -116,7 +116,7 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback
       },
       // Get experiment
       function(size, wfcb){
-         getExperiment(exp_id, wfcb);
+         getExperiment(exp_id, null, wfcb);
       },
       function(exp, wfcb){
          if(exp.status && exp.status != "created"){
@@ -152,7 +152,7 @@ var resetExperiment = function(exp_id, hardreset, resetCallback){
    async.waterfall([
       // Get experiment
       function(wfcb){
-         getExperiment(exp_id, wfcb);
+         getExperiment(exp_id, null, wfcb);
       },
       // Get instance
       function(exp, wfcb){
@@ -263,7 +263,7 @@ var destroyExperiment = function(exp_id, destroyCallback){
    async.waterfall([
       // Get experiment
       function(wfcb){
-         getExperiment(exp_id, wfcb);
+         getExperiment(exp_id, null, wfcb);
       },
       // Reset it
       function(exp, wfcb){
@@ -271,7 +271,7 @@ var destroyExperiment = function(exp_id, destroyCallback){
       },
       // Get experiment
       function(wfcb){
-         getExperiment(exp_id, wfcb);
+         getExperiment(exp_id, null, wfcb);
       },
       // Destroy system
       function(exp, wfcb){
@@ -303,7 +303,7 @@ var _workflowExperiment = function(exp_id, minion, nodes, image_id, size_id){
 
    var _system = null;
 
-   getExperiment(exp_id, function(error, exp){
+   getExperiment(exp_id, null, function(error, exp){
       // Execute operations on experiment
       async.waterfall([
          // Get application
@@ -527,7 +527,7 @@ var _prepareExperiment = function(exp_id, system, prepareCallback){
    async.waterfall([
       // Get experiment
       function(wfcb){
-         getExperiment(exp_id, wfcb);
+         getExperiment(exp_id, null, wfcb);
       },
       // Get application
       function(exp, wfcb){
@@ -602,7 +602,7 @@ var _deployExperiment = function(minion, exp_id, system, deployCallback){
    async.waterfall([
       // Get experiment
       function(wfcb){
-         getExperiment(exp_id, wfcb);
+         getExperiment(exp_id, null, wfcb);
       },
       // Get application
       function(exp, wfcb){
@@ -772,7 +772,7 @@ var _executeExperiment = function(minion, exp_id, system, executionCallback){
    async.waterfall([
       // Get experiment
       function(wfcb){
-         getExperiment(exp_id, wfcb);
+         getExperiment(exp_id, null, wfcb);
       },
       // Get application
       function(exp, wfcb){
@@ -878,7 +878,7 @@ var _pollExperiment = function(minion, exp_id, system, pollCallback){
    async.waterfall([
       // Get experiment
       function(wfcb){
-         getExperiment(exp_id, wfcb);
+         getExperiment(exp_id, null, wfcb);
       },
       // Get instance
       function(exp, wfcb){
@@ -900,7 +900,21 @@ var _pollExperiment = function(minion, exp_id, system, pollCallback){
             }
          });
       },
-      // Poll experiment
+      // Poll experiment logs
+      function(exp, headnode, image, wfcb){
+         _pollExperimentLogs(minion, exp.id, system, image, ['COMPILATION_LOG','EXECUTION_LOG'], function (error, logs) {
+            if(error){
+               wfcb(new Error("Failed to poll experiment ", exp.id, " logs, error: ", error));
+            } else {
+               // Update status
+               db.collection('experiments').updateOne({id: exp.id},{$set:{logs:logs}});
+
+               // Callback status
+               wfcb(null, exp, headnode, image);
+            }
+         });
+      },
+      // Poll experiment status
       function(exp, headnode, image, wfcb){
          var work_dir = image.workpath+"/"+exp.id;
          var cmd = 'cat '+work_dir+'/EXPERIMENT_STATUS';
@@ -922,6 +936,44 @@ var _pollExperiment = function(minion, exp_id, system, pollCallback){
          pollCallback(error);
       } else {
          pollCallback(null, status);
+      }
+   });
+}
+
+var _pollExperimentLogs = function(minion, exp_id, system, image, log_files, pollCallback){
+   // Get minion RPC
+   var minionRPC = minions[minion];
+
+   var work_dir = image.workpath+"/"+exp_id;
+   var logs = [];
+
+   // Iterate logs
+   var tasks = [];
+   for(var i = 0; i < log_files.length; i++){
+      (function(i){
+         tasks.push(function(taskcb){
+            var cmd = 'cat '+work_dir+'/'+log_files[i];
+            minionRPC.invoke('executeCommand', cmd, system.master, function (error, content, more) {
+               if(error){
+                  taskcb(new Error("Failed to poll log ", log_files[i], ", error: ", error));
+               } else {
+                  // Add log
+                  logs.push({name: log_files[i], content: content});
+                  taskcb(null);
+               }
+            });
+         });
+      })(i);
+   }
+
+   // Execute tasks
+   async.parallel(tasks, function(error){
+      if(error){
+         pollCallback(error);
+      } else {
+         // Callback
+         console.log("LOGS: ", logs);
+         pollCallback(null, logs);
       }
    });
 }
