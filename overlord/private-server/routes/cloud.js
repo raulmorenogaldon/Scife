@@ -432,7 +432,6 @@ router.get('/experiments/:exp_id/download', function (req, res, next) {
             ],
             'details': error.message
          });
-         res.json(null);
       } else {
          // Create header with file info
          var stat = fs.statSync(file);
