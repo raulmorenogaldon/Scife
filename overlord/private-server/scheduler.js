@@ -75,6 +75,19 @@ var getExperiment = function(exp_id, fields, getCallback){
 }
 
 /**
+ * Get experiment output data file path
+ */
+var getExperimentOutputFile = function(exp_id, getCallback){
+   storageClient.invoke("getExperimentOutputFile", exp_id, function(error, file){
+      if (error) {
+         getCallback(new Error("Failed to get experiment ", exp_id, " output data, error: ", error));
+      } else {
+         getCallback(null, file);
+      }
+   });
+}
+
+/**
  * Create an experiment from config
  */
 var createExperiment = function(exp_cfg, createCallback){
@@ -1140,3 +1153,5 @@ exports.updateExperiment = updateExperiment;
 exports.resetExperiment = resetExperiment;
 exports.destroyExperiment = destroyExperiment;
 exports.searchExperiments = searchExperiments;
+
+exports.getExperimentOutputFile = getExperimentOutputFile;

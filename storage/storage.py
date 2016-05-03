@@ -213,6 +213,10 @@ class Storage(object):
 
         return url
 
+    def getExperimentOutputFile(self, exp_id):
+        # Get output storage path
+        return self.outputpath + "/" + exp_id + "/output.tar.gz"
+
     def getInputFolderTree(self, id):
         # Get input storage path
         path = self.inputpath + "/" + id

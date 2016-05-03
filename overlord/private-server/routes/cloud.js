@@ -1,6 +1,7 @@
 var express = require('express'),
    router = express.Router(),
    zerorpc = require('zerorpc'),
+   fs = require('fs'),
    constants = require('../constants.json');
 
 var codes = require('../error_codes.js');
@@ -411,6 +412,41 @@ router.get('/experiments/:exp_id/logs', function (req, res, next) {
          });
       }
       res.json(result);
+   });
+});
+
+/**
+ * Get download link for experiment output data
+ * @param {String} - The experiment id.
+ * @return {[Object]} - A json Object with output data
+ */
+router.get('/experiments/:exp_id/download', function (req, res, next) {
+   scheduler.getExperimentOutputFile(req.params.exp_id, function (error, file, more) {
+      if (error) {
+         console.log('Error in the request /experiments/:exp_id/download, err: ', error);
+         res.status(codes.HTTPCODE.NOT_FOUND); //Not Found
+         res.json({
+            'errors': [
+               codes.ERRCODE.ID_NOT_FOUND,
+               codes.ERRCODE.EXP_NOT_FOUND
+            ],
+            'details': error.message
+         });
+         res.json(null);
+      } else {
+         // Create header with file info
+         var stat = fs.statSync(file);
+         res.writeHead(200, {
+            'Content-Type': 'application/octet-stream',
+            'Content-Length': stat.size,
+            'Content-Disposition': 'inline; filename="output.tar.gz"'
+         });
+
+         // Send file
+         var readStream = fs.createReadStream(file);
+         console.log("Sending: ", file);
+         readStream.pipe(res);
+      }
    });
 });
 
