@@ -363,6 +363,13 @@ var _workflowExperiment = function(exp_id, minion, nodes, image_id, size_id){
 
             // Prepare experiment
             _executeExperiment(minion, exp_id, _system, wfcb);
+         },
+         // Retrieve experiment output data
+         function(wfcb){
+            console.log("Retrieving output data from experiment " + exp.id);
+
+            // Prepare experiment
+            _retrieveExperimentOutput(minion, exp_id, _system, wfcb);
          }
       ],
       function(error){
@@ -870,6 +877,78 @@ var _waitExperimentExecution = function(minion, exp_id, system, waitCallback){
    });
 }
 
+/**
+ * Retrieve experiment output data
+ */
+var _retrieveExperimentOutput = function(minion, exp_id, system, retrieveCallback){
+   if(system.status != "instanced"){
+      retrieveCallback(new Error("Target system is not instanced"));
+      return;
+   }
+
+   // Get minion RPC
+   var minionRPC = minions[minion];
+
+   async.waterfall([
+      // Get experiment
+      function(wfcb){
+         getExperiment(exp_id, null, wfcb);
+      },
+      // Get instance
+      function(exp, wfcb){
+         _getInstance(minion, system.master, function(error, headnode){
+            if(error){
+               wfcb(error);
+            } else {
+               wfcb(null, exp, headnode);
+            }
+         });
+      },
+      // Get instance image
+      function(exp, headnode, wfcb){
+         _getImage(minion, headnode.image_id, function(error, image){
+            if(error){
+               wfcb(error);
+            } else {
+               wfcb(null, exp, headnode, image);
+            }
+         });
+      },
+      // Get instance hostname
+      function(exp, headnode, image, wfcb){
+         minionRPC.invoke('getInstanceHostname', headnode.id, function (error, hostname, more) {
+            if (error) {
+               wfcb(new Error("Failed to get instance hostname, error: ", error));
+            } else {
+               wfcb(null, exp, headnode, image, hostname);
+            }
+         });
+      },
+      // Execute excution script
+      function(exp, headnode, image, hostname, wfcb){
+         var output_file = image.workpath+"/"+exp.id+"/output.tar.gz";
+         var net_path = hostname + ":" + output_file;
+
+         // Execute command
+         storageClient.invoke('retrieveExperimentOutput', exp.id, net_path, function (error) {
+            if (error) {
+               wfcb(new Error("Failed to retrieve experiment output data, error: ", error));
+            } else {
+               wfcb(null);
+            }
+         });
+      }
+   ],
+   function(error){
+      if(error){
+         retrieveCallback(error);
+      } else {
+         console.log("Retrievement for experiment " + exp_id + " succeeded");
+         retrieveCallback(null);
+      }
+   });
+}
+
 var _pollExperiment = function(minion, exp_id, system, pollCallback){
 
    // Get minion RPC
@@ -972,7 +1051,6 @@ var _pollExperimentLogs = function(minion, exp_id, system, image, log_files, pol
          pollCallback(error);
       } else {
          // Callback
-         console.log("LOGS: ", logs);
          pollCallback(null, logs);
       }
    });

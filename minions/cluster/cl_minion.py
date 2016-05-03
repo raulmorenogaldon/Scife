@@ -277,6 +277,31 @@ class ClusterMinion(minion.Minion):
             else:
                 return inst
 
+    def getInstanceHostname(self, instance_id):
+        """Get instance hostname"""
+
+        ####################
+        # Set the lock for the instance
+        while self._instance_lock[instance_id]:
+            gevent.sleep(0)
+        self._instance_lock[instance_id] = True
+
+        # Get instance
+        instance = self._findInstance(instance_id)
+
+        # Check if instance is ready
+        if not instance['ready']:
+            self._instance_lock[instance_id] = False
+            raise Exception("Instance {0} is not ready, unable to retrieve hostname".format(
+                instance['id']
+            ))
+
+        self._instance_lock[instance_id] = False
+        ####################
+
+        return "rmoreno2@galgo.i3a.info"
+
+
     def executeCommand(self, cmd, instance_id):
         # TODO: Check instance minion
 

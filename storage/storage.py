@@ -14,12 +14,13 @@ from pymongo import MongoClient
 class Storage(object):
     """Class to handle application storage in standard a FS."""
 
-    def __init__(self, apppath, inputpath, public_url, username):
+    def __init__(self, apppath, inputpath, outputpath, public_url, username):
         print("Initializing storage...")
 
         # Set path for storage
         self.apppath = apppath
         self.inputpath = inputpath
+        self.outputpath = outputpath
 
         # Set user
         self.username = username
@@ -144,6 +145,29 @@ class Storage(object):
             app_path, exp_path
         ))
         gevent.subprocess.call(["cp", "-as", app_path, exp_path])
+
+        # Create output data folder
+        output_path = self.outputpath + "/" + exp_id
+        os.mkdir(output_path)
+
+        self.lock = False
+        ########################
+
+    def retrieveExperimentOutput(self, exp_id, src_path):
+        # Get experiment output storage path
+        dst_path = self.outputpath + "/" + exp_id + "/"
+
+        ########################
+        # Wait for the lock
+        while self.lock:
+            gevent.sleep(0)
+        self.lock = True
+
+        # Copy output to storage
+        print('Copying experiment output data: {0} --> {1}'.format(
+            src_path, dst_path
+        ))
+        gevent.subprocess.call(["scp", src_path, dst_path])
 
         self.lock = False
         ########################
@@ -337,6 +361,7 @@ if __name__ == "__main__":
     rpc = zerorpc.Server(Storage(
         apppath=cfg['appstorage'],
         inputpath=cfg['inputstorage'],
+        outputpath=cfg['outputstorage'],
         public_url=cfg['public_url'],
         username=cfg['username']
     ), heartbeat=30)
