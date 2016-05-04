@@ -2,6 +2,7 @@ var zerorpc = require('zerorpc');
 var mongo = require('mongodb').MongoClient;
 var async = require('async');
 var constants = require('./constants.json');
+var codes = require('./error_codes.js');
 
 var minionClient = new zerorpc.Client({
 	heartbeatInterval: 30000,
@@ -80,7 +81,7 @@ var getExperiment = function(exp_id, fields, getCallback){
 var getExperimentOutputFile = function(exp_id, getCallback){
    storageClient.invoke("getExperimentOutputFile", exp_id, function(error, file){
       if (error) {
-         getCallback(new Error("Failed to get experiment ", exp_id, " output data, error: ", error));
+         getCallback(new Error("Failed to get experiment "+exp_id+" output data, error: "+error));
       } else {
          getCallback(null, file);
       }
@@ -844,7 +845,7 @@ var _executeExperiment = function(minion, exp_id, system, executionCallback){
          var exe_script = ''+
          '#!/bin/sh \n'+
          'cd '+work_dir+'\n'+
-         'echo -n "compiling" > EXPERIMENT_STATUS \n'+
+         'echo -n "executing" > EXPERIMENT_STATUS \n'+
          './'+app.execution_script+' &>EXECUTION_LOG \n'+
          'RETVAL=\$? \n'+
          'if [ \$RETVAL -eq 0 ]; then \n'+

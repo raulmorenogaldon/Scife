@@ -60,6 +60,10 @@ var ERRCODE = {
       'message': "Unknown operation, possible operations: [launch, reset].",
       'code': 45
    },
+   EXP_NO_OUTPUT_DATA: {
+      'message': "Output data does not exist for this experiment.",
+      'code': 46
+   },
 }
 
 exports.HTTPCODE = HTTPCODE;
