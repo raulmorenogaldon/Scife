@@ -201,6 +201,7 @@ var resetExperiment = function(exp_id, hardreset, resetCallback){
       // Clean job
       function(exp, headnode, image, wfcb){
          if(exp.system){
+            console.log("["+exp_id+"] Reset: cleaning job");
             minionRPC.invoke('cleanJob', exp.job_id, headnode.id, function (error, result, more) {
                if (error) {
                   wfcb(new Error("Failed to clean job: ", exp.job_id, "\nError: ", error));
@@ -215,6 +216,7 @@ var resetExperiment = function(exp_id, hardreset, resetCallback){
       // Remove experiment code folder
       function(exp, headnode, image, wfcb){
          if(exp.system){
+            console.log("["+exp_id+"] Reset: removing code folder");
             var work_dir = image.workpath+"/"+exp.id;
             var cmd = 'rm -rf '+work_dir;
             // Execute command
@@ -232,6 +234,7 @@ var resetExperiment = function(exp_id, hardreset, resetCallback){
       // Remove experiment input data (hard reset)
       function(exp, headnode, image, wfcb){
          if(exp.system && hardreset){
+            console.log("["+exp_id+"] Reset: removing input folder");
             var input_dir = image.inputpath+"/"+exp.id;
             var cmd = 'rm -rf '+input_dir;
             // Execute command
@@ -253,16 +256,14 @@ var resetExperiment = function(exp_id, hardreset, resetCallback){
          // Error trying to launch experiment
          resetCallback(error);
       } else {
-
          // Update status
          if(hardreset){
             db.collection('experiments').updateOne({id: exp_id},{$set:{status:"created", system:""}});
-            console.log("["+exp_id+"] HARD reset");
+            console.log("["+exp_id+"] Reset: HARD reset done");
          } else {
             db.collection('experiments').updateOne({id: exp_id},{$set:{status:"created"}});
-            console.log("["+exp_id+"] Reset");
+            console.log("["+exp_id+"] Reset: done");
          }
-
          // Callback
          resetCallback(null);
       }
@@ -314,6 +315,7 @@ var destroyExperiment = function(exp_id, destroyCallback){
 
 var _workflowExperiment = function(exp_id, minion, nodes, image_id, size_id){
 
+   console.log("["+exp_id+"] Workflow: Begin");
    var _system = null;
 
    getExperiment(exp_id, null, function(error, exp){
@@ -358,28 +360,28 @@ var _workflowExperiment = function(exp_id, minion, nodes, image_id, size_id){
          },
          // Prepare experiment for the system
          function(wfcb){
-            console.log("Execution environment has been set");
+            console.log("["+exp_id+"] Workflow: Preparing...");
 
             // Prepare experiment
             _prepareExperiment(exp_id, _system, wfcb);
          },
          // Deploy experiment in master instance
          function(wfcb){
-            console.log("Deploying experiment " + exp.id);
+            console.log("["+exp_id+"] Workflow: Deploying...");
 
             // Prepare experiment
             _deployExperiment(minion, exp_id, _system, wfcb);
          },
          // Execute experiment
          function(wfcb){
-            console.log("Executing experiment " + exp.id);
+            console.log("["+exp_id+"] Workflow: Executing...");
 
             // Prepare experiment
             _executeExperiment(minion, exp_id, _system, wfcb);
          },
          // Retrieve experiment output data
          function(wfcb){
-            console.log("Retrieving output data from experiment " + exp.id);
+            console.log("["+exp_id+"] Workflow: Retrieving...");
 
             // Prepare experiment
             _retrieveExperimentOutput(minion, exp_id, _system, wfcb);
@@ -387,9 +389,9 @@ var _workflowExperiment = function(exp_id, minion, nodes, image_id, size_id){
       ],
       function(error){
          if(error){
-            console.error("Failed to launch experiment " + exp.id + ", error: " + error);
+            console.log("["+exp_id+"] Workflow: Failed, error: " + error);
          } else {
-            console.log("Experiment " + exp.id + " has been executed");
+            console.log("["+exp_id+"] Workflow: Executed...");
          }
       });
    });
@@ -561,6 +563,7 @@ var _prepareExperiment = function(exp_id, system, prepareCallback){
       },
       // Update labels for this system
       function(app, exp, wfcb){
+         console.log("["+exp_id+"] Preparing labels");
          // Get application labels and join with experiment ones
          for(var i in app.labels){
             if(!exp.labels[app.labels[i]]){
@@ -600,7 +603,7 @@ var _prepareExperiment = function(exp_id, system, prepareCallback){
       if(error){
          prepareCallback(error);
       } else {
-         console.log("Experiment " + exp_id + " is prepared for deployment");
+         console.log("["+exp_id+"] Prepared for deployment");
          prepareCallback(null);
       }
    });
@@ -682,6 +685,7 @@ var _deployExperiment = function(minion, exp_id, system, deployCallback){
       },
       // Copy experiment in FS
       function(app, exp, headnode, image, wfcb){
+         console.log("["+exp.id+"] Cloning experiment into instance");
          var cmd = "git clone -b "+exp.id+"-L "+exp.exp_url+" "+image.workpath+"/"+exp.id;
          // Execute command
          minionRPC.invoke('executeCommand', cmd, headnode.id, function (error, result, more) {
@@ -694,6 +698,7 @@ var _deployExperiment = function(minion, exp_id, system, deployCallback){
       },
       // Copy inputdata in FS
       function(app, exp, headnode, image, wfcb){
+         console.log("["+exp.id+"] Making inputdata dir");
          var cmd = "mkdir -p "+image.inputpath+"/"+exp.id+"; rsync -Lr "+exp.input_url+"/* "+image.inputpath+"/"+exp.id;
          // Execute command
          minionRPC.invoke('executeCommand', cmd, headnode.id, function (error, result, more) {
@@ -706,6 +711,7 @@ var _deployExperiment = function(minion, exp_id, system, deployCallback){
       },
       // Init EXPERIMENT_STATUS
       function(app, exp, headnode, image, wfcb){
+         console.log("["+exp.id+"] Initializing EXPERIMENT_STATUS");
          var cmd = 'echo -n "deployed" > '+image.workpath+'/'+exp.id+'/EXPERIMENT_STATUS';
          // Execute command
          minionRPC.invoke('executeCommand', cmd, headnode.id, function (error, result, more) {
@@ -718,6 +724,7 @@ var _deployExperiment = function(minion, exp_id, system, deployCallback){
       },
       // Execute creation script
       function(app, exp, headnode, image, wfcb){
+         console.log("["+exp.id+"] Executing creation script");
          var work_dir = image.workpath+"/"+exp.id;
          var exe_script = ''+
          '#!/bin/sh \n'+
@@ -748,7 +755,7 @@ var _deployExperiment = function(minion, exp_id, system, deployCallback){
       if(error){
          deployCallback(error);
       } else {
-         console.log("Experiment " + exp_id + " has been deployed");
+         console.log("["+exp_id+"] Deployed!");
          deployCallback(null);
       }
    });
@@ -832,6 +839,7 @@ var _executeExperiment = function(minion, exp_id, system, executionCallback){
       },
       // Execute excution script
       function(app, exp, headnode, image, wfcb){
+         console.log("["+exp_id+"] Launching execution script");
          var work_dir = image.workpath+"/"+exp.id;
          var exe_script = ''+
          '#!/bin/sh \n'+
@@ -862,7 +870,7 @@ var _executeExperiment = function(minion, exp_id, system, executionCallback){
       if(error){
          executionCallback(error);
       } else {
-         console.log("Experiment " + exp_id + " has been deployed");
+         console.log("["+exp_id+"] Executed!");
          executionCallback(null);
       }
    });
@@ -929,6 +937,7 @@ var _retrieveExperimentOutput = function(minion, exp_id, system, retrieveCallbac
       },
       // Get instance hostname
       function(exp, headnode, image, wfcb){
+         console.log("["+exp_id+"] Getting instance hostname");
          minionRPC.invoke('getInstanceHostname', headnode.id, function (error, hostname, more) {
             if (error) {
                wfcb(new Error("Failed to get instance hostname, error: ", error));
@@ -939,6 +948,7 @@ var _retrieveExperimentOutput = function(minion, exp_id, system, retrieveCallbac
       },
       // Execute excution script
       function(exp, headnode, image, hostname, wfcb){
+         console.log("["+exp_id+"] Getting experiment output data path");
          var output_file = image.workpath+"/"+exp.id+"/output.tar.gz";
          var net_path = hostname + ":" + output_file;
 
@@ -956,7 +966,7 @@ var _retrieveExperimentOutput = function(minion, exp_id, system, retrieveCallbac
       if(error){
          retrieveCallback(error);
       } else {
-         console.log("Retrievement for experiment " + exp_id + " succeeded");
+         console.log("["+exp_id+"] Output data retrievement succeed");
          retrieveCallback(null);
       }
    });

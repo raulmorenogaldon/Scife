@@ -189,7 +189,7 @@ var createExperiment = function(exp_cfg, createCallback){
       }
 
       // Return experiment data
-      console.log("Created experiment: " + JSON.stringify(exp));
+      console.log("Created experiment " + exp.id);
       createCallback(null, exp);
    });
 }
