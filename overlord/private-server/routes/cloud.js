@@ -372,24 +372,41 @@ router.post('/experiments', function (req, res, next) {
 });
 
 /**
+ * Check experiment id parameter
+ * @param {String} - The experiment ID.
+ */
+router.param('exp_id', function(req, res, next, exp_id){
+   // Get experiment
+   scheduler.getExperiment(exp_id, null, function (error, exp) {
+      // Error retrieving this experiment
+      if(error){
+         return next({
+            'http': codes.HTTPCODE.NOT_FOUND,
+            'json': codes.ERRCODE.EXP_NOT_FOUND
+         });
+      } else {
+         // Set parameter
+         req.exp = exp;
+         return next();
+      }
+   });
+});
+
+/**
  * Get experiment metadata from the storage using its ID
- * @param {String} - The experiment id.
+ * @param {String} - The experiment ID.
  * @return {[Object]} - A json Object with experiment metadata
  */
 router.get('/experiments/:exp_id', function (req, res, next) {
-   scheduler.getExperiment(req.params.exp_id, null, function (error, result, more) {
-      if (error) {
-         console.log('Error in the request /experiments/:exp_id, err: ', error);
-         res.status(codes.HTTPCODE.NOT_FOUND); //Not Found
-         res.json({
-            'errors': [
-               codes.ERRCODE.ID_NOT_FOUND,
-               codes.ERRCODE.EXP_NOT_FOUND
-            ],
-            'details': error.message
-         });
-      }
-      res.json(result);
+   res.json({
+      'id': req.exp.id,
+      'name': req.exp.name,
+      'desc': req.exp.desc,
+      'app_id': req.exp.desc,
+      'status': req.exp.status,
+      'labels': req.exp.labels,
+      'input_tree': req.exp.input_tree,
+      'src_tree': req.exp.src_tree
    });
 });
 
@@ -399,19 +416,13 @@ router.get('/experiments/:exp_id', function (req, res, next) {
  * @return {[Object]} - A json Object with experiment logs
  */
 router.get('/experiments/:exp_id/logs', function (req, res, next) {
-   scheduler.getExperiment(req.params.exp_id, {logs: 1}, function (error, result, more) {
+   scheduler.getExperiment(req.params.exp_id, {logs: 1}, function (error, result) {
       if (error) {
          console.log('Error in the request /experiments/:exp_id/logs, err: ', error);
-         res.status(codes.HTTPCODE.NOT_FOUND); //Not Found
-         res.json({
-            'errors': [
-               codes.ERRCODE.ID_NOT_FOUND,
-               codes.ERRCODE.EXP_NOT_FOUND
-            ],
-            'details': error.message
-         });
+         return next(error);
+      } else {
+         res.json(result);
       }
-      res.json(result);
    });
 });
 
@@ -421,16 +432,12 @@ router.get('/experiments/:exp_id/logs', function (req, res, next) {
  * @return {[Object]} - A json Object with output data
  */
 router.get('/experiments/:exp_id/download', function (req, res, next) {
-   scheduler.getExperimentOutputFile(req.params.exp_id, function (error, file, more) {
+   scheduler.getExperimentOutputFile(req.params.exp_id, function (error, file) {
       if (error) {
          console.log('Error in the request /experiments/:exp_id/download, err: ', error);
-         res.status(codes.HTTPCODE.NOT_FOUND); //Not Found
-         res.json({
-            'errors': [
-               codes.ERRCODE.ID_NOT_FOUND,
-               codes.ERRCODE.EXP_NOT_FOUND
-            ],
-            'details': error.message
+         return next({
+            'http': codes.HTTPCODE.NOT_FOUND,
+            'json': codes.ERRCODE.EXP_NO_OUTPUT_DATA
          });
       } else {
          // Create header with file info
@@ -457,14 +464,7 @@ router.put('/experiments/:exp_id', function (req, res, next) {
    scheduler.updateExperiment(req.params.exp_id, req.body, function (error, result, more) {
       if (error) {
          console.log('Error in the PUT update request /experiments/:exp_id, err: ', error);
-         res.status(codes.HTTPCODE.NOT_FOUND); //Not Found
-         res.json({
-            'errors': [
-               codes.ERRCODE.ID_NOT_FOUND,
-               codes.ERRCODE.EXP_NOT_FOUND
-            ],
-            'details': error.message
-         });
+         return next(error);
       } else {
          res.json(result);
       }
@@ -479,11 +479,7 @@ router.delete('/experiments/:exp_id', function (req, res, next) {
    // Remove experiment
    scheduler.destroyExperiment(req.params.exp_id, function(error){
       if(error){
-         res.status(codes.HTTPCODE.NOT_FOUND); // Not found
-         res.json({
-            'errors': [codes.ERRCODE.ID_NOT_FOUND],
-            'details': error.message
-         });
+         return next(error);
       } else {
          res.json(null);
       }
@@ -497,25 +493,21 @@ router.delete('/experiments/:exp_id', function (req, res, next) {
 router.post('/experiments/:exp_id', function (req, res, next) {
    if (!req.body.op){
       // No operation requested
-      res.status(codes.HTTPCODE.BAD_REQUEST); //Bad request
-      res.json({
-         'errors': [codes.ERRCODE.EXP_NO_OPERATION]
+      return next({
+         'http': codes.HTTPCODE.BAD_REQUEST,
+         'json': codes.ERRCODE.EXP_NO_OPERATION
       });
    } else if (req.body.op == "launch"){
       if (!req.body.nodes || !req.body.image_id || !req.body.size_id) {
-         res.status(codes.HTTPCODE.BAD_REQUEST); //Bad request
-         res.json({
-            'errors': [codes.ERRCODE.LAUNCH_INCORRECT_PARAMS]
+         return next({
+            'http': codes.HTTPCODE.BAD_REQUEST,
+            'json': codes.ERRCODE.LAUNCH_INCORRECT_PARAMS
          });
       } else {
          // Launch experiment
          scheduler.launchExperiment(req.params.exp_id, req.body.nodes, req.body.image_id, req.body.size_id, function(error){
             if(error){
-               res.status(codes.HTTPCODE.NOT_FOUND); // Not found
-               res.json({
-                  'errors': [codes.ERRCODE.ID_NOT_FOUND],
-                  'details': error.message
-               });
+               return next(error);
             } else {
                res.json(null);
             }
@@ -525,22 +517,37 @@ router.post('/experiments/:exp_id', function (req, res, next) {
       // Reset experiment
       scheduler.resetExperiment(req.params.exp_id, false, function(error){
          if(error){
-            res.status(codes.HTTPCODE.NOT_FOUND); // Not found
-            res.json({
-               'errors': [codes.ERRCODE.ID_NOT_FOUND],
-               'details': error.message
-            });
+            return next(error);
          } else {
             res.json(null);
          }
       });
    } else {
       // Unknown operation
-      res.status(codes.HTTPCODE.BAD_REQUEST); //Bad request
-      res.json({
-         'errors': [codes.ERRCODE.EXP_UNKNOWN_OPERATION]
+      return next({
+         'http': codes.HTTPCODE.BAD_REQUEST,
+         'json': codes.ERRCODE.EXP_UNKNOWN_OPERATION
       });
    }
 });
+
+/**
+ * Generic error handler
+ */
+function errorGeneric(error, req, res, next){
+   if(error.json){
+      res.status(error.http);
+      res.json(error.json);
+   } else {
+      res.status(codes.HTTPCODE.INTERNAL_ERROR); //What happened?
+      res.json({
+         'errors': [
+            codes.ERRCODE.UNKNOWN
+         ],
+         'details': error.message
+      });
+   }
+}
+router.use(errorGeneric);
 
 module.exports = router;
