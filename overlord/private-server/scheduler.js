@@ -1,51 +1,31 @@
 var zerorpc = require('zerorpc');
-var mongo = require('mongodb').MongoClient;
 var async = require('async');
 var constants = require('./constants.json');
 var codes = require('./error_codes.js');
 
-var minionClient = new zerorpc.Client({
-	heartbeatInterval: 30000,
-	timeout: 3600
-});
-
-var storageClient = new zerorpc.Client({
-	heartbeatInterval: 30000,
-	timeout: 3600
-});
-
-// Submodules
+/**
+ * Load submodules
+ */
 var apps = require('./application.js');
 var exps = require('./experiment.js');
+var database = require('./database.js');
+var storage = require('./storage.js');
+var instance = require('./instance.js');
 
-// Connect to minions
-console.log('Connecting to minion-url: ' + constants.MINION_URL +
-            '\nConnecting to storage-url: ' + constants.STORAGE_URL);
-
-minionClient.connect(constants.MINION_URL);
-storageClient.connect(constants.STORAGE_URL);
+/**
+ * Module name
+ */
+var MODULE_NAME = "SC";
 
 // Set minions shortcuts
-var minions = {}
-minionClient.invoke('getMinionName', function(error, name){
-   if(error){
-      console.error("Failed to get minion name, error: ", error);
-   } else {
-      minions[name] = minionClient;
-   }
-});
-
-// Connect to DB
-console.log('Connecting to MongoDB: ' + constants.MONGO_URL);
-var db = null;
-mongo.connect(constants.MONGO_URL, function(error, database){
-   if(error){
-      console.error("Failed to connect to MongoDB, error: ", error);
-   } else {
-      console.log("Successfull connection to DB");
-      db = database;
-   }
-});
+//var minions = {}
+//minionClient.invoke('getMinionName', function(error, name){
+//   if(error){
+//      console.error("Failed to get minion name, error: ", error);
+//   } else {
+//      minions[name] = minionClient;
+//   }
+//});
 
 /**
  * Get application metadata
@@ -79,7 +59,7 @@ var getExperiment = function(exp_id, fields, getCallback){
  * Get experiment output data file path
  */
 var getExperimentOutputFile = function(exp_id, getCallback){
-   storageClient.invoke("getExperimentOutputFile", exp_id, function(error, file){
+   storage.client.invoke("getExperimentOutputFile", exp_id, function(error, file){
       if (error) {
          getCallback(new Error("Failed to get experiment "+exp_id+" output data, error: "+error));
       } else {
@@ -122,11 +102,11 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback
       // Check experiment status
       function(wfcb){
          // Check image ID exists
-         _getImage(minion, image_id, wfcb);
+         instmanager.getImage(image_id, wfcb);
       },
       // Check size ID exists
       function(image, wfcb){
-         _getSize(minion, size_id, wfcb);
+         instmanager.getSize(size_id, wfcb);
       },
       // Get experiment
       function(size, wfcb){
@@ -146,7 +126,7 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback
          launchCallback(error);
       } else {
          // Update status
-         db.collection('experiments').updateOne({id: exp_id},{$set:{status:"launched"}});
+         database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"launched"}});
 
          // Callback
          launchCallback(null);
@@ -170,7 +150,7 @@ var resetExperiment = function(exp_id, hardreset, resetCallback){
       },
       // Get instance
       function(exp, wfcb){
-         db.collection('experiments').updateOne({id: exp_id},{$set:{status:"resetting"}});
+         database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"resetting"}});
          if(exp.system){
             // Get minion RPC
             minionRPC = minions[exp.system.minion];
@@ -259,10 +239,10 @@ var resetExperiment = function(exp_id, hardreset, resetCallback){
       } else {
          // Update status
          if(hardreset){
-            db.collection('experiments').updateOne({id: exp_id},{$set:{status:"created", system:""}});
+            database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"created", system:""}});
             console.log("["+exp_id+"] Reset: HARD reset done");
          } else {
-            db.collection('experiments').updateOne({id: exp_id},{$set:{status:"created"}});
+            database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"created"}});
             console.log("["+exp_id+"] Reset: done");
          }
          // Callback
@@ -298,7 +278,7 @@ var destroyExperiment = function(exp_id, destroyCallback){
       },
       // Remove from DB
       function(wfcb){
-         db.collection('experiments').remove({id: exp_id});
+         database.db.collection('experiments').remove({id: exp_id});
          wfcb(null);
       },
    ],
@@ -408,7 +388,7 @@ var _defineSystem = function(minion, nodes, image_id, size_id, defineCallback){
          defineCallback(error);
          return;
       }
-      _getSize(minion, size_id, function(error, size){
+      instmanager.getSize(size_id, function(error, size){
          if(error){
             defineCallback(error);
             return;
@@ -591,7 +571,7 @@ var _prepareExperiment = function(exp_id, system, prepareCallback){
          exp.labels['#TOTALCPUS'] = totalcpus;
 
          // Apply labels
-         storageClient.invoke('prepareExperiment', app.id, exp.id, exp.labels, function(error){
+         storage.client.invoke('prepareExperiment', app.id, exp.id, exp.labels, function(error){
             if(error){
                wfcb(error);
             } else {
@@ -644,7 +624,7 @@ var _deployExperiment = function(minion, exp_id, system, deployCallback){
       },
       // Get experiment URL
       function(app, exp, wfcb){
-         storageClient.invoke('getApplicationURL', app.id, function(error, url){
+         storage.client.invoke('getApplicationURL', app.id, function(error, url){
             if(error){
                wfcb(error);
             } else {
@@ -655,7 +635,7 @@ var _deployExperiment = function(minion, exp_id, system, deployCallback){
       },
       // Get input URL
       function(app, exp, wfcb){
-         storageClient.invoke('getExperimentInputURL', exp_id, function(error, url){
+         storage.client.invoke('getExperimentInputURL', exp_id, function(error, url){
             if(error){
                wfcb(error);
             } else {
@@ -746,7 +726,7 @@ var _deployExperiment = function(minion, exp_id, system, deployCallback){
                wfcb(new Error("Failed to execute script:\n", cmd, "\nError: ", error));
             } else {
                // Set experiment system and job_id
-               db.collection('experiments').updateOne({id: exp.id},{$set:{system:system, job_id:job_id}})
+               database.db.collection('experiments').updateOne({id: exp.id},{$set:{system:system, job_id:job_id}})
                _waitExperimentCompilation(minion, exp.id, system, wfcb);
             }
          });
@@ -861,7 +841,7 @@ var _executeExperiment = function(minion, exp_id, system, executionCallback){
                wfcb(new Error("Failed to execute script:\n", cmd, "\nError: ", error));
             } else {
                // Set script jobid
-               db.collection('experiments').updateOne({id: exp.id},{$set:{system:system, job_id:job_id}})
+               database.db.collection('experiments').updateOne({id: exp.id},{$set:{system:system, job_id:job_id}})
                _waitExperimentExecution(minion, exp.id, system, wfcb);
             }
          });
@@ -954,7 +934,7 @@ var _retrieveExperimentOutput = function(minion, exp_id, system, retrieveCallbac
          var net_path = hostname + ":" + output_file;
 
          // Execute command
-         storageClient.invoke('retrieveExperimentOutput', exp.id, net_path, function (error) {
+         storage.client.invoke('retrieveExperimentOutput', exp.id, net_path, function (error) {
             if (error) {
                wfcb(new Error("Failed to retrieve experiment output data, error: ", error));
             } else {
@@ -1010,7 +990,7 @@ var _pollExperiment = function(minion, exp_id, system, pollCallback){
                wfcb(new Error("Failed to poll experiment ", exp.id, " logs, error: ", error));
             } else {
                // Update status
-               db.collection('experiments').updateOne({id: exp.id},{$set:{logs:logs}});
+               database.db.collection('experiments').updateOne({id: exp.id},{$set:{logs:logs}});
 
                // Callback status
                wfcb(null, exp, headnode, image);
@@ -1026,7 +1006,7 @@ var _pollExperiment = function(minion, exp_id, system, pollCallback){
                wfcb(new Error("Failed to poll experiment ", exp.id, ", err: ", error));
             } else {
                // Update status
-               db.collection('experiments').updateOne({id: exp.id},{$set:{status:status}});
+               database.db.collection('experiments').updateOne({id: exp.id},{$set:{status:status}});
 
                // Callback status
                wfcb(null, status);
@@ -1083,10 +1063,10 @@ var _pollExperimentLogs = function(minion, exp_id, system, image, log_files, pol
 /**
  * Selects the best minion for an specific configuration
  */
-var _selectBestMinion = function(nodes){
-   // Basic selection
-   return minionClient;
-}
+//var _selectBestMinion = function(nodes){
+//   // Basic selection
+//   return minionClient;
+//}
 
 /**
  * Select an appropiate image from a minion

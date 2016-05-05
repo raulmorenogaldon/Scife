@@ -1,34 +1,19 @@
 var zerorpc = require('zerorpc');
 var async = require('async');
-var mongo = require('mongodb').MongoClient;
+
 var constants = require('./constants.json');
 var utils = require('./utils.js');
 var apps = require('./application.js');
+var database = require('./database.js');
+var storage = require('./storage.js');
 
-var storageClient = new zerorpc.Client({
-	heartbeatInterval: 30000,
-	timeout: 3600
-});
-storageClient.connect(constants.STORAGE_URL);
-
-// Connect to DB
-console.log('Connecting to MongoDB: ' + constants.MONGO_URL);
-var db = null;
-mongo.connect(constants.MONGO_URL, function(error, database){
-   if(error){
-      console.error("Failed to connect to MongoDB, error: ", error);
-   } else {
-      console.log("Successfull connection to DB");
-      db = database;
-   }
-});
 
 /**
  * Get experiment data
  */
 var getExperiment = function(exp_id, fields, getCallback){
    // Connected to DB?
-   if(db == null){
+   if(database.db == null){
       getCallback(new Error("Not connected to DB"));
       return;
    }
@@ -43,7 +28,7 @@ var getExperiment = function(exp_id, fields, getCallback){
    if(!fields) fields = {};
 
    // Retrieve experiment metadata
-   db.collection('experiments').findOne({id: exp_id}, fields, function(error, exp){
+   database.db.collection('experiments').findOne({id: exp_id}, fields, function(error, exp){
       if(error){
          getCallback(new Error("Query for experiment " + exp_id + " failed"));
       } else if (!exp){
@@ -59,7 +44,7 @@ var getExperiment = function(exp_id, fields, getCallback){
  */
 var searchExperiments = function(name, searchCallback){
    // Connected to DB?
-   if(db == null){
+   if(database.db == null){
       searchCallback(new Error("Not connected to DB"));
       return;
    }
@@ -73,7 +58,7 @@ var searchExperiments = function(name, searchCallback){
    }
 
    // Retrieve experiment metadata
-   db.collection('experiments').find({name: {$regex: query}}).toArray(function(error, exps){
+   database.db.collection('experiments').find({name: {$regex: query}}).toArray(function(error, exps){
       if(error){
          searchCallback(new Error("Query for experiments with name: " + name + " failed"));
       } else {
@@ -100,8 +85,7 @@ var createExperiment = function(exp_cfg, createCallback){
    async.waterfall([
       // Check if experiment name exists
       function(wfcb){
-         db.collection('experiments').findOne({name: exp_cfg.name}, function(error, exp){
-            console.log("db")
+         database.db.collection('experiments').findOne({name: exp_cfg.name}, function(error, exp){
             if(error){
                wfcb(new Error("Query for experiment name " + exp_cfg.name + " failed"));
             } else if (exp){
@@ -126,7 +110,7 @@ var createExperiment = function(exp_cfg, createCallback){
          // Create UUID
          exp_cfg.id = utils.generateUUID();
 
-         storageClient.invoke('copyExperiment', exp_cfg.id, exp_cfg.app_id, function (error) {
+         storage.client.invoke('copyExperiment', exp_cfg.id, exp_cfg.app_id, function (error) {
             if(error){
                wfcb(error);
             } else {
@@ -136,7 +120,7 @@ var createExperiment = function(exp_cfg, createCallback){
       },
       // Obtain experiment input data tree
       function(wfcb){
-         storageClient.invoke('getInputFolderTree', exp_cfg.id, function (error, tree) {
+         storage.client.invoke('getInputFolderTree', exp_cfg.id, function (error, tree) {
             if(error){
                wfcb(error);
             } else {
@@ -147,7 +131,7 @@ var createExperiment = function(exp_cfg, createCallback){
       },
       // Obtain experiment source data tree
       function(wfcb){
-         storageClient.invoke('getExperimentSrcFolderTree', exp_cfg.app_id, function (error, tree) {
+         storage.client.invoke('getExperimentSrcFolderTree', exp_cfg.app_id, function (error, tree) {
             if(error){
                wfcb(error);
             } else {
@@ -172,7 +156,7 @@ var createExperiment = function(exp_cfg, createCallback){
          };
 
          // Add experiment to DB
-         db.collection('experiments').insert(exp, function(error){
+         database.db.collection('experiments').insert(exp, function(error){
             if(error){
                wfcb(error);
             } else {
@@ -211,7 +195,7 @@ var updateExperiment = function(exp_id, exp_cfg, updateCallback){
       if('exec_env' in exp_cfg) new_exp.exec_env = exp_cfg.exec_env;
 
       // Update DB
-      db.collection('experiments').updateOne({id: exp_id},{$set: new_exp});
+      database.db.collection('experiments').updateOne({id: exp_id},{$set: new_exp});
       updateCallback(null);
    });
 }

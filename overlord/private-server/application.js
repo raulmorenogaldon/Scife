@@ -1,39 +1,23 @@
 var zerorpc = require('zerorpc');
 var async = require('async');
-var mongo = require('mongodb').MongoClient;
+
 var constants = require('./constants.json');
 var utils = require('./utils.js');
-
-var storageClient = new zerorpc.Client({
-	heartbeatInterval: 30000,
-	timeout: 3600
-});
-storageClient.connect(constants.STORAGE_URL);
-
-// Connect to DB
-console.log('Connecting to MongoDB: ' + constants.MONGO_URL);
-var db = null;
-mongo.connect(constants.MONGO_URL, function(error, database){
-   if(error){
-      console.error("Failed to connect to MongoDB, error: ", error);
-   } else {
-      console.log("Successfull connection to DB");
-      db = database;
-   }
-});
+var database = require('./database.js');
+var storage = require('./storage.js');
 
 /**
  * Get application data
  */
 var getApplication = function(app_id, getCallback){
    // Connected to DB?
-   if(db == null){
+   if(database.db == null){
       getCallback(new Error("Not connected to DB"));
       return;
    }
 
    // Retrieve application metadata
-   db.collection('applications').findOne({id: app_id}, function(error, app){
+   database.db.collection('applications').findOne({id: app_id}, function(error, app){
       if(error){
          getCallback(new Error("Query for application " + app_id + " failed"));
       } else if (!app){
@@ -49,7 +33,7 @@ var getApplication = function(app_id, getCallback){
  */
 var searchApplications = function(name, searchCallback){
    // Connected to DB?
-   if(db == null){
+   if(database.db == null){
       searchCallback(new Error("Not connected to DB"));
       return;
    }
@@ -63,7 +47,7 @@ var searchApplications = function(name, searchCallback){
    }
 
    // Retrieve application metadata
-   db.collection('applications').find({name: {$regex: query}}).toArray(function(error, apps){
+   database.db.collection('applications').find({name: {$regex: query}}).toArray(function(error, apps){
       if(error){
          searchCallback(new Error("Query for applications with name: " + name + " failed"));
       } else {
@@ -98,7 +82,7 @@ var createApplication = function(app_cfg, createCallback){
    async.waterfall([
       // Check if application name exists
       function(wfcb){
-         db.collection('applications').findOne({name: app_cfg.name}, function(error, app){
+         database.db.collection('applications').findOne({name: app_cfg.name}, function(error, app){
             if(error){
                wfcb(new Error("Query for application name " + app_cfg.name + " failed"));
             } else if (app){
@@ -113,7 +97,7 @@ var createApplication = function(app_cfg, createCallback){
          app_cfg.id = utils.generateUUID();
 
          // Copy application to storage
-         storageClient.invoke('copyApplication', app_cfg.id, app_cfg.path, function (error) {
+         storage.client.invoke('copyApplication', app_cfg.id, app_cfg.path, function (error) {
             if(error){
                wfcb(error);
             } else {
@@ -123,7 +107,7 @@ var createApplication = function(app_cfg, createCallback){
       },
       function(wfcb){
          // Get labels list
-         storageClient.invoke('discoverLabels', app_cfg.id, function(error, labels){
+         storage.client.invoke('discoverLabels', app_cfg.id, function(error, labels){
             if(error){
                wfcb(error);
             } else {
@@ -146,7 +130,7 @@ var createApplication = function(app_cfg, createCallback){
          }
 
          // Add application to DB
-         db.collection('applications').insert(app, function(error){
+         database.db.collection('applications').insert(app, function(error){
             if(error){
                wfcb(error);
             } else {

@@ -10,4 +10,4 @@ function generateUUID() {
    return uuid;
 };
 
-exports.generateUUID = generateUUID;
+module.exports.generateUUID = generateUUID;

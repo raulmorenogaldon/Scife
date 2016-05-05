@@ -7,15 +7,6 @@ var express = require('express'),
 var codes = require('../error_codes.js');
 var scheduler = require('../scheduler.js');
 
-var minionClient = new zerorpc.Client({
-	heartbeatInterval: 30000,
-	timeout: 3600
-});
-
-console.log('Conecting to minion-url: ' + constants.MINION_URL +
-            '\nConecting to storage-url: ' + constants.STORAGE_URL);
-
-minionClient.connect(constants.MINION_URL);
 
 /***********************************************************
  * --------------------------------------------------------
@@ -24,21 +15,21 @@ minionClient.connect(constants.MINION_URL);
  ***********************************************************/
 
 // The config object depends on the provider
-router.get('/login', function(req, res, next){
-   var config = {
-      'url': "galgo.i3a.info",
-      'username': "rmoreno2",
-   }
-   minionClient.invoke("login", config, function(error, result, more){
-      if(error){
-         console.log("Error in the request /login");
-         res.status(500); //Internal server error
-         res.json(error);
-      }else{
-         res.json(result);
-      }
-   });
-});
+//router.get('/login', function(req, res, next){
+//   var config = {
+//      'url': "galgo.i3a.info",
+//      'username': "rmoreno2",
+//   }
+//   minionClient.invoke("login", config, function(error, result, more){
+//      if(error){
+//         console.log("Error in the request /login");
+//         res.status(500); //Internal server error
+//         res.json(error);
+//      }else{
+//         res.json(result);
+//      }
+//   });
+//});
 
 /*
 // The config object depends on the provider
