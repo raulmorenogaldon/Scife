@@ -402,7 +402,7 @@ router.get('/experiments/:exp_id', function (req, res, next) {
       'id': req.exp.id,
       'name': req.exp.name,
       'desc': req.exp.desc,
-      'app_id': req.exp.desc,
+      'app_id': req.exp.app_id,
       'status': req.exp.status,
       'labels': req.exp.labels,
       'input_tree': req.exp.input_tree,
