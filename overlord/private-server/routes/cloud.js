@@ -6,6 +6,7 @@ var express = require('express'),
 
 var codes = require('../error_codes.js');
 var scheduler = require('../scheduler.js');
+var instmanager = require('../instance.js');
 
 
 /***********************************************************
@@ -57,7 +58,7 @@ router.post('login', function (req, res, next) {
  * 	[{ "id":"size id", "name":"size name", "desc":"Description", "cpus":"Nº CPUs", "ram":"ram in mb"}]
  */
 router.get('/sizes', function (req, res, next) {
-   minionClient.invoke('getSizes', function (error, result, more) {
+   instmanager.getSizesList(function (error, result){
       if (error) {
          console.log('Error in the request /sizes');
          res.status(500); //Internal server error
@@ -68,48 +69,19 @@ router.get('/sizes', function (req, res, next) {
 });
 
 /**
- * Get the size info fron de server.
+ * Get the size info from de server.
  * @param {String} - The size id.
  * @return {Object} - A json Object with the follow structure: { "id":"size id", "name":"size name", "desc":"Description", "cpus":"Nº CPUs", "ram":"ram in mb"}
  */
 router.get('/sizes/:size_id', function (req, res, next) {
-   minionClient.invoke('getSizes',req.params.size_id, function (error, result, more) {
+   instmanager.getSize(req.params.size_id, function (error, result) {
       if (error) {
-         console.log('Error in the request /sizes');
+         console.log('Error in the request /sizes/:size_id');
          res.status(500); //Internal server error
          res.json(error);
       }
       res.json(result);
    });
-});
-
-/**
- * This method allow to create a new size. When the size is created this function returns and result object with the ID of the size.
- * @param {Object} {{"name":"name", "desc":"Description", "dpus":"Nº CPUs", "ram":"ram in mb"}}
- * @return {Object} - A json object with the follow structure: {"result":"id of the size"}
- */
-router.post('/createsize', function (req, res, next) {
-   if (!req.body.name || !req.body.desc || !req.body.cpus || !req.body.ram) {
-      console.log(req.body);
-      res.status(400); //Bad request
-      res.json('Error, you must pass the name, description, cpus and ram params');
-   } else {
-      minionClient.invoke('createSize', {
-         name: req.body.name,
-         desc: req.body.desc,
-         cpus: req.body.cpus,
-         ram: req.body.ram
-      },
-      function (error, result, more) {
-         if (error) {
-            console.log('Error in the request /createsize\n' + error);
-            res.status(500); //Internal server error
-            res.json(error);
-         } else {
-            res.json(result);
-         }
-      });
-   }
 });
 
 /***********************************************************
@@ -124,7 +96,7 @@ router.post('/createsize', function (req, res, next) {
  * 	[{ "id":"instance id", "name":"name", "desc":"Description", "image_id":"image id", "size_id":"size id"}]
  */
 router.get('/instances', function (req, res, next) {
-   minionClient.invoke('getInstances', function (error, result, more) {
+   instmanager.getInstancesList(function (error, result){
       if (error) {
          console.log('Error in the request /instances');
          res.status(500); //Internal server error
@@ -135,14 +107,14 @@ router.get('/instances', function (req, res, next) {
 });
 
 /**
- * Get the instance info fron de server.
+ * Get the instance info from de server.
  * @param {String} - The instance id.
  * @return {Object} - A json Object with the follow structure: {"id":"instance id", "name":"name", "desc":"description", "image_id":"image id", "size_id":"size id"}
  */
 router.get('/instances/:instance_id', function (req, res, next) {
-   minionClient.invoke('getInstances',req.params.image_id, function (error, result, more) {
+   instmanager.getInstance(req.params.instance_id, function (error, result){
       if (error) {
-         console.log('Error in the request /instances');
+         console.log('Error in the request /instances/:instance_id');
          res.status(500); //Internal server error
          res.json(error);
       }
@@ -150,33 +122,6 @@ router.get('/instances/:instance_id', function (req, res, next) {
    });
 });
 
-
-/**
- * This method allow to create a new instance. When the size is created this function returns and result object with the ID of the instance.
- * @param {Object} {{"name":"name", "desc":"Description", "image_id":"image id", "size_id":"size id"}}
- * @return {Object} - A json object with the follow structure: {"result":"id of the instance created"}
- */
-router.post('/createinstance', function (req, res, next) {
-   if (!req.body.name || !req.body.desc || !req.body.image_id || !req.body.size_id) {
-      res.status(400); //Bad request
-      res.json({error: 'Error, you must pass the name, description, image id and size id params'});
-   } else {
-      minionClient.invoke('createInstance', {
-         name: req.body.name,
-         desc: req.body.desc,
-         image_id: req.body.image_id,
-         size_id: req.body.size_id
-      },
-      function (error, result, more) {
-         if (error) {
-            console.log('Error in the request /createinstance\n' + error);
-            res.json(error);
-         } else {
-            res.json(result);
-         }
-      });
-   }
-});
 
 /***********************************************************
  * --------------------------------------------------------
@@ -189,7 +134,7 @@ router.post('/createinstance', function (req, res, next) {
  * @return {[Object]} - A  list of json objects with she follow strucutre: [{"id":"image id", "name":"name", "desc":"description"}]
  */
 router.get('/images', function (req, res, next) {
-   minionClient.invoke('getImages', function (error, result, more) {
+   instmanager.getImagesList(function (error, result){
       if (error) {
          console.log('Error in the request /images');
          res.status(500); //Internal server error
@@ -205,9 +150,9 @@ router.get('/images', function (req, res, next) {
  * @return {Object} - A json Object with the follow structure: {"id":"image id", "name":"name", "desc":"description"}
  */
 router.get('/images/:image_id', function (req, res, next) {
-   minionClient.invoke('getImages', req.params.image_id, function (error, result, more) {
+   instmanager.getImage(req.params.image_id, function (error, result) {
       if (error) {
-         console.log('Error in the request /images');
+         console.log('Error in the request /images/:image_id');
          res.status(500); //Internal server error
          res.json(error);
       }

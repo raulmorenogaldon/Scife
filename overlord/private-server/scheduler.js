@@ -10,22 +10,13 @@ var apps = require('./application.js');
 var exps = require('./experiment.js');
 var database = require('./database.js');
 var storage = require('./storage.js');
-var instance = require('./instance.js');
+var instmanager = require('./instance.js');
 
 /**
  * Module name
  */
 var MODULE_NAME = "SC";
 
-// Set minions shortcuts
-//var minions = {}
-//minionClient.invoke('getMinionName', function(error, name){
-//   if(error){
-//      console.error("Failed to get minion name, error: ", error);
-//   } else {
-//      minions[name] = minionClient;
-//   }
-//});
 
 /**
  * Get application metadata
@@ -95,8 +86,6 @@ var searchExperiments = function(name, searchCallback){
  */
 
 var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback){
-   var minion = 'ClusterMinion';
-
    // Check data
    async.waterfall([
       // Check experiment status
@@ -132,7 +121,7 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback
          launchCallback(null);
 
          // Launch workflow
-         _workflowExperiment(exp_id, minion, nodes, image_id, size_id);
+         _workflowExperiment(exp_id, nodes, image_id, size_id);
       }
    });
 }
@@ -141,88 +130,24 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback
  * Reset experiment to create status
  */
 var resetExperiment = function(exp_id, hardreset, resetCallback){
-   var minionRPC = null;
-
    async.waterfall([
       // Get experiment
       function(wfcb){
          getExperiment(exp_id, null, wfcb);
       },
-      // Get instance
+      // Update database
       function(exp, wfcb){
          database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"resetting"}});
-         if(exp.system){
-            // Get minion RPC
-            minionRPC = minions[exp.system.minion];
-            _getInstance(exp.system.minion, exp.system.master, function(error, headnode){
-               if(error){
-                  wfcb(error);
-               } else {
-                  wfcb(null, exp, headnode);
-               }
-            });
-         } else {
-            wfcb(null, exp, null);
-         }
-      },
-      // Get instance image
-      function(exp, headnode, wfcb){
-         if(exp.system){
-            _getImage(exp.system.minion, headnode.image_id, function(error, image){
-               if(error){
-                  wfcb(error);
-               } else {
-                  wfcb(null, exp, headnode, image);
-               }
-            });
-         } else {
-            wfcb(null, exp, null, null);
-         }
+         wfcb(null, exp);
       },
       // Clean job
-      function(exp, headnode, image, wfcb){
+      function(exp, wfcb){
          if(exp.system){
-            console.log("["+exp_id+"] Reset: cleaning job");
-            minionRPC.invoke('cleanJob', exp.job_id, headnode.id, function (error, result, more) {
+            console.log("["+exp_id+"] Reset: cleaning experiment");
+            // If hardreset is set, experiment will be removed completely from the instance
+            instmanager.cleanExperiment(exp_id, exp.system.master, true, true, false, hardreset, function(error){
                if (error) {
-                  wfcb(new Error("Failed to clean job: ", exp.job_id, "\nError: ", error));
-               } else {
-                  wfcb(null, exp, headnode, image);
-               }
-            });
-         } else {
-            wfcb(null, exp, null, null);
-         }
-      },
-      // Remove experiment code folder
-      function(exp, headnode, image, wfcb){
-         if(exp.system){
-            console.log("["+exp_id+"] Reset: removing code folder");
-            var work_dir = image.workpath+"/"+exp.id;
-            var cmd = 'rm -rf '+work_dir;
-            // Execute command
-            minionRPC.invoke('executeCommand', cmd, headnode.id, function (error, result, more) {
-               if (error) {
-                  wfcb(new Error("Failed to execute command:", cmd, "\nError: ", error));
-               } else {
-                  wfcb(null, exp, headnode, image);
-               }
-            });
-         } else {
-            wfcb(null, exp, null, null);
-         }
-      },
-      // Remove experiment input data (hard reset)
-      function(exp, headnode, image, wfcb){
-         if(exp.system && hardreset){
-            console.log("["+exp_id+"] Reset: removing input folder");
-            var input_dir = image.inputpath+"/"+exp.id;
-            var cmd = 'rm -rf '+input_dir;
-            // Execute command
-            console.log("Executing: "+cmd);
-            minionRPC.invoke('executeCommand', cmd, headnode.id, function (error, result, more) {
-               if (error) {
-                  wfcb(new Error("Failed to execute command:", cmd, "\nError: ", error));
+                  wfcb(new Error('Failed to clean experiment "', exp_id, ", error: ", error));
                } else {
                   wfcb(null);
                }
@@ -235,6 +160,7 @@ var resetExperiment = function(exp_id, hardreset, resetCallback){
    function(error){
       if(error){
          // Error trying to launch experiment
+         database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"reset_failed"}});
          resetCallback(error);
       } else {
          // Update status
@@ -294,7 +220,7 @@ var destroyExperiment = function(exp_id, destroyCallback){
    });
 }
 
-var _workflowExperiment = function(exp_id, minion, nodes, image_id, size_id){
+var _workflowExperiment = function(exp_id, nodes, image_id, size_id){
 
    console.log("["+exp_id+"] Workflow: Begin");
    var _system = null;
@@ -310,7 +236,7 @@ var _workflowExperiment = function(exp_id, minion, nodes, image_id, size_id){
          function(app, wfcb){
             console.log("Selected experiment: " + exp.name + "\n" +
                         "-- App: " + app.name);
-            _defineSystem(minion, nodes, image_id, size_id, wfcb);
+            _defineSystem(nodes, image_id, size_id, wfcb);
          },
          // Instance system
          function(system, wfcb){
@@ -319,7 +245,7 @@ var _workflowExperiment = function(exp_id, minion, nodes, image_id, size_id){
                         "-- Image: ", system.image.name, " - ", system.image.id, "\n",
                         "-- Size: ", system.size.name, " - ", system.size.id, "\n");
                         _system = system;
-                        _instanceSystem(minion, system, wfcb);
+                        _instanceSystem(system, wfcb);
          },
          // Set experiment execution environment
          function(wfcb){
@@ -328,16 +254,7 @@ var _workflowExperiment = function(exp_id, minion, nodes, image_id, size_id){
                msg += "-- " + i + ": " + _system.instances[i] + "\n";
             }
             console.log(msg);
-
-            // Set execution environment
-            var exec_env = {
-               nodes: _system.nodes,
-               cpus: _system.size.cpus,
-               inputpath: _system.image.inputpath + "/" + exp_id,
-               libpath: _system.image.libpath,
-               tmppath: _system.image.tmppath
-            };
-            _setExecEnvironment(exp_id, exec_env, wfcb);
+            wfcb(null);
          },
          // Prepare experiment for the system
          function(wfcb){
@@ -351,21 +268,21 @@ var _workflowExperiment = function(exp_id, minion, nodes, image_id, size_id){
             console.log("["+exp_id+"] Workflow: Deploying...");
 
             // Prepare experiment
-            _deployExperiment(minion, exp_id, _system, wfcb);
+            _deployExperiment(exp_id, _system, wfcb);
          },
          // Execute experiment
          function(wfcb){
             console.log("["+exp_id+"] Workflow: Executing...");
 
             // Prepare experiment
-            _executeExperiment(minion, exp_id, _system, wfcb);
+            _executeExperiment(exp_id, _system, wfcb);
          },
          // Retrieve experiment output data
          function(wfcb){
             console.log("["+exp_id+"] Workflow: Retrieving...");
 
             // Prepare experiment
-            _retrieveExperimentOutput(minion, exp_id, _system, wfcb);
+            _retrieveExperimentOutput(exp_id, _system, wfcb);
          }
       ],
       function(error){
@@ -381,9 +298,9 @@ var _workflowExperiment = function(exp_id, minion, nodes, image_id, size_id){
 /**
  * Define a system of instances
  */
-var _defineSystem = function(minion, nodes, image_id, size_id, defineCallback){
-   // Get image and size IDs for the system in this minion
-   _getImage(minion, image_id, function(error, image){
+var _defineSystem = function(nodes, image_id, size_id, defineCallback){
+   // Get image and size IDs for the system
+   instmanager.getImage(image_id, function(error, image){
       if(error){
          defineCallback(error);
          return;
@@ -396,7 +313,6 @@ var _defineSystem = function(minion, nodes, image_id, size_id, defineCallback){
 
          // Create system object
          var system = {
-            minion: minion,
             nodes: nodes,
             image: image,
             size: size,
@@ -409,7 +325,7 @@ var _defineSystem = function(minion, nodes, image_id, size_id, defineCallback){
    });
 }
 
-var _instanceSystem = function(minion, system, instanceCallback){
+var _instanceSystem = function(system, instanceCallback){
    // Check if is already being instanced
    if(system.status != "defined"){
       instanceCallback(new Error("System is already instanced..."));
@@ -419,25 +335,17 @@ var _instanceSystem = function(minion, system, instanceCallback){
    // Change system status
    system.instances = [];
    system.status = "instancing";
-   system.minion = minion;
-
-   // Get minion RPC
-   var minionRPC = minions[minion];
 
    // Create instances
    var tasks = [];
    for(i = 0; i < system.nodes; i++){
       tasks.push(function(taskcb){
-         minionRPC.invoke('createInstance', {
-            name:"Unnamed",
-            image_id: system.image.id,
-            size_id: system.size.id
-         }, function (error, instance_id, more) {
+         instmanager.requestInstance(system.image.id, system.size.id, function (error, inst_id) {
             if(error){
-               taskcb(new Error("Failed to create instance from minion " + minion + ", err: " + error));
+               taskcb(error);
             } else {
                // Add instance to system
-               system.instances.push(instance_id);
+               system.instances.push(inst_id);
                taskcb(null);
             }
          });
@@ -445,9 +353,9 @@ var _instanceSystem = function(minion, system, instanceCallback){
    }
 
    // Execute tasks
-   async.parallel(tasks, function(err){
-      if(err){
-         instanceCallback(err);
+   async.parallel(tasks, function(error){
+      if(error){
+         instanceCallback(error);
       } else {
          // Set first instance as master
          system.master = system.instances[0];
@@ -461,25 +369,23 @@ var _instanceSystem = function(minion, system, instanceCallback){
 
 var _destroySystem = function(system, destroyCallback){
    // Check if system has instances
-   if(!system.minion || !system.instances || system.instances.length == 0){
+   if(!system.instances || system.instances.length == 0){
       destroyCallback(null);
       return;
    }
 
-   // Get minion RPC
-   var minionRPC = minions[system.minion];
-
    // Destroy instances
    var tasks = [];
    for(var inst in system.instances){
+      // inst must be task independent
       (function(inst){
          tasks.push(function(taskcb){
             console.log("Instance: " + inst + " / " + system.instances[inst]);
             if(system.instances[inst]){
-               console.log("Destroying instance " + system.instances[inst]);
-               minionRPC.invoke('destroyInstance', system.instances[inst], function (error) {
+               console.log("["+system.instances[inst]+"] Destroying instance...");
+               instmanager.destroyInstance(system.instances[inst], function (error) {
                   if(error){
-                     taskcb(new Error("Failed to destroy instance from minion " + system.minion+ ", err: " + error));
+                     taskcb(error);
                   } else {
                      taskcb(null);
                   }
@@ -593,15 +499,12 @@ var _prepareExperiment = function(exp_id, system, prepareCallback){
 /**
  * Deploy an experiment in target system
  */
-var _deployExperiment = function(minion, exp_id, system, deployCallback){
+var _deployExperiment = function(exp_id, system, deployCallback){
    // Check the system is instanced
    if(system.status != "instanced"){
       deployCallback(new Error("Target system is not instanced"));
       return;
    }
-
-   // Get minion RPC
-   var minionRPC = minions[minion];
 
    async.waterfall([
       // Get experiment
@@ -646,7 +549,7 @@ var _deployExperiment = function(minion, exp_id, system, deployCallback){
       },
       // Get instance
       function(app, exp, wfcb){
-         _getInstance(minion, system.master, function(error, headnode){
+         instmanager.getInstance(system.master, function(error, headnode){
             if(error){
                wfcb(error);
             } else {
@@ -656,7 +559,7 @@ var _deployExperiment = function(minion, exp_id, system, deployCallback){
       },
       // Get instance image
       function(app, exp, headnode, wfcb){
-         _getImage(minion, headnode.image_id, function(error, image){
+         instmanager.getImage(headnode.image_id, function(error, image){
             if(error){
                wfcb(error);
             } else {
@@ -669,9 +572,9 @@ var _deployExperiment = function(minion, exp_id, system, deployCallback){
          console.log("["+exp.id+"] Cloning experiment into instance");
          var cmd = "git clone -b "+exp.id+"-L "+exp.exp_url+" "+image.workpath+"/"+exp.id;
          // Execute command
-         minionRPC.invoke('executeCommand', cmd, headnode.id, function (error, result, more) {
+         instmanager.executeCommand(headnode.id, cmd, function (error, result) {
             if (error) {
-               wfcb(new Error("Failed to execute command:", cmd, "\nError: ", error));
+               wfcb(error);
             } else {
                wfcb(null, app, exp, headnode, image);
             }
@@ -682,9 +585,9 @@ var _deployExperiment = function(minion, exp_id, system, deployCallback){
          console.log("["+exp.id+"] Making inputdata dir");
          var cmd = "mkdir -p "+image.inputpath+"/"+exp.id+"; rsync -Lr "+exp.input_url+"/* "+image.inputpath+"/"+exp.id;
          // Execute command
-         minionRPC.invoke('executeCommand', cmd, headnode.id, function (error, result, more) {
+         instmanager.executeCommand(headnode.id, cmd, function (error, result) {
             if (error) {
-               wfcb(new Error("Failed to execute command:", cmd, "\nError: ", error));
+               wfcb(error);
             } else {
                wfcb(null, app, exp, headnode, image);
             }
@@ -695,9 +598,9 @@ var _deployExperiment = function(minion, exp_id, system, deployCallback){
          console.log("["+exp.id+"] Initializing EXPERIMENT_STATUS");
          var cmd = 'echo -n "deployed" > '+image.workpath+'/'+exp.id+'/EXPERIMENT_STATUS';
          // Execute command
-         minionRPC.invoke('executeCommand', cmd, headnode.id, function (error, result, more) {
+         instmanager.executeCommand(headnode.id, cmd, function (error, result) {
             if (error) {
-               wfcb(new Error("Failed to execute command:", cmd, "\nError: ", error));
+               wfcb(error);
             } else {
                wfcb(null, app, exp, headnode, image);
             }
@@ -720,14 +623,14 @@ var _deployExperiment = function(minion, exp_id, system, deployCallback){
          'fi \n'+
          'echo -n \$RETVAL > COMPILATION_EXIT_CODE\n';
 
-         // Execute command
-         minionRPC.invoke('executeScript', exe_script, work_dir, headnode.id, 1, function (error, job_id, more) {
+         // Execute job
+         instmanager.executeJob(headnode.id, exp.id, exe_script, work_dir, 1, function (error) {
             if (error) {
-               wfcb(new Error("Failed to execute script:\n", cmd, "\nError: ", error));
+               wfcb(error);
             } else {
-               // Set experiment system and job_id
-               database.db.collection('experiments').updateOne({id: exp.id},{$set:{system:system, job_id:job_id}})
-               _waitExperimentCompilation(minion, exp.id, system, wfcb);
+               // Set experiment system
+               database.db.collection('experiments').updateOne({id: exp.id},{$set:{system:system}})
+               _waitExperimentCompilation(exp.id, system, wfcb);
             }
          });
       },
@@ -742,9 +645,9 @@ var _deployExperiment = function(minion, exp_id, system, deployCallback){
    });
 }
 
-var _waitExperimentCompilation = function(minion, exp_id, system, waitCallback){
+var _waitExperimentCompilation = function(exp_id, system, waitCallback){
    // Poll experiment
-   _pollExperiment(minion, exp_id, system, function(error, status){
+   _pollExperiment(exp_id, system, function(error, status){
       if(error){
          waitCallback(new Error("Failed to poll experiment ", exp_id, ", err: ", error));
          return;
@@ -753,7 +656,7 @@ var _waitExperimentCompilation = function(minion, exp_id, system, waitCallback){
       // Check status
       if(status == "launched" || status == "deployed" || status == "compiling"){
          // Recheck later
-         setTimeout(_waitExperimentCompilation, 5000, minion, exp_id, system, waitCallback);
+         setTimeout(_waitExperimentCompilation, 5000, exp_id, system, waitCallback);
       } else if(status == "compiled") {
          // Compilation successful
          console.log("["+exp_id+"] Compilation succeed");
@@ -768,14 +671,11 @@ var _waitExperimentCompilation = function(minion, exp_id, system, waitCallback){
 /**
  * Execute an experiment in target system
  */
-var _executeExperiment = function(minion, exp_id, system, executionCallback){
+var _executeExperiment = function(exp_id, system, executionCallback){
    if(system.status != "instanced"){
       executionCallback(new Error("Target system is not instanced"));
       return;
    }
-
-   // Get minion RPC
-   var minionRPC = minions[minion];
 
    async.waterfall([
       // Get experiment
@@ -800,7 +700,7 @@ var _executeExperiment = function(minion, exp_id, system, executionCallback){
       },
       // Get instance
       function(app, exp, wfcb){
-         _getInstance(minion, system.master, function(error, headnode){
+         instmanager.getInstance(system.master, function(error, headnode){
             if(error){
                wfcb(error);
             } else {
@@ -810,7 +710,7 @@ var _executeExperiment = function(minion, exp_id, system, executionCallback){
       },
       // Get instance image
       function(app, exp, headnode, wfcb){
-         _getImage(minion, headnode.image_id, function(error, image){
+         instmanager.getImage(headnode.image_id, function(error, image){
             if(error){
                wfcb(error);
             } else {
@@ -836,13 +736,11 @@ var _executeExperiment = function(minion, exp_id, system, executionCallback){
          'echo -n \$RETVAL > EXECUTION_EXIT_CODE\n';
 
          // Execute command
-         minionRPC.invoke('executeScript', exe_script, work_dir, headnode.id, system.nodes, function (error, job_id, more) {
+         instmanager.executeJob(headnode.id, exp.id, exe_script, work_dir, system.nodes, function (error) {
             if (error) {
-               wfcb(new Error("Failed to execute script:\n", cmd, "\nError: ", error));
+               wfcb(error);
             } else {
-               // Set script jobid
-               database.db.collection('experiments').updateOne({id: exp.id},{$set:{system:system, job_id:job_id}})
-               _waitExperimentExecution(minion, exp.id, system, wfcb);
+               _waitExperimentExecution(exp.id, system, wfcb);
             }
          });
       }
@@ -857,9 +755,9 @@ var _executeExperiment = function(minion, exp_id, system, executionCallback){
    });
 }
 
-var _waitExperimentExecution = function(minion, exp_id, system, waitCallback){
+var _waitExperimentExecution = function(exp_id, system, waitCallback){
    // Poll experiment
-   _pollExperiment(minion, exp_id, system, function(error, status){
+   _pollExperiment(exp_id, system, function(error, status){
       if(error){
          waitCallback(new Error("Failed to poll experiment ", exp_id, ", err: ", error));
          return;
@@ -868,7 +766,7 @@ var _waitExperimentExecution = function(minion, exp_id, system, waitCallback){
       // Check status
       if(status == "compiled" || status == "executing"){
          // Recheck later
-         setTimeout(_waitExperimentExecution, 5000, minion, exp_id, system, waitCallback);
+         setTimeout(_waitExperimentExecution, 5000, exp_id, system, waitCallback);
       } else if(status == "done") {
          // Execution successful
          waitCallback(null);
@@ -882,14 +780,11 @@ var _waitExperimentExecution = function(minion, exp_id, system, waitCallback){
 /**
  * Retrieve experiment output data
  */
-var _retrieveExperimentOutput = function(minion, exp_id, system, retrieveCallback){
+var _retrieveExperimentOutput = function(exp_id, system, retrieveCallback){
    if(system.status != "instanced"){
       retrieveCallback(new Error("Target system is not instanced"));
       return;
    }
-
-   // Get minion RPC
-   var minionRPC = minions[minion];
 
    async.waterfall([
       // Get experiment
@@ -898,7 +793,7 @@ var _retrieveExperimentOutput = function(minion, exp_id, system, retrieveCallbac
       },
       // Get instance
       function(exp, wfcb){
-         _getInstance(minion, system.master, function(error, headnode){
+         instmanager.getInstance(system.master, function(error, headnode){
             if(error){
                wfcb(error);
             } else {
@@ -908,7 +803,7 @@ var _retrieveExperimentOutput = function(minion, exp_id, system, retrieveCallbac
       },
       // Get instance image
       function(exp, headnode, wfcb){
-         _getImage(minion, headnode.image_id, function(error, image){
+         instmanager.getImage(headnode.image_id, function(error, image){
             if(error){
                wfcb(error);
             } else {
@@ -916,22 +811,11 @@ var _retrieveExperimentOutput = function(minion, exp_id, system, retrieveCallbac
             }
          });
       },
-      // Get instance hostname
-      function(exp, headnode, image, wfcb){
-         console.log("["+exp_id+"] Getting instance hostname");
-         minionRPC.invoke('getInstanceHostname', headnode.id, function (error, hostname, more) {
-            if (error) {
-               wfcb(new Error("Failed to get instance hostname, error: ", error));
-            } else {
-               wfcb(null, exp, headnode, image, hostname);
-            }
-         });
-      },
       // Execute excution script
-      function(exp, headnode, image, hostname, wfcb){
+      function(exp, headnode, image, wfcb){
          console.log("["+exp_id+"] Getting experiment output data path");
          var output_file = image.workpath+"/"+exp.id+"/output.tar.gz";
-         var net_path = hostname + ":" + output_file;
+         var net_path = headnode.hostname + ":" + output_file;
 
          // Execute command
          storage.client.invoke('retrieveExperimentOutput', exp.id, net_path, function (error) {
@@ -953,10 +837,7 @@ var _retrieveExperimentOutput = function(minion, exp_id, system, retrieveCallbac
    });
 }
 
-var _pollExperiment = function(minion, exp_id, system, pollCallback){
-
-   // Get minion RPC
-   var minionRPC = minions[minion];
+var _pollExperiment = function(exp_id, system, pollCallback){
 
    async.waterfall([
       // Get experiment
@@ -965,7 +846,7 @@ var _pollExperiment = function(minion, exp_id, system, pollCallback){
       },
       // Get instance
       function(exp, wfcb){
-         _getInstance(minion, system.master, function(error, headnode){
+         instmanager.getInstance(system.master, function(error, headnode){
             if(error){
                wfcb(error);
             } else {
@@ -975,7 +856,7 @@ var _pollExperiment = function(minion, exp_id, system, pollCallback){
       },
       // Get instance image
       function(exp, headnode, wfcb){
-         _getImage(minion, headnode.image_id, function(error, image){
+         instmanager.getImage(headnode.image_id, function(error, image){
             if(error){
                wfcb(error);
             } else {
@@ -985,9 +866,9 @@ var _pollExperiment = function(minion, exp_id, system, pollCallback){
       },
       // Poll experiment logs
       function(exp, headnode, image, wfcb){
-         _pollExperimentLogs(minion, exp.id, system, image, ['COMPILATION_LOG','EXECUTION_LOG'], function (error, logs) {
+         _pollExperimentLogs(exp.id, system, image, ['COMPILATION_LOG','EXECUTION_LOG'], function (error, logs) {
             if(error){
-               wfcb(new Error("Failed to poll experiment ", exp.id, " logs, error: ", error));
+               wfcb(error);
             } else {
                // Update status
                database.db.collection('experiments').updateOne({id: exp.id},{$set:{logs:logs}});
@@ -1001,9 +882,9 @@ var _pollExperiment = function(minion, exp_id, system, pollCallback){
       function(exp, headnode, image, wfcb){
          var work_dir = image.workpath+"/"+exp.id;
          var cmd = 'cat '+work_dir+'/EXPERIMENT_STATUS';
-         minionRPC.invoke('executeCommand', cmd, system.master, function (error, status, more) {
+         instmanager.executeCommand(system.master, cmd, function (error, status) {
             if(error){
-               wfcb(new Error("Failed to poll experiment ", exp.id, ", err: ", error));
+               wfcb(error);
             } else {
                // Update status
                database.db.collection('experiments').updateOne({id: exp.id},{$set:{status:status}});
@@ -1023,20 +904,19 @@ var _pollExperiment = function(minion, exp_id, system, pollCallback){
    });
 }
 
-var _pollExperimentLogs = function(minion, exp_id, system, image, log_files, pollCallback){
-   // Get minion RPC
-   var minionRPC = minions[minion];
-
+var _pollExperimentLogs = function(exp_id, system, image, log_files, pollCallback){
+   // Working directory
    var work_dir = image.workpath+"/"+exp_id;
    var logs = [];
 
    // Iterate logs
    var tasks = [];
    for(var i = 0; i < log_files.length; i++){
+      // var i must be independent between tasks
       (function(i){
          tasks.push(function(taskcb){
             var cmd = 'cat '+work_dir+'/'+log_files[i];
-            minionRPC.invoke('executeCommand', cmd, system.master, function (error, content, more) {
+            instmanager.executeCommand(system.master, cmd, function (error, content) {
                if(error){
                   taskcb(new Error("Failed to poll log ", log_files[i], ", error: ", error));
                } else {
@@ -1060,77 +940,6 @@ var _pollExperimentLogs = function(minion, exp_id, system, image, log_files, pol
    });
 }
 
-/**
- * Selects the best minion for an specific configuration
- */
-//var _selectBestMinion = function(nodes){
-//   // Basic selection
-//   return minionClient;
-//}
-
-/**
- * Select an appropiate image from a minion
- */
-var _getImage = function(minion, image_id, cb){
-   // Get minion RPC
-   var minionRPC = minions[minion];
-
-   // Select first image
-   minionRPC.invoke('getImages', image_id, function (error, images, more) {
-      if(error){
-         cb(error);
-      } else {
-         // Return image
-         if(images instanceof Array){
-            cb(new Error("Image " + image_id + " not found"));
-         } else {
-            cb(null, images);
-         }
-      }
-   });
-}
-
-/**
- * Select an appropiate size from a minion
- */
-var _getSize = function(minion, size_id, cb){
-   // Get minion RPC
-   var minionRPC = minions[minion];
-
-   // Select sizes with this parameters
-   minionRPC.invoke('getSizes', size_id, function (error, sizes, more) {
-      if(error){
-         cb(error);
-      } else {
-         if(sizes instanceof Array){
-            cb(new Error("Size " + size_id + " not found"));
-         } else {
-            cb(null, sizes);
-         }
-      }
-   });
-}
-
-/**
- * Get instance
- */
-var _getInstance = function(minion, instance_id, cb){
-   // Get minion RPC
-   var minionRPC = minions[minion];
-
-   // Select sizes with this parameters
-   minionRPC.invoke('getInstances', instance_id, function (error, instances, more) {
-      if(error){
-         cb(error);
-      } else {
-         if(instances instanceof Array){
-            cb(new Error("Instance " + instance_id + " not found"));
-         } else {
-            cb(null, instances);
-         }
-      }
-   });
-}
 
 exports.launchExperiment = launchExperiment;
 
