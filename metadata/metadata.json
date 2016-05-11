@@ -51,7 +51,10 @@
 		'name': "Instance name",
 		'desc': "Description",
 		'image_id': "f745c536-8888-8888-8888-5254003eece4",
-		'size_id': "f745c536-8888-8888-8888-5254003eece4"
+		'size_id': "f745c536-8888-8888-8888-5254003eece4",
+      'exps': [
+         {'exp_id': "...", 'jobs': ["2385", "832378.manager"]}
+      ]
 	},
 
 	Image: {

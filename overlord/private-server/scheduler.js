@@ -147,10 +147,11 @@ var resetExperiment = function(exp_id, hardreset, resetCallback){
             // If hardreset is set, experiment will be removed completely from the instance
             instmanager.cleanExperiment(exp_id, exp.system.master, true, true, false, hardreset, function(error){
                if (error) {
-                  wfcb(new Error('Failed to clean experiment "', exp_id, ", error: ", error));
-               } else {
-                  wfcb(null);
+                  console.log('['+exp_id+'] Reset: Failed to clean experiment, error: '+error);
+                  // If cleaning failed, better to do a hard reset
+                  hardreset = true;
                }
+               wfcb(null);
             });
          } else {
             wfcb(null);
@@ -159,7 +160,7 @@ var resetExperiment = function(exp_id, hardreset, resetCallback){
    ],
    function(error){
       if(error){
-         // Error trying to launch experiment
+         // Error trying to reset experiment
          database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"reset_failed"}});
          resetCallback(error);
       } else {
@@ -410,22 +411,6 @@ var _destroySystem = function(system, destroyCallback){
          destroyCallback(null);
       }
    });
-}
-
-/**
- * Set experiment execution environment
- * DEPRECATED
- */
-var _setExecEnvironment = function(exp_id, exec_env, setCallback){
-   setCallback(null);
-   //storageClient.invoke('updateExperiment', exp_id, {exec_env: exec_env}, function (error, result, more) {
-   //   if (error) {
-   //      setCallback(new Error("Failed to set execution environment of experiment ", exp_id, ", err: ", error));
-   //   } else {
-   //      // Experiment have now an execution environment
-   //      setCallback(null);
-   //   }
-   //});
 }
 
 /**

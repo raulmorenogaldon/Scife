@@ -16,12 +16,7 @@ var minionClient = new zerorpc.Client({
 	heartbeatInterval: 30000,
 	timeout: 3600
 });
-
-/**
- * Initialize minions
- */
-console.log("["+MODULE_NAME+"] Connecting to minion in: " + constants.MINION_URL);
-minionClient.connect(constants.MINION_URL);
+var destroyInterval = 30000;
 
 /**
  * Retrieves available sizes
@@ -33,15 +28,29 @@ var getAvailableSizes = function(minion, getCallback){
 }
 
 /**
- * Retrieves a dedicated instance.
+ * Obtains a dedicated instance.
  * It could be an existing one or a newly instanced one
  * @param {String} - Size ID.
  * @param {String} - Image ID.
  */
-var getDedicatedInstance = function(size_id, image_id, getCallback){
-   var instance = null;
-   getCallback(null, instance);
+var requestInstance = function(image_id, size_id, requestCallback){
+   // TODO: Select a minion
+   var minion = minionClient;
+
+   // Instance
+   minion.invoke('createInstance', {
+      name:"Unnamed",
+      image_id: image_id,
+      size_id: size_id
+   }, function (error, instance_id) {
+      if(error){
+         requestCallback(new Error("Failed to create instance, err: " + error));
+      } else {
+         requestCallback(null, instance_id);
+      }
+   });
 }
+
 
 /**
  * Get instance metadata
@@ -125,32 +134,11 @@ var getInstancesList = function(getCallback){
 }
 
 /**
- * Retrieve instance
- */
-var requestInstance = function(image_id, size_id, requestCallback){
-   // TODO: Select a minion
-   var minion = minionClient;
-
-   // Instance
-   minion.invoke('createInstance', {
-      name:"Unnamed",
-      image_id: image_id,
-      size_id: size_id
-   }, function (error, instance_id) {
-      if(error){
-         requestCallback(new Error("Failed to create instance, err: " + error));
-      } else {
-         requestCallback(null, instance_id);
-      }
-   });
-}
-
-/**
  * Destroy instance
  */
 var destroyInstance = function(inst_id, destroyCallback){
    // Destroy instance
-   minionRPC.invoke('destroyInstance', inst_id, function (error) {
+   minionClient.invoke('destroyInstance', inst_id, function (error) {
       if(error){
          destroyCallback(new Error("Failed to destroy instance " + inst_id + ", err: " + error));
       } else {
@@ -173,19 +161,20 @@ var cleanExperiment = function(exp_id, inst_id, b_job, b_code, b_input, b_remove
          // minion = ...
          wfcb(null, inst, minionClient);
       },
-      // Clean job
+      // Clean jobs
       function(inst, minion, wfcb){
          if(b_remove || b_job){
             _cleanExperimentJob(minion, exp_id, inst, function(error){
                if(error) return wfcb(error);
+
+               // Update database
+               database.db.collection('instances').updateOne({id: inst_id},{
+                  $pull: { exps: {exp_id: exp_id}}
+               });
+
                wfcb(null, inst, minion);
             });
          } else {
-            // Update database
-            var query = {};
-            query['exps.'+exp_id+'.job'] = "";
-            database.db.collection('instances').updateOne({id: inst_id},{$unset:query});
-
             // Callback
             wfcb(null, inst, minion);
          }
@@ -214,17 +203,14 @@ var cleanExperiment = function(exp_id, inst_id, b_job, b_code, b_input, b_remove
       }
    ],
    function(error){
-      if(error){
-         cleanCallback(error);
-         return;
-      }
-      // Update database if removal
+      if(error) return cleanCallback(error);
+
       if(b_remove){
-         var query = {};
-         query['exps.'+exp_id] = "";
-         database.db.collection('instances').updateOne({id: inst_id},{$unset:query});
+         // Remove from database
+         database.db.collection('instances').updateOne({id: inst_id},{
+            $pull: {exps: {exp_id: exp_id}}
+         });
       }
-      // Callback
       cleanCallback(null);
    });
 }
@@ -285,9 +271,12 @@ var executeJob = function(inst_id, exp_id, cmd, work_dir, nodes, executeCallback
                wfcb(new Error("Failed to execute job command:\n", cmd, "\nError: ", error));
             } else {
                // Add job to instance
-               var query = {};
-               query['exps.'+exp_id+'.job'] = job_id;
-               database.db.collection('instances').updateOne({id: inst_id},{$set:query});
+               database.db.collection('instances').updateOne({
+                  'id': inst_id,
+                  'exps.exp_id': exp_id
+               },{
+                  $push: {'exps.$.jobs': job_id}
+               });
                wfcb(null, job_id);
             }
          });
@@ -307,20 +296,40 @@ var executeJob = function(inst_id, exp_id, cmd, work_dir, nodes, executeCallback
  * Clean experiment Job in instance
  */
 var _cleanExperimentJob = function(minion, exp_id, inst, cleanCallback){
-   // Exists a job for this experiment?
-   if(inst.exps && inst.exps[exp_id] && inst.exps[exp_id].job){
-      var job_id = inst.exps[exp_id].job;
-      minion.invoke('cleanJob', job_id, inst.id, function (error, result, more) {
-         if (error) {
-            cleanCallback(new Error('Failed to clean job: "', job_id, '", error: ', error));
-         } else {
-            cleanCallback(null);
-         }
-      });
-   } else {
-      // Skip step
-      cleanCallback(null);
+   // Get jobs for this experiment
+   var jobs = null;
+   for(var exp in inst.exps){
+      if(exp.exp_id == exp_id){
+         jobs = exp.jobs;
+         break;
+      }
    }
+
+   // No jobs for this experiment
+   if(!jobs) return cleanCallback(null);
+
+   // Clean jobs
+   var tasks = [];
+   for(var job_id in jobs){
+      // Add task for this job
+      console.log("Cleaning job: "+job_id);
+      (function(job_id){
+         tasks.push(function(taskcb){
+            minion.invoke('cleanJob', job_id, inst.id, function (error, result, more) {
+               if (error) {
+                  taskcb(new Error('Failed to clean job: "', job_id, '", error: ', error));
+               } else {
+                  taskcb(null);
+               }
+            });
+         });
+      })(job_id);
+   }
+
+   // Execute cleans
+   async.parallel(tasks, function(error){
+      if(cleanCallback) cleanCallback(error);
+   });
 }
 
 /**
@@ -356,6 +365,81 @@ var _cleanExperimentInput = function(minion, exp_id, inst, cleanCallback){
    });
 }
 
+/**
+ * List empty instances using scalability algorithms
+ */
+var _getSuperfluousInstances = function(listCallback){
+   // TODO: Select instances based on usability/scalability algorithms
+   // ...
+   //
+   // Select all empty for now
+   getInstancesList(function(error, insts){
+      if(error) return listCallback(error);
+
+      // Result list
+      var retList = [];
+
+      // Iterate list
+      for(var i = 0; i < insts.length; i++){
+         // Empty?
+         if(!insts[i].exps || insts[i].exps.length == 0){
+            retList.push(insts[i]);
+         }
+      }
+
+      // Return list
+      listCallback(null, retList);
+   });
+}
+
+/**
+ * Destroy empty instances
+ */
+var _destroyEmptyInstances = function(destroyCallback){
+   // Scalability code
+   _getSuperfluousInstances(function(error, list){
+      if(error) return destroyCallback(error);
+
+      // Destroy instances task
+      var tasks = [];
+      for(var i = 0; i < list.length; i++){
+         (function(i){
+            tasks.push(function(taskcb){
+               // Destroy instance
+               destroyInstance(list[i].id, function(error){
+                  if(error){
+                     console.error('['+MODULE_NAME+'] Failed to destroy instance "'+list[i].id+'", error: '+error);
+                  } else {
+                     // Remove instance from DB
+                     database.db.collection('instances').remove({_id: list[i].id});
+                     console.log('['+MODULE_NAME+'] Instance "'+list[i].id+'" destroyed');
+                  }
+
+                  // Always return no error
+                  taskcb(null);
+               });
+            });
+         })(i);
+      }
+
+      // Execute tasks
+      async.parallel(tasks, function(error){
+         if(destroyCallback) destroyCallback(error);
+      });
+   });
+}
+
+/**
+ * Initialize minions
+ */
+console.log("["+MODULE_NAME+"] Connecting to minion in: " + constants.MINION_URL);
+minionClient.connect(constants.MINION_URL);
+
+/**
+ * Task: Remove empty instances from the system
+ */
+_destroyEmptyInstances();
+setInterval(_destroyEmptyInstances, destroyInterval);
 
 
 module.exports.getInstance = getInstance;

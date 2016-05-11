@@ -176,7 +176,7 @@ class ClusterMinion(minion.Minion):
             'hostname': "rmoreno2@galgo.i3a.info",
             'image_id': image_id,
             'size_id': size_id,
-            'exps': {},
+            'exps': [],
             'workpath': image['workpath'],
             'inputpath': image['inputpath'],
             'minion': self.__class__.__name__,
