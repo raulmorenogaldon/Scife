@@ -937,6 +937,7 @@ taskmanager.setTaskHandler("prepareExperiment", function(task){
    // Prepare experiment
    _prepareExperiment(exp_id, system, function(error){
       if(error){
+         console.error("["+exp_id+"] prepareExperiment error: "+error);
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
          return;
@@ -967,6 +968,7 @@ taskmanager.setTaskHandler("deployExperiment", function(task){
    // Prepare experiment
    _deployExperiment(exp_id, system, function(error){
       if(error){
+         console.error("["+exp_id+"] deployExperiment error: "+error);
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
          return;
@@ -997,6 +999,7 @@ taskmanager.setTaskHandler("executeExperiment", function(task){
    // Prepare experiment
    _executeExperiment(exp_id, system, function(error){
       if(error){
+         console.error("["+exp_id+"] executeExperiment error: "+error);
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
          return;
@@ -1027,6 +1030,7 @@ taskmanager.setTaskHandler("retrieveExperimentOutput", function(task){
    // Prepare experiment
    _retrieveExperimentOutput(exp_id, system, function(error){
       if(error){
+         console.error("["+exp_id+"] retrieveExperimentOutput error: "+error);
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
          return;
