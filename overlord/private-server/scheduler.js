@@ -11,6 +11,7 @@ var exps = require('./experiment.js');
 var database = require('./database.js');
 var storage = require('./storage.js');
 var instmanager = require('./instance.js');
+var taskmanager = require('./task.js');
 
 /**
  * Module name
@@ -248,7 +249,7 @@ var _workflowExperiment = function(exp_id, nodes, image_id, size_id){
                         _system = system;
                         _instanceSystem(system, wfcb);
          },
-         // Set experiment execution environment
+         // Show system info
          function(wfcb){
             msg = "-----------------------\nSystem instances:\n";
             for(i = 0; i < _system.nodes; i++){
@@ -261,37 +262,18 @@ var _workflowExperiment = function(exp_id, nodes, image_id, size_id){
          function(wfcb){
             console.log("["+exp_id+"] Workflow: Preparing...");
 
-            // Prepare experiment
-            _prepareExperiment(exp_id, _system, wfcb);
-         },
-         // Deploy experiment in master instance
-         function(wfcb){
-            console.log("["+exp_id+"] Workflow: Deploying...");
-
-            // Prepare experiment
-            _deployExperiment(exp_id, _system, wfcb);
-         },
-         // Execute experiment
-         function(wfcb){
-            console.log("["+exp_id+"] Workflow: Executing...");
-
-            // Prepare experiment
-            _executeExperiment(exp_id, _system, wfcb);
-         },
-         // Retrieve experiment output data
-         function(wfcb){
-            console.log("["+exp_id+"] Workflow: Retrieving...");
-
-            // Prepare experiment
-            _retrieveExperimentOutput(exp_id, _system, wfcb);
+            // Add task
+            var task = {
+               type: "prepareExperiment",
+               exp_id: exp_id,
+               system: _system
+            };
+            taskmanager.pushTask(task);
+            wfcb(null);
          }
       ],
       function(error){
-         if(error){
-            console.log("["+exp_id+"] Workflow: Failed, error: " + error);
-         } else {
-            console.log("["+exp_id+"] Workflow: Executed...");
-         }
+         if(error) console.log("["+exp_id+"] Workflow: Failed, error: " + error);
       });
    });
 }
@@ -496,6 +478,15 @@ var _deployExperiment = function(exp_id, system, deployCallback){
       function(wfcb){
          getExperiment(exp_id, null, wfcb);
       },
+      // Check if already deployed
+      function(exp, wfcb){
+         if(exp.status && exp.status == "compiling"){
+            // Already deployed
+            wfcb(true);
+         } else {
+            wfcb(null, exp);
+         }
+      },
       // Get application
       function(exp, wfcb){
          if(!exp.status || exp.status != "launched"){
@@ -615,18 +606,18 @@ var _deployExperiment = function(exp_id, system, deployCallback){
             } else {
                // Set experiment system
                database.db.collection('experiments').updateOne({id: exp.id},{$set:{system:system}})
-               _waitExperimentCompilation(exp.id, system, wfcb);
+               console.log("["+exp_id+"] Deployed!");
+               wfcb(null);
             }
          });
       },
    ],
    function(error){
-      if(error){
+      if(error && error != true){
          deployCallback(error);
-      } else {
-         console.log("["+exp_id+"] Deployed!");
-         deployCallback(null);
       }
+      // Wait experiment for compilation
+      _waitExperimentCompilation(exp_id, system, deployCallback);
    });
 }
 
@@ -666,6 +657,15 @@ var _executeExperiment = function(exp_id, system, executionCallback){
       // Get experiment
       function(wfcb){
          getExperiment(exp_id, null, wfcb);
+      },
+      // Check if already executed
+      function(exp, wfcb){
+         if(exp.status && exp.status == "executing"){
+            // Already executing
+            wfcb(true);
+         } else {
+            wfcb(null, exp);
+         }
       },
       // Get application
       function(exp, wfcb){
@@ -725,18 +725,18 @@ var _executeExperiment = function(exp_id, system, executionCallback){
             if (error) {
                wfcb(error);
             } else {
-               _waitExperimentExecution(exp.id, system, wfcb);
+               console.log("["+exp_id+"] Executed!");
+               wfcb(null);
             }
          });
       }
    ],
    function(error){
-      if(error){
+      if(error && error != true){
          executionCallback(error);
-      } else {
-         console.log("["+exp_id+"] Executed!");
-         executionCallback(null);
       }
+      // Wait experiment for execution
+      _waitExperimentExecution(exp_id, system, executionCallback);
    });
 }
 
@@ -925,6 +925,117 @@ var _pollExperimentLogs = function(exp_id, system, image, log_files, pollCallbac
    });
 }
 
+/**
+ * Prepare experiment handler
+ */
+taskmanager.setTaskHandler("prepareExperiment", function(task){
+   // Get vars
+   var exp_id = task.exp_id;
+   var system = task.system;
+   var task_id = task.id;
+
+   // Prepare experiment
+   _prepareExperiment(exp_id, system, function(error){
+      if(error){
+         // Set task failed
+         taskmanager.setTaskFailed(task_id, error);
+         return;
+      }
+
+      // Set task to done
+      taskmanager.setTaskDone(task_id);
+
+      // Add deploy task
+      var task = {
+         type: "deployExperiment",
+         exp_id: exp_id,
+         system: system
+      };
+      taskmanager.pushTask(task);
+   });
+});
+
+/**
+ * Deploy experiment handler
+ */
+taskmanager.setTaskHandler("deployExperiment", function(task){
+   // Get vars
+   var exp_id = task.exp_id;
+   var system = task.system;
+   var task_id = task.id;
+
+   // Prepare experiment
+   _deployExperiment(exp_id, system, function(error){
+      if(error){
+         // Set task failed
+         taskmanager.setTaskFailed(task_id, error);
+         return;
+      }
+
+      // Set task to done
+      taskmanager.setTaskDone(task_id);
+
+      // Add deploy task
+      var task = {
+         type: "executeExperiment",
+         exp_id: exp_id,
+         system: system
+      };
+      taskmanager.pushTask(task);
+   });
+});
+
+/**
+ * Execute experiment handler
+ */
+taskmanager.setTaskHandler("executeExperiment", function(task){
+   // Get vars
+   var exp_id = task.exp_id;
+   var system = task.system;
+   var task_id = task.id;
+
+   // Prepare experiment
+   _executeExperiment(exp_id, system, function(error){
+      if(error){
+         // Set task failed
+         taskmanager.setTaskFailed(task_id, error);
+         return;
+      }
+
+      // Set task to done
+      taskmanager.setTaskDone(task_id);
+
+      // Add deploy task
+      var task = {
+         type: "retrieveExperimentOutput",
+         exp_id: exp_id,
+         system: system
+      };
+      taskmanager.pushTask(task);
+   });
+});
+
+/**
+ * Retrieve data handler
+ */
+taskmanager.setTaskHandler("retrieveExperimentOutput", function(task){
+   // Get vars
+   var exp_id = task.exp_id;
+   var system = task.system;
+   var task_id = task.id;
+
+   // Prepare experiment
+   _retrieveExperimentOutput(exp_id, system, function(error){
+      if(error){
+         // Set task failed
+         taskmanager.setTaskFailed(task_id, error);
+         return;
+      }
+
+      // Set task to done
+      taskmanager.setTaskDone(task_id);
+   });
+});
 
 exports.launchExperiment = launchExperiment;
 

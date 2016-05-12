@@ -1,4 +1,3 @@
-var mongo = require('mongodb').MongoClient;
 var zerorpc = require('zerorpc');
 var async = require('async');
 var constants = require('./constants.json');
@@ -353,7 +352,7 @@ var _cleanExperimentCode = function(minion, exp_id, inst, cleanCallback){
  */
 var _cleanExperimentInput = function(minion, exp_id, inst, cleanCallback){
    // Remove experiment code folder
-   var input_dir = inst.inputpath+"/"+exp.id;
+   var input_dir = inst.inputpath+"/"+exp_id;
    var cmd = 'rm -rf '+input_dir;
    // Execute command
    minion.invoke('executeCommand', cmd, inst.id, function (error, result, more) {
