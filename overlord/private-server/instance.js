@@ -334,7 +334,7 @@ var addExperiment = function(exp_id, inst_id){
    database.db.collection('instances').updateOne({
       'id': inst_id,
    },{
-      $push: {'exps': {exp_id: exp_id, jobs: {}}}
+      $push: {'exps': {exp_id: exp_id, jobs: []}}
    });
 }
 
@@ -421,9 +421,9 @@ var executeJob = function(inst_id, exp_id, cmd, work_dir, nodes, executeCallback
 var _cleanExperimentJob = function(minion, exp_id, inst, cleanCallback){
    // Get jobs for this experiment
    var jobs = null;
-   for(var exp in inst.exps){
-      if(exp.exp_id == exp_id){
-         jobs = exp.jobs;
+   for(var i = 0; i < inst.exps.length; i++){
+      if(inst.exps[i].exp_id == exp_id){
+         jobs = inst.exps[i].jobs;
          break;
       }
    }
@@ -433,7 +433,8 @@ var _cleanExperimentJob = function(minion, exp_id, inst, cleanCallback){
 
    // Clean jobs
    var tasks = [];
-   for(var job_id in jobs){
+   for(var i = 0; i < jobs.length; i++){
+      var job_id = jobs[i];
       // Add task for this job
       console.log("Cleaning job: "+job_id);
       (function(job_id){
