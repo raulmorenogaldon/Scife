@@ -766,8 +766,10 @@ var _pollExperiment = function(exp_id, system, pollCallback){
             if(error){
                wfcb(error);
             } else {
-               // Update status
-               database.db.collection('experiments').updateOne({id: exp.id},{$set:{status:status}});
+               // Update status if the file exists
+               if(status != ""){
+                  database.db.collection('experiments').updateOne({id: exp.id},{$set:{status:status}});
+               }
 
                // Callback status
                wfcb(null, status);
