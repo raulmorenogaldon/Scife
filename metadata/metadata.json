@@ -54,7 +54,8 @@
 		'size_id': "f745c536-8888-8888-8888-5254003eece4",
       'exps': [
          {'exp_id': "...", 'jobs': ["2385", "832378.manager"]}
-      ]
+      ],
+      'system': true|false
 	},
 
 	Image: {

@@ -451,7 +451,7 @@ router.post('/experiments/:exp_id', function (req, res, next) {
       }
    } else if (req.body.op == "reset") {
       // Reset experiment
-      scheduler.resetExperiment(req.params.exp_id, false, function(error){
+      scheduler.resetExperiment(req.params.exp_id, function(error){
          if(error){
             return next(error);
          } else {

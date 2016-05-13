@@ -15,7 +15,7 @@ var minionClient = new zerorpc.Client({
 	heartbeatInterval: 30000,
 	timeout: 3600
 });
-var destroyInterval = 30000;
+var destroyInterval = 10000;
 
 /**
  * Retrieves available sizes
@@ -24,6 +24,89 @@ var destroyInterval = 30000;
 var getAvailableSizes = function(minion, getCallback){
    var sizes = [];
    getCallback(null, sizes);
+}
+
+/**
+ * Defines a system
+ */
+var defineSystem = function(nodes, image_id, size_id, defineCallback){
+   getImage(image_id, function(error, image){
+      if(error) defineCallback(error, null);
+      getSize(size_id, function(error, size){
+         if(error) defineCallback(error, null);
+
+         // Define system data
+         var system = {
+            status: "defined",
+            nodes: nodes,
+            image: image,
+            size: size,
+            instances: []
+         };
+
+         // Return
+         return defineCallback(null, system);
+      });
+   });
+}
+
+/**
+ * Instance a system
+ */
+var instanceSystem = function(system, instanceCallback){
+   // TODO: Set first instance as master
+   // Master tasks...
+
+   // Create instances tasks
+   var tasks = [];
+   for(i = 0; i < system.nodes; i++){
+      tasks.push(function(taskcb){
+         requestInstance(system.image.id, system.size.id, function (error, inst_id) {
+            if(error){
+               taskcb(error);
+            } else {
+               // Add instance to system
+               system.instances.push(inst_id);
+               // Add system to instance
+               database.db.collection('instances').updateOne({id: inst_id},{
+                  $set: { system: true}
+               });
+               taskcb(null);
+            }
+         });
+      });
+   }
+
+   // Execute tasks
+   async.parallel(tasks, function(error){
+      if(error){
+         instanceCallback(error, null);
+      } else {
+         // Callback with instanced system
+         system.status = "instanced";
+         instanceCallback(null, system);
+      }
+   });
+}
+
+/**
+ * Remove instances from the system
+ */
+var cleanSystem = function(system, cleanCallback){
+   // Remove system from instances
+   if(system.instances){
+      for(var inst_id in system.instances){
+         database.db.collection('instances').updateOne({id: inst_id},{
+            $set: { system: false}
+         });
+      }
+   }
+
+   // Clean instance list
+   system.instances = [];
+   system.status = "defined";
+
+   return cleanCallback(null, system);
 }
 
 /**
@@ -211,6 +294,47 @@ var cleanExperiment = function(exp_id, inst_id, b_job, b_code, b_input, b_remove
          });
       }
       cleanCallback(null);
+   });
+}
+
+/**
+ * Clean experiment from instances in the system
+ */
+var cleanExperimentSystem = function(exp_id, system, b_job, b_code, b_input, b_remove, cleanCallback){
+   // Clean from all system's instances
+   var tasks = [];
+   for(var inst in system.instances){
+      // inst must be task independent
+      (function(inst){
+         tasks.push(function(taskcb){
+            if(system.instances[inst]){
+               console.log("["+system.instances[inst]+"] Cleaning instance...");
+               cleanExperiment(exp_id, system.instances[inst], b_job, b_code, b_input, b_remove, function (error) {
+                  if(error) console.error('['+MODULE_NAME+'] Failed to clean instance, error: '+error);
+                  return taskcb(null);
+               });
+            } else {
+               return taskcb(null);
+            }
+         });
+      })(inst);
+   }
+
+   // Execute tasks
+   async.parallel(tasks, function(error){
+      return cleanCallback(error, system);
+   });
+}
+
+/**
+ * Add experiment to instance experiments
+ */
+var addExperiment = function(exp_id, inst_id){
+   // Add experiment to instance
+   database.db.collection('instances').updateOne({
+      'id': inst_id,
+   },{
+      $push: {'exps': {exp_id: exp_id, jobs: {}}}
    });
 }
 
@@ -449,10 +573,16 @@ module.exports.getImagesList = getImagesList;
 module.exports.getSizesList = getSizesList;
 module.exports.getInstancesList = getInstancesList;
 
+module.exports.defineSystem = defineSystem;
+module.exports.instanceSystem = instanceSystem;
+module.exports.cleanSystem = cleanSystem;
+
 module.exports.requestInstance = requestInstance;
 module.exports.destroyInstance = destroyInstance;
 
+module.exports.addExperiment = addExperiment;
 module.exports.executeCommand = executeCommand;
 module.exports.executeJob = executeJob;
 
 module.exports.cleanExperiment = cleanExperiment;
+module.exports.cleanExperimentSystem = cleanExperimentSystem;

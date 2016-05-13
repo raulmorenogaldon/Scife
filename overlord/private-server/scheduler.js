@@ -130,7 +130,7 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback
 /**
  * Reset experiment to create status
  */
-var resetExperiment = function(exp_id, hardreset, resetCallback){
+var resetExperiment = function(exp_id, resetCallback){
    async.waterfall([
       // Get experiment
       function(wfcb){
@@ -145,34 +145,42 @@ var resetExperiment = function(exp_id, hardreset, resetCallback){
       function(exp, wfcb){
          if(exp.system){
             console.log("["+exp_id+"] Reset: cleaning experiment");
-            // If hardreset is set, experiment will be removed completely from the instance
-            instmanager.cleanExperiment(exp_id, exp.system.master, true, true, false, hardreset, function(error){
+            // Experiment will be removed completely from the instance
+            instmanager.cleanExperimentSystem(exp_id, exp.system, true, true, true, true, function(error){
                if (error) {
                   console.log('['+exp_id+'] Reset: Failed to clean experiment, error: '+error);
-                  // If cleaning failed, better to do a hard reset
-                  hardreset = true;
                }
-               wfcb(null);
+               wfcb(null, exp);
             });
          } else {
-            wfcb(null);
+            wfcb(null, exp);
+         }
+      },
+      // Clean system
+      function(exp, wfcb){
+         if(exp.system){
+            console.log("["+exp_id+"] Reset: cleaning system");
+            instmanager.cleanSystem(exp.system, function(error){
+               if (error) {
+                  console.log('['+exp.id+'] Reset: Failed to clean system, error: '+error);
+               }
+               wfcb(error, exp);
+            });
+         } else {
+            wfcb(null, exp);
          }
       },
    ],
-   function(error){
+   function(error, exp){
       if(error){
          // Error trying to reset experiment
          database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"reset_failed"}});
          resetCallback(error);
       } else {
          // Update status
-         if(hardreset){
-            database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"created", system:""}});
-            console.log("["+exp_id+"] Reset: HARD reset done");
-         } else {
-            database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"created"}});
-            console.log("["+exp_id+"] Reset: done");
-         }
+         database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"created", system: exp.system}});
+         console.log("["+exp_id+"] Reset: done");
+
          // Callback
          resetCallback(null);
       }
@@ -190,16 +198,28 @@ var destroyExperiment = function(exp_id, destroyCallback){
       },
       // Reset it
       function(exp, wfcb){
-         resetExperiment(exp_id, true, wfcb);
+         resetExperiment(exp_id, wfcb);
       },
       // Get experiment
       function(wfcb){
          getExperiment(exp_id, null, wfcb);
       },
+      // Clean system
+      function(exp, wfcb){
+         if(exp.system){
+            instmanager.cleanExperimentSystem(exp_id, exp.system, true, true, true, true, function(error, system){
+               wfcb(error, exp);
+            });
+         } else {
+            wfcb(null, exp);
+         }
+      },
       // Destroy system
       function(exp, wfcb){
          if(exp.system){
-            _destroySystem(exp.system, wfcb);
+            instmanager.cleanSystem(exp.system, function(error, system){
+               wfcb(error);
+            });
          } else {
             wfcb(null);
          }
@@ -225,48 +245,40 @@ var destroyExperiment = function(exp_id, destroyCallback){
 var _workflowExperiment = function(exp_id, nodes, image_id, size_id){
 
    console.log("["+exp_id+"] Workflow: Begin");
-   var _system = null;
 
    getExperiment(exp_id, null, function(error, exp){
       // Execute operations on experiment
       async.waterfall([
-         // Get application
-         function(wfcb){
-            getApplication(exp.app_id, wfcb);
-         },
          // First, define a system where execution will take place
-         function(app, wfcb){
-            console.log("Selected experiment: " + exp.name + "\n" +
-                        "-- App: " + app.name);
-            _defineSystem(nodes, image_id, size_id, wfcb);
+         function(wfcb){
+            console.log('['+exp_id+'] Workflow: Defining system...');
+            instmanager.defineSystem(nodes, image_id, size_id, wfcb);
          },
          // Instance system
          function(system, wfcb){
-            console.log("-----------------------\n",
-                        "System configured with:\n",
-                        "-- Image: ", system.image.name, " - ", system.image.id, "\n",
-                        "-- Size: ", system.size.name, " - ", system.size.id, "\n");
-                        _system = system;
-                        _instanceSystem(system, wfcb);
+            console.log('['+exp_id+'] Workflow: Instancing system...');
+            instmanager.instanceSystem(system, function(error){
+               wfcb(error, system);
+            });
          },
-         // Show system info
-         function(wfcb){
-            msg = "-----------------------\nSystem instances:\n";
-            for(i = 0; i < _system.nodes; i++){
-               msg += "-- " + i + ": " + _system.instances[i] + "\n";
+         // Add experiment to instances
+         function(system, wfcb){
+            for(var i = 0; i < system.nodes; i++){
+               console.log('['+exp_id+'] Workflow: Adding experiment to instance "'+system.instances[i]+'"...');
+               // Add experiment to instance
+               instmanager.addExperiment(exp_id, system.instances[i]);
             }
-            console.log(msg);
-            wfcb(null);
+            wfcb(null, system);
          },
          // Prepare experiment for the system
-         function(wfcb){
-            console.log("["+exp_id+"] Workflow: Preparing...");
+         function(system, wfcb){
+            console.log("["+exp_id+"] Workflow: Launching preparing task...");
 
             // Add task
             var task = {
                type: "prepareExperiment",
                exp_id: exp_id,
-               system: _system
+               system: system
             };
             taskmanager.pushTask(task);
             wfcb(null);
@@ -275,123 +287,6 @@ var _workflowExperiment = function(exp_id, nodes, image_id, size_id){
       function(error){
          if(error) console.log("["+exp_id+"] Workflow: Failed, error: " + error);
       });
-   });
-}
-
-/**
- * Define a system of instances
- */
-var _defineSystem = function(nodes, image_id, size_id, defineCallback){
-   // Get image and size IDs for the system
-   instmanager.getImage(image_id, function(error, image){
-      if(error){
-         defineCallback(error);
-         return;
-      }
-      instmanager.getSize(size_id, function(error, size){
-         if(error){
-            defineCallback(error);
-            return;
-         }
-
-         // Create system object
-         var system = {
-            nodes: nodes,
-            image: image,
-            size: size,
-            status: "defined"
-         };
-
-         // Return system
-         defineCallback(null, system);
-      });
-   });
-}
-
-var _instanceSystem = function(system, instanceCallback){
-   // Check if is already being instanced
-   if(system.status != "defined"){
-      instanceCallback(new Error("System is already instanced..."));
-      return;
-   }
-
-   // Change system status
-   system.instances = [];
-   system.status = "instancing";
-
-   // Create instances
-   var tasks = [];
-   for(i = 0; i < system.nodes; i++){
-      tasks.push(function(taskcb){
-         instmanager.requestInstance(system.image.id, system.size.id, function (error, inst_id) {
-            if(error){
-               taskcb(error);
-            } else {
-               // Add instance to system
-               system.instances.push(inst_id);
-               taskcb(null);
-            }
-         });
-      });
-   }
-
-   // Execute tasks
-   async.parallel(tasks, function(error){
-      if(error){
-         instanceCallback(error);
-      } else {
-         // Set first instance as master
-         system.master = system.instances[0];
-         // Set system status
-         system.status = "instanced";
-         // Callback with instanced system
-         instanceCallback(null);
-      }
-   });
-}
-
-var _destroySystem = function(system, destroyCallback){
-   // Check if system has instances
-   if(!system.instances || system.instances.length == 0){
-      destroyCallback(null);
-      return;
-   }
-
-   // Destroy instances
-   var tasks = [];
-   for(var inst in system.instances){
-      // inst must be task independent
-      (function(inst){
-         tasks.push(function(taskcb){
-            console.log("Instance: " + inst + " / " + system.instances[inst]);
-            if(system.instances[inst]){
-               console.log("["+system.instances[inst]+"] Destroying instance...");
-               instmanager.destroyInstance(system.instances[inst], function (error) {
-                  if(error){
-                     taskcb(error);
-                  } else {
-                     taskcb(null);
-                  }
-               });
-            } else {
-               taskcb(null);
-            }
-         });
-      })(inst);
-   }
-
-   // Execute tasks
-   async.parallel(tasks, function(error){
-      if(error){
-         destroyCallback(error);
-      } else {
-         // Change system status
-         system.instances = [];
-         system.status = "defined";
-
-         // Callback
-         destroyCallback(null);
-      }
    });
 }
 
@@ -525,7 +420,7 @@ var _deployExperiment = function(exp_id, system, deployCallback){
       },
       // Get instance
       function(app, exp, wfcb){
-         instmanager.getInstance(system.master, function(error, headnode){
+         instmanager.getInstance(system.instances[0], function(error, headnode){
             if(error){
                wfcb(error);
             } else {
@@ -685,7 +580,7 @@ var _executeExperiment = function(exp_id, system, executionCallback){
       },
       // Get instance
       function(app, exp, wfcb){
-         instmanager.getInstance(system.master, function(error, headnode){
+         instmanager.getInstance(system.instances[0], function(error, headnode){
             if(error){
                wfcb(error);
             } else {
@@ -778,7 +673,7 @@ var _retrieveExperimentOutput = function(exp_id, system, retrieveCallback){
       },
       // Get instance
       function(exp, wfcb){
-         instmanager.getInstance(system.master, function(error, headnode){
+         instmanager.getInstance(system.instances[0], function(error, headnode){
             if(error){
                wfcb(error);
             } else {
@@ -831,7 +726,7 @@ var _pollExperiment = function(exp_id, system, pollCallback){
       },
       // Get instance
       function(exp, wfcb){
-         instmanager.getInstance(system.master, function(error, headnode){
+         instmanager.getInstance(system.instances[0], function(error, headnode){
             if(error){
                wfcb(error);
             } else {
@@ -867,7 +762,7 @@ var _pollExperiment = function(exp_id, system, pollCallback){
       function(exp, headnode, image, wfcb){
          var work_dir = image.workpath+"/"+exp.id;
          var cmd = 'cat '+work_dir+'/EXPERIMENT_STATUS';
-         instmanager.executeCommand(system.master, cmd, function (error, status) {
+         instmanager.executeCommand(system.instances[0], cmd, function (error, status) {
             if(error){
                wfcb(error);
             } else {
@@ -901,7 +796,7 @@ var _pollExperimentLogs = function(exp_id, system, image, log_files, pollCallbac
       (function(i){
          tasks.push(function(taskcb){
             var cmd = 'cat '+work_dir+'/'+log_files[i];
-            instmanager.executeCommand(system.master, cmd, function (error, content) {
+            instmanager.executeCommand(system.instances[0], cmd, function (error, content) {
                if(error){
                   taskcb(new Error("Failed to poll log ", log_files[i], ", error: ", error));
                } else {
@@ -1038,6 +933,15 @@ taskmanager.setTaskHandler("retrieveExperimentOutput", function(task){
 
       // Set task to done
       taskmanager.setTaskDone(task_id);
+
+      // Clean system
+      instmanager.cleanExperimentSystem(exp_id, system, true, true, true, true, function(error, system){
+         if(error) console.error("["+exp_id+"] retrieveExperimentOutput error: "+error);
+         instmanager.cleanSystem(system, function(error, system){
+            database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system}});
+            if(error) console.error("["+exp_id+"] retrieveExperimentOutput error: "+error);
+         });
+      });
    });
 });
 
