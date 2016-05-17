@@ -19,3 +19,8 @@ app/tests/coverage/
 !overlord/public-angular/public/lib/tree-view/js/*
 !overlord/public-angular/public/lib/tree-view/img/*
 !overlord/public-angular/public/lib/tree-view/css/*
+
+!overlord/public-elseiver/public/lib/tree-view/**/*
+!overlord/public-elseiver/public/lib/tree-view/js/*
+!overlord/public-elseiver/public/lib/tree-view/img/*
+!overlord/public-elseiver/public/lib/tree-view/css/*
