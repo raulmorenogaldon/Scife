@@ -868,6 +868,15 @@ taskmanager.setTaskHandler("deployExperiment", function(task){
          console.error("["+exp_id+"] deployExperiment error: "+error);
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
+
+         // Clean system
+         instmanager.cleanExperimentSystem(exp_id, system, true, true, true, true, function(error, system){
+            if(error) console.error("["+exp_id+"] deployExperiment error: "+error);
+            instmanager.cleanSystem(system, function(error, system){
+               database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system}});
+               if(error) console.error("["+exp_id+"] deployExperiment error: "+error);
+            });
+         });
          return;
       }
 
@@ -899,6 +908,15 @@ taskmanager.setTaskHandler("executeExperiment", function(task){
          console.error("["+exp_id+"] executeExperiment error: "+error);
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
+
+         // Clean system
+         instmanager.cleanExperimentSystem(exp_id, system, true, true, true, true, function(error, system){
+            if(error) console.error("["+exp_id+"] executeExperiment error: "+error);
+            instmanager.cleanSystem(system, function(error, system){
+               database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system}});
+               if(error) console.error("["+exp_id+"] executeExperiment error: "+error);
+            });
+         });
          return;
       }
 
