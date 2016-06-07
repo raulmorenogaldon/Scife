@@ -443,12 +443,12 @@ var waitJob = function(job_id, inst_id, waitCallback){
  */
 var abortJob = function(job_id, inst_id, cleanCallback){
    // Abort job
-   console.log("["+MODULE_NAME+"] Aborting job: "+job_id);
-   minion.invoke('cleanJob', job_id, inst_id, function (error, result, more) {
+   console.log("["+MODULE_NAME+"] Aborted job: "+job_id);
+   minionClient.invoke('cleanJob', job_id, inst_id, function (error, result) {
       if (error) {
-         taskcb(new Error('Failed to abort job: "', job_id, '", error: ', error));
+         cleanCallback(new Error('Failed to abort job: "', job_id, '", error: ', error));
       } else {
-         taskcb(null);
+         cleanCallback(null);
       }
    });
 }

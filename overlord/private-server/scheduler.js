@@ -132,16 +132,18 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback
  */
 var resetExperiment = function(exp_id, resetCallback){
    // Abort all tasks
-   taskmanager.abortQueue(exp_id);
+   taskmanager.abortQueue(exp_id, function(error){
+      if(error) {return resetCallback(error);}
 
-   // Add reset task
-   var task = {
-      type: "resetExperiment",
-      exp_id: exp_id
-   };
-   taskmanager.pushTask(task);
+      // Add reset task
+      var task = {
+         type: "resetExperiment",
+         exp_id: exp_id
+      };
+      taskmanager.pushTask(task);
 
-   return resetCallback(null);
+      return resetCallback(null);
+   });
 }
 
 var _resetExperiment = function(exp_id, task, resetCallback){
@@ -293,38 +295,6 @@ var _workflowExperiment = function(exp_id, nodes, image_id, size_id){
             // Add prepare task
             var task = {
                type: "prepareExperiment",
-               exp_id: exp_id,
-               system: system
-            };
-            taskmanager.pushTask(task, exp_id);
-
-            // Add deploy task
-            var task = {
-               type: "deployExperiment",
-               exp_id: exp_id,
-               system: system
-            };
-            taskmanager.pushTask(task, exp_id);
-
-            // Add compilation task
-            var task = {
-               type: "compileExperiment",
-               exp_id: exp_id,
-               system: system
-            };
-            taskmanager.pushTask(task, exp_id);
-
-            // Add execution task
-            var task = {
-               type: "executeExperiment",
-               exp_id: exp_id,
-               system: system
-            };
-            taskmanager.pushTask(task, exp_id);
-
-            // Add retrieve task
-            var task = {
-               type: "retrieveExperimentOutput",
                exp_id: exp_id,
                system: system
             };
@@ -492,8 +462,12 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
       },
       // Copy experiment in FS
       function(app, exp, headnode, image, wfcb){
+         // Check task abort
+         if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+
          console.log("["+exp.id+"] Cloning experiment into instance");
          var cmd = "git clone -b "+exp.id+"-L "+exp.exp_url+" "+image.workpath+"/"+exp.id;
+
          // Execute command
          instmanager.executeJob(headnode.id, cmd, image.workpath, 1, function (error, job_id) {
             if (error) {return wfcb(error);}
@@ -502,6 +476,9 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
             task.job_id = job_id;
             database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: job_id}});
 
+            // Check task abort
+            if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+
             // Wait for command completion
             instmanager.waitJob(job_id, headnode.id, function(error){
                if(error){return wfcb(error);}
@@ -509,6 +486,9 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
                // Update task and DB
                task.job_id = null;
                database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
+
+               // Check task abort
+               if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
                wfcb(null, app, exp, headnode, image);
             });
@@ -516,8 +496,12 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
       },
       // Copy inputdata in FS
       function(app, exp, headnode, image, wfcb){
+         // Check task abort
+         if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+
          console.log("["+exp.id+"] Making inputdata dir");
          var cmd = "mkdir -p "+image.inputpath+"/"+exp.id+"; rsync -Lr "+exp.input_url+"/* "+image.inputpath+"/"+exp.id;
+
          // Execute command
          instmanager.executeJob(headnode.id, cmd, image.workpath, 1, function (error, job_id) {
             if (error) {return wfcb(error);}
@@ -526,6 +510,9 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
             task.job_id = job_id;
             database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: job_id}});
 
+            // Check task abort
+            if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+
             // Wait for command completion
             instmanager.waitJob(job_id, headnode.id, function(error){
                if(error){return wfcb(error);}
@@ -533,6 +520,9 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
                // Update task and DB
                task.job_id = null;
                database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
+
+               // Check task abort
+               if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
                wfcb(null, app, exp, headnode, image);
             });
@@ -540,8 +530,12 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
       },
       // Init EXPERIMENT_STATUS
       function(app, exp, headnode, image, wfcb){
+         // Check task abort
+         if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+
          console.log("["+exp.id+"] Initializing EXPERIMENT_STATUS");
          var cmd = 'echo -n "deployed" > '+image.workpath+'/'+exp.id+'/EXPERIMENT_STATUS';
+
          // Execute command
          instmanager.executeJob(headnode.id, cmd, image.workpath, 1, function (error, job_id) {
             if (error) {return wfcb(error);}
@@ -550,6 +544,9 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
             task.job_id = job_id;
             database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: job_id}});
 
+            // Check task abort
+            if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+
             // Wait for command completion
             instmanager.waitJob(job_id, headnode.id, function(error){
                if(error){return wfcb(error);}
@@ -557,6 +554,9 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
                // Update task and DB
                task.job_id = null;
                database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
+
+               // Check task abort
+               if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
                wfcb(null, headnode);
             });
@@ -623,6 +623,9 @@ var _compileExperiment = function(task, exp_id, system, compileCallback){
       },
       // Execute compilation script
       function(app, exp, headnode, image, wfcb){
+         // Check task abort
+         if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+
          console.log("["+exp.id+"] Executing creation script");
          var work_dir = image.workpath+"/"+exp.id;
          var exe_script = ''+
@@ -651,6 +654,9 @@ var _compileExperiment = function(task, exp_id, system, compileCallback){
                task.job_id = job_id;
                database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: job_id}});
 
+               // Check task abort
+               if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+
                console.log("["+exp_id+"] Compiling...");
                wfcb(null, headnode);
             });
@@ -675,6 +681,9 @@ var _compileExperiment = function(task, exp_id, system, compileCallback){
          // Update task and DB
          task.job_id = null;
          database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
+
+         // Check task abort
+         if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
          // Poll experiment status
          _pollExperiment(exp_id, system, function(error, status){
@@ -733,6 +742,9 @@ var _executeExperiment = function(task, exp_id, system, executionCallback){
       },
       // Execute excution script
       function(app, exp, headnode, image, wfcb){
+         // Check task abort
+         if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+
          console.log("["+exp_id+"] Launching execution script");
          var work_dir = image.workpath+"/"+exp.id;
          var exe_script = ''+
@@ -761,6 +773,9 @@ var _executeExperiment = function(task, exp_id, system, executionCallback){
                task.job_id = job_id;
                database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: job_id}});
 
+               // Check task abort
+               if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+
                console.log("["+exp_id+"] Executing...");
                wfcb(null, headnode);
             });
@@ -785,6 +800,9 @@ var _executeExperiment = function(task, exp_id, system, executionCallback){
          // Update task and DB
          task.job_id = null;
          database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
+
+         // Check task abort
+         if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
          // Poll experiment status
          _pollExperiment(exp_id, system, function(error, status){
@@ -837,6 +855,9 @@ var _retrieveExperimentOutput = function(exp_id, system, retrieveCallback){
       },
       // Execute excution script
       function(exp, headnode, image, wfcb){
+         // Check task abort
+         if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+
          console.log("["+exp_id+"] Getting experiment output data path");
          var output_file = image.workpath+"/"+exp.id+"/output.tar.gz";
          var net_path = headnode.hostname + ":" + output_file;
@@ -846,6 +867,9 @@ var _retrieveExperimentOutput = function(exp_id, system, retrieveCallback){
             if (error) {
                wfcb(new Error("Failed to retrieve experiment output data, error: ", error));
             } else {
+               // Check task abort
+               if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+
                wfcb(null);
             }
          });
@@ -984,8 +1008,15 @@ taskmanager.setTaskHandler("prepareExperiment", function(task){
          return;
       }
 
-      // Set task to done
-      taskmanager.setTaskDone(task_id);
+      // Deploy task
+      var next_task = {
+         type: "deployExperiment",
+         exp_id: exp_id,
+         system: system
+      };
+
+      // Set task to done and setup next task
+      taskmanager.setTaskDone(task_id, next_task, exp_id);
    });
 });
 
@@ -1016,8 +1047,15 @@ taskmanager.setTaskHandler("deployExperiment", function(task){
          return;
       }
 
-      // Set task to done
-      taskmanager.setTaskDone(task_id);
+      // Compilation task
+      var next_task = {
+         type: "compileExperiment",
+         exp_id: exp_id,
+         system: system
+      };
+
+      // Set task to done and setup next task
+      taskmanager.setTaskDone(task_id, next_task, exp_id);
    });
 });
 
@@ -1039,8 +1077,15 @@ taskmanager.setTaskHandler("compileExperiment", function(task){
          return;
       }
 
-      // Set task to done
-      taskmanager.setTaskDone(task_id);
+      // Execution task
+      var next_task = {
+         type: "executeExperiment",
+         exp_id: exp_id,
+         system: system
+      };
+
+      // Set task to done and setup next task
+      taskmanager.setTaskDone(task_id, next_task, exp_id);
    });
 });
 
@@ -1071,8 +1116,15 @@ taskmanager.setTaskHandler("executeExperiment", function(task){
          return;
       }
 
-      // Set task to done
-      taskmanager.setTaskDone(task_id);
+      // Retrieve task
+      var next_task = {
+         type: "retrieveExperimentOutput",
+         exp_id: exp_id,
+         system: system
+      };
+
+      // Set task to done and setup next task
+      taskmanager.setTaskDone(task_id, next_task, exp_id);
    });
 });
 
@@ -1095,7 +1147,7 @@ taskmanager.setTaskHandler("retrieveExperimentOutput", function(task){
       }
 
       // Set task to done
-      taskmanager.setTaskDone(task_id);
+      taskmanager.setTaskDone(task_id, null, null);
 
       // Clean system
       instmanager.cleanExperimentSystem(exp_id, task.job_id, system, true, true, true, true, function(error, system){
@@ -1127,7 +1179,7 @@ taskmanager.setTaskHandler("resetExperiment", function(task){
       }
 
       // Set task to done
-      taskmanager.setTaskDone(task_id);
+      taskmanager.setTaskDone(task_id, null, null);
    });
 });
 

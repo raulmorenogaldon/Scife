@@ -71,26 +71,43 @@ var setTaskFailed = function(task_id, error){
    // Get tasks
    var task = hashTasks[task_id];
 
-   // Check if not aborted
-   if(task && task._status != "aborted"){
-      // Change status
-      task._status = "failed";
-      task.details = error;
-      // Update DB
-      database.db.collection('tasks').updateOne({id: task.id},{$set:{_status:task._status, details:task.details}});
+   if(task){
+      // Check if not aborted
+      if(task._status != "aborted"){
+         // Change status
+         task._status = "failed";
+         task.details = error;
+         // Update DB
+         database.db.collection('tasks').updateOne({id: task.id},{$set:{_status:task._status, details:task.details}});
+      } else {
+         // Aborted
+         if(task._abortcb) task._abortcb();
+         // Update DB
+         database.db.collection('tasks').remove({id: task.id});
+      }
    }
 }
 
-var setTaskDone = function(task_id){
-   // Get tasks
+var setTaskDone = function(task_id, next_task, queue){
+   // Get task
    var task = hashTasks[task_id];
 
-   // Check if not aborted
-   if(task && task._status != "aborted"){
-      // Change status
-      task._status = "done";
-      // Update DB
-      database.db.collection('tasks').remove({id: task.id});
+   if(task){
+      // Check if not aborted
+      if(task._status != "aborted"){
+         // Change status
+         task._status = "done";
+         // Update DB
+         database.db.collection('tasks').remove({id: task.id});
+
+         // Add next task to queue
+         if(next_task) pushTask(next_task, queue);
+      } else {
+         // Aborted
+         if(task._abortcb) task._abortcb();
+         // Update DB
+         database.db.collection('tasks').remove({id: task.id});
+      }
    }
 }
 
@@ -101,17 +118,31 @@ var getTaskQueue = function(queue){
 /**
  * Abort all tasks for this queue
  */
-var abortQueue = function(queue){
+var abortQueue = function(queue, abortCallback){
    // Iterate tasks in this queue
    if(hashQueue[queue]){
       for(var i = 0; i < hashQueue[queue].length; i++){
          var task = hashQueue[queue][i];
-         // Change status
+
+         // Change status and abort callback
          task._status = "aborted";
+         task._abortcb = abortCallback;
+
          // Update DB
          database.db.collection('tasks').remove({id: task.id});
       }
    }
+}
+
+/**
+ * Check if task is aborted
+ */
+var isTaskAborted = function(task_id){
+   // Get task
+   var task = hashTasks[task_id];
+
+   // Check if aborted
+   return (task && task._status == "aborted");
 }
 
 /**
@@ -122,21 +153,18 @@ var _launchTasks = function(){
    Object.keys(hashQueue).forEach(function(queue){
       var tasks = hashQueue[queue];
 
-      while(tasks.length != 0 && tasks[0]._status != "waiting" && tasks[0]._status != "running" ){
-         // Aborted/failed/done remove first
-         tasks.shift();
+      // Iterate tasks in this queue
+      for(var i = 0; i < tasks.length; i++){
+         var task = tasks[i];
+         if(task._status == "waiting"){
+            // Launch task
+            task._status = "running";
+            // Update DB
+            database.db.collection('tasks').updateOne({id: task.id},{$set:{_status:task._status}});
+            // Emit event
+            ee.emit(task.type, task);
+         }
       }
-
-      // Tasks waiting in queue?
-      if(tasks[0] && tasks[0]._status == "waiting"){
-         // Launch task
-         tasks[0]._status = "running";
-         // Update DB
-         database.db.collection('tasks').updateOne({id: tasks[0].id},{$set:{_status:tasks[0]._status}});
-         // Emit event
-         ee.emit(tasks[0].type, tasks[0]);
-      }
-
    });
 
    // Iterate tasks
@@ -202,3 +230,4 @@ module.exports.setTaskHandler = setTaskHandler;
 module.exports.setTaskDone = setTaskDone;
 module.exports.setTaskFailed = setTaskFailed;
 module.exports.getTaskQueue = getTaskQueue;
+module.exports.isTaskAborted = isTaskAborted;
