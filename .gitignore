@@ -24,3 +24,4 @@ app/tests/coverage/
 !overlord/public-elseiver/public/lib/tree-view/js/*
 !overlord/public-elseiver/public/lib/tree-view/img/*
 !overlord/public-elseiver/public/lib/tree-view/css/*
+!overlord/public-elseiver/public/lib/ace/**/*
