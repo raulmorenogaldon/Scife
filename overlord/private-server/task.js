@@ -27,11 +27,19 @@ var hashTasks = {};
  * }
  */
 
+/**
+ * Set handler for a task.
+ * i. e. event callback function
+ */
 var setTaskHandler = function(type, handler){
    // Add listener
    ee.on(type, handler);
 }
 
+/**
+ * Add a task to a queue.
+ * If queue is null, default queue will be used.
+ */
 var pushTask = function(task, queue){
    // TODO: Check task validity
 
@@ -67,6 +75,9 @@ var pushTask = function(task, queue){
    return task.id;
 }
 
+/**
+ * Signal task as failed.
+ */
 var setTaskFailed = function(task_id, error){
    // Get tasks
    var task = hashTasks[task_id];
@@ -81,13 +92,14 @@ var setTaskFailed = function(task_id, error){
          database.db.collection('tasks').updateOne({id: task.id},{$set:{_status:task._status, details:task.details}});
       } else {
          // Aborted
-         if(task._abortcb) task._abortcb();
-         // Update DB
-         database.db.collection('tasks').remove({id: task.id});
+         if(task._abortcb) task._abortcb(null, task);
       }
    }
 }
 
+/**
+ * Signal task as successful.
+ */
 var setTaskDone = function(task_id, next_task, queue){
    // Get task
    var task = hashTasks[task_id];
@@ -98,44 +110,70 @@ var setTaskDone = function(task_id, next_task, queue){
          // Change status
          task._status = "done";
          // Update DB
-         database.db.collection('tasks').remove({id: task.id});
-
+         database.db.collection('tasks').updateOne({id: task.id},{$set:{_status:task._status}});
          // Add next task to queue
          if(next_task) pushTask(next_task, queue);
       } else {
          // Aborted
-         if(task._abortcb) task._abortcb();
-         // Update DB
-         database.db.collection('tasks').remove({id: task.id});
+         if(task._abortcb) task._abortcb(null, task);
       }
    }
 }
 
+/**
+ * Return a task array from a queue
+ */
 var getTaskQueue = function(queue){
    return hashQueue[queue];
 }
 
 /**
  * Abort all tasks for this queue
+ * abortFunc will be called for every task in the queue.
+ * abortCallback will be called when all tasks finish their execution.
  */
-var abortQueue = function(queue, abortCallback){
+var abortQueue = function(queue, abortTaskFunc, abortCallback){
+   var tasks = [];
+
    // Iterate tasks in this queue
    if(hashQueue[queue]){
-      for(var i = 0; i < hashQueue[queue].length; i++){
+      // Iterate queue
+      var i = hashQueue[queue].length;
+      while(i--){
          var task = hashQueue[queue][i];
 
-         // Change status and abort callback
-         task._status = "aborted";
-         task._abortcb = abortCallback;
+         // Remove from queue
+         hashQueue[queue].splice(i, 1);
 
-         // Update DB
-         database.db.collection('tasks').remove({id: task.id});
+         // Only stop running tasks
+         if(task._status == "running"){
+            (function(task){
+               tasks.push(function(taskcb){
+                  // Change status
+                  task._status = "aborted";
+                  // When task finished execution, callback
+                  task._abortcb = taskcb;
+                  // Update DB
+                  database.db.collection('tasks').updateOne({id: task.id},{$set:{_status:task._status}});
+                  // Call abort function if not null
+                  if(abortTaskFunc) abortTaskFunc(task);
+               });
+            })(task);
+         }
       }
    }
+
+   // Execute tasks
+   // All aborted and finished
+   console.log('['+MODULE_NAME+'] Aborting queue "'+queue+'", '+tasks.length+' running tasks');
+   async.parallel(tasks, function(error, task){
+      if(error){return abortCallback(error);}
+      abortCallback(null);
+   });
 }
 
 /**
- * Check if task is aborted
+ * Return true if task has been aborted.
  */
 var isTaskAborted = function(task_id){
    // Get task
@@ -145,8 +183,13 @@ var isTaskAborted = function(task_id){
    return (task && task._status == "aborted");
 }
 
+/******************************************************
+ *
+ * Private functions
+ *
+ *****************************************************/
 /**
- * Tasks launching
+ * Launch all waiting tasks.
  */
 var _launchTasks = function(){
    // Iterate queues
@@ -182,7 +225,7 @@ var _launchTasks = function(){
 }
 
 /**
- * Load tasks from DB
+ * Load tasks from DB.
  */
 var _loadTasks = function(){
    // TODO: Event?
@@ -218,12 +261,21 @@ var _loadTasks = function(){
    });
 }
 
-/**
- * Initialize
- */
+/******************************************************
+ *
+ * Module initialization
+ *
+ *****************************************************/
+// Load previous tasks from DB
 _loadTasks();
+// Call _launchTasks every 2 seconds
 setInterval(_launchTasks, 2000);
 
+/******************************************************
+ *
+ * Public interface
+ *
+ *****************************************************/
 module.exports.pushTask = pushTask;
 module.exports.abortQueue = abortQueue;
 module.exports.setTaskHandler = setTaskHandler;

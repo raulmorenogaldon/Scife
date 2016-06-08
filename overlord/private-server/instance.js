@@ -243,18 +243,11 @@ var cleanExperiment = function(exp_id, job_id, inst_id, b_job, b_code, b_input, 
          // minion = ...
          wfcb(null, inst, minionClient);
       },
-      // Clean jobs
+      // Clean jobs in this instance
       function(inst, minion, wfcb){
-         if(job_id){
-            abortJob(job_id, inst_id, function(error){
-               if(error) return wfcb(error);
-
-               wfcb(null, inst, minion);
-            });
-         } else {
-            // Callback
-            wfcb(null, inst, minion);
-         }
+         _abortInstanceJobs(exp_id, inst_id, function(error){
+            wfcb(error, inst, minion);
+         });
       },
       // Clean code
       function(inst, minion, wfcb){
@@ -284,6 +277,7 @@ var cleanExperiment = function(exp_id, job_id, inst_id, b_job, b_code, b_input, 
 
       if(b_remove){
          // Remove from database
+         console.log("Removing from DB");
          database.db.collection('instances').updateOne({id: inst_id},{
             $pull: {exps: {exp_id: exp_id}}
          });
@@ -443,13 +437,14 @@ var waitJob = function(job_id, inst_id, waitCallback){
  */
 var abortJob = function(job_id, inst_id, cleanCallback){
    // Abort job
-   console.log("["+MODULE_NAME+"] Aborted job: "+job_id);
+   console.log("["+MODULE_NAME+"] Aborted job: "+job_id+" from instance "+inst_id);
    minionClient.invoke('cleanJob', job_id, inst_id, function (error, result) {
       if (error) {
-         cleanCallback(new Error('Failed to abort job: "', job_id, '", error: ', error));
-      } else {
-         cleanCallback(null);
+         return cleanCallback(new Error('Failed to abort job: "'+job_id+'", error: '+error));
       }
+
+      // Callback
+      cleanCallback(null);
    });
 }
 
@@ -512,6 +507,44 @@ var _getSuperfluousInstances = function(listCallback){
       listCallback(null, retList);
    });
 }
+
+/**
+ * Abort experiment jobs in an instance
+ */
+var _abortInstanceJobs = function(exp_id, inst_id, abortCallback){
+   // Get instance data
+   getInstance(inst_id, function(error, inst){
+      if(error) return abortCallback(error);
+
+      // Iterate experiments in instance
+      var tasks = [];
+      for(var e = 0; e < inst.exps.length; e++){
+         if(inst.exps[e].exp_id == exp_id){
+            // Experiment found in this instance
+            // Iterate jobs and abort
+            var jobs = inst.exps[e].jobs;
+            for(var i = 0; i< inst.exps.length; i++){
+               var job_id = jobs[i];
+               // Abort this job
+               (function(job_id){
+                  tasks.push(function(taskcb){
+                     abortJob(job_id, inst_id, function(error){
+                        return taskcb(error);
+                     });
+                  });
+               })(job_id);
+            }
+         }
+      }
+
+      // Execute tasks
+      async.parallel(tasks, function(error){
+         return abortCallback(error);
+      });
+
+   });
+}
+
 
 /**
  * Destroy empty instances

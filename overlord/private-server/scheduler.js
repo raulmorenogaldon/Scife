@@ -40,6 +40,12 @@ var searchApplications = function(name, searchCallback){
    apps.searchApplications(name, searchCallback);
 }
 
+/******************************************************
+ *
+ * Experiment handling functions
+ *
+ *****************************************************/
+
 /**
  * Get experiment metadata
  */
@@ -81,11 +87,9 @@ var searchExperiments = function(name, searchCallback){
    exps.searchExperiments(name, searchCallback);
 }
 
-
 /**
  * Entry point for experiment execution
  */
-
 var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback){
    // Check data
    async.waterfall([
@@ -128,80 +132,38 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback
 }
 
 /**
- * Reset experiment to create status
+ * Reset experiment to "create" status
  */
 var resetExperiment = function(exp_id, resetCallback){
-   // Abort all tasks
-   taskmanager.abortQueue(exp_id, function(error){
-      if(error) {return resetCallback(error);}
+   // Update status
+   database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"resetting"}});
 
-      // Add reset task
-      var task = {
-         type: "resetExperiment",
-         exp_id: exp_id
-      };
-      taskmanager.pushTask(task);
+   // First get experiment
+   getExperiment(exp_id, null, function(error, exp){
+      if(error) return resetCallback(error);
 
-      return resetCallback(null);
-   });
-}
-
-var _resetExperiment = function(exp_id, task, resetCallback){
-   async.waterfall([
-      // Get experiment
-      function(wfcb){
-         getExperiment(exp_id, null, wfcb);
-      },
-      // Update database
-      function(exp, wfcb){
-         database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"resetting"}});
-         wfcb(null, exp);
-      },
-      // Clean job
-      function(exp, wfcb){
-         if(exp.system){
-            console.log("["+exp_id+"] Reset: cleaning experiment");
-            var job_id = null;
-            if(task) job_id = task.job_id;
-            // Experiment will be removed completely from the instance
-            instmanager.cleanExperimentSystem(exp_id, job_id, exp.system, true, true, true, true, function(error){
-               if (error) {
-                  console.log('['+exp_id+'] Reset: Failed to clean experiment, error: '+error);
-               }
-               wfcb(null, exp);
-            });
-         } else {
-            wfcb(null, exp);
+      // Abort all tasks
+      taskmanager.abortQueue(exp_id, function(task){
+         if(task && task.job_id && exp.system && exp.system.instances[0]){
+            instmanager.abortJob(task.job_id, exp.system.instances[0]);
          }
-      },
-      // Clean system
-      function(exp, wfcb){
-         if(exp.system){
-            console.log("["+exp_id+"] Reset: cleaning system");
-            instmanager.cleanSystem(exp.system, function(error){
-               if (error) {
-                  console.log('['+exp.id+'] Reset: Failed to clean system, error: '+error);
-               }
-               wfcb(error, exp);
-            });
-         } else {
-            wfcb(null, exp);
+      }, function(error){
+         // All task aborted and finished
+         if(error) {
+            console.error(error);
+            return;
          }
-      },
-   ],
-   function(error, exp){
-      if(error){
-         // Error trying to reset experiment
-         database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"reset_failed"}});
-         resetCallback(error);
-      } else {
-         // Update status
-         database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"created", system: exp.system}});
-         console.log("["+exp_id+"] Reset: done");
 
-         // Callback
-         resetCallback(null);
-      }
+         // Add reset task
+         var task = {
+            type: "resetExperiment",
+            exp_id: exp_id
+         };
+         taskmanager.pushTask(task, exp_id);
+      });
+
+      // Callback
+      resetCallback(null);
    });
 }
 
@@ -260,6 +222,224 @@ var destroyExperiment = function(exp_id, destroyCallback){
    });
 }
 
+/******************************************************
+ *
+ * Scheduling events
+ *
+ *****************************************************/
+
+/**
+ * Prepare experiment handler
+ */
+taskmanager.setTaskHandler("prepareExperiment", function(task){
+   // Get vars
+   var exp_id = task.exp_id;
+   var system = task.system;
+   var task_id = task.id;
+
+   // Prepare experiment
+   _prepareExperiment(task, exp_id, system, function(error){
+      if(error){
+         console.error("["+exp_id+"] prepareExperiment error: "+error);
+         // Set task failed
+         taskmanager.setTaskFailed(task_id, error);
+         return;
+      }
+
+      // Deploy task
+      var next_task = {
+         type: "deployExperiment",
+         exp_id: exp_id,
+         system: system
+      };
+
+      // Set task to done and setup next task
+      taskmanager.setTaskDone(task_id, next_task, exp_id);
+   });
+});
+
+/**
+ * Deploy experiment handler
+ */
+taskmanager.setTaskHandler("deployExperiment", function(task){
+   // Get vars
+   var exp_id = task.exp_id;
+   var system = task.system;
+   var task_id = task.id;
+
+   // Prepare experiment
+   _deployExperiment(task, exp_id, system, function(error){
+      if(error){
+         console.error("["+exp_id+"] deployExperiment error: "+error);
+         // Set task failed
+         taskmanager.setTaskFailed(task_id, error);
+
+         // Clean system
+         instmanager.cleanExperimentSystem(exp_id, task.job_id, system, true, true, true, true, function(error, system){
+            if(error) console.error("["+exp_id+"] deployExperiment clean system error: "+error);
+            instmanager.cleanSystem(system, function(error, system){
+               database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system}});
+               if(error) console.error("["+exp_id+"] deployExperiment clean error: "+error);
+            });
+         });
+         return;
+      }
+
+      // Compilation task
+      var next_task = {
+         type: "compileExperiment",
+         exp_id: exp_id,
+         system: system
+      };
+
+      // Set task to done and setup next task
+      taskmanager.setTaskDone(task_id, next_task, exp_id);
+   });
+});
+
+/**
+ * Deploy experiment handler
+ */
+taskmanager.setTaskHandler("compileExperiment", function(task){
+   // Get vars
+   var exp_id = task.exp_id;
+   var system = task.system;
+   var task_id = task.id;
+
+   // Prepare experiment
+   _compileExperiment(task, exp_id, system, function(error){
+      if(error){
+         console.error("["+exp_id+"] compileExperiment error: "+error);
+         // Set task failed
+         taskmanager.setTaskFailed(task_id, error);
+
+         // Clean system
+         instmanager.cleanExperimentSystem(exp_id, task.job_id, system, true, true, true, true, function(error, system){
+            if(error) console.error("["+exp_id+"] compileExperiment error: "+error);
+            instmanager.cleanSystem(system, function(error, system){
+               database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system}});
+               if(error) console.error("["+exp_id+"] compileExperiment error: "+error);
+            });
+         });
+         return;
+      }
+
+      // Execution task
+      var next_task = {
+         type: "executeExperiment",
+         exp_id: exp_id,
+         system: system
+      };
+
+      // Set task to done and setup next task
+      taskmanager.setTaskDone(task_id, next_task, exp_id);
+   });
+});
+
+/**
+ * Execute experiment handler
+ */
+taskmanager.setTaskHandler("executeExperiment", function(task){
+   // Get vars
+   var exp_id = task.exp_id;
+   var system = task.system;
+   var task_id = task.id;
+
+   // Prepare experiment
+   _executeExperiment(task, exp_id, system, function(error){
+      if(error){
+         console.error("["+exp_id+"] executeExperiment error: "+error);
+         // Set task failed
+         taskmanager.setTaskFailed(task_id, error);
+
+         // Clean system
+         instmanager.cleanExperimentSystem(exp_id, task.job_id, system, true, true, true, true, function(error, system){
+            if(error) console.error("["+exp_id+"] executeExperiment error: "+error);
+            instmanager.cleanSystem(system, function(error, system){
+               database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system}});
+               if(error) console.error("["+exp_id+"] executeExperiment error: "+error);
+            });
+         });
+         return;
+      }
+
+      // Retrieve task
+      var next_task = {
+         type: "retrieveExperimentOutput",
+         exp_id: exp_id,
+         system: system
+      };
+
+      // Set task to done and setup next task
+      taskmanager.setTaskDone(task_id, next_task, exp_id);
+   });
+});
+
+/**
+ * Retrieve data handler
+ */
+taskmanager.setTaskHandler("retrieveExperimentOutput", function(task){
+   // Get vars
+   var exp_id = task.exp_id;
+   var system = task.system;
+   var task_id = task.id;
+
+   // Prepare experiment
+   _retrieveExperimentOutput(task, exp_id, system, function(error){
+      if(error){
+         console.error("["+exp_id+"] retrieveExperimentOutput error: "+error);
+         // Set task failed
+         taskmanager.setTaskFailed(task_id, error);
+         return;
+      }
+
+      // Set task to done
+      taskmanager.setTaskDone(task_id, null, null);
+
+      // Clean system
+      instmanager.cleanExperimentSystem(exp_id, task.job_id, system, true, true, true, true, function(error, system){
+         if(error) console.error("["+exp_id+"] retrieveExperimentOutput error: "+error);
+         instmanager.cleanSystem(system, function(error, system){
+            database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system}});
+            if(error) console.error("["+exp_id+"] retrieveExperimentOutput error: "+error);
+         });
+      });
+   });
+});
+
+/**
+ * Reset experiment handler
+ */
+taskmanager.setTaskHandler("resetExperiment", function(task){
+   // Get vars
+   var exp_id = task.exp_id;
+   var system = task.system;
+   var task_id = task.id;
+
+   // Prepare experiment
+   _resetExperiment(exp_id, task, function(error){
+      if(error){
+         console.error("["+exp_id+"] resetExperiment error: "+error);
+         // Set task failed
+         taskmanager.setTaskFailed(task_id, error);
+         return;
+      }
+
+      // Set task to done
+      taskmanager.setTaskDone(task_id, null, null);
+   });
+});
+
+
+/******************************************************
+ *
+ * PRIVATE functions
+ *
+ *****************************************************/
+
+/**
+ * Initiates the event chain for experiment workflow execution
+ */
 var _workflowExperiment = function(exp_id, nodes, image_id, size_id){
 
    console.log("["+exp_id+"] Workflow: Begin");
@@ -467,9 +647,10 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
 
          console.log("["+exp.id+"] Cloning experiment into instance");
          var cmd = "git clone -b "+exp.id+"-L "+exp.exp_url+" "+image.workpath+"/"+exp.id;
+         var work_dir = image.workpath + "/" + exp.id;
 
          // Execute command
-         instmanager.executeJob(headnode.id, cmd, image.workpath, 1, function (error, job_id) {
+         instmanager.executeJob(headnode.id, cmd, work_dir, 1, function (error, job_id) {
             if (error) {return wfcb(error);}
 
             // Update task and DB
@@ -501,9 +682,10 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
 
          console.log("["+exp.id+"] Making inputdata dir");
          var cmd = "mkdir -p "+image.inputpath+"/"+exp.id+"; rsync -Lr "+exp.input_url+"/* "+image.inputpath+"/"+exp.id;
+         var work_dir = image.workpath + "/" + exp.id;
 
          // Execute command
-         instmanager.executeJob(headnode.id, cmd, image.workpath, 1, function (error, job_id) {
+         instmanager.executeJob(headnode.id, cmd, work_dir, 1, function (error, job_id) {
             if (error) {return wfcb(error);}
 
             // Update task and DB
@@ -535,9 +717,10 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
 
          console.log("["+exp.id+"] Initializing EXPERIMENT_STATUS");
          var cmd = 'echo -n "deployed" > '+image.workpath+'/'+exp.id+'/EXPERIMENT_STATUS';
+         var work_dir = image.workpath + "/" + exp.id;
 
          // Execute command
-         instmanager.executeJob(headnode.id, cmd, image.workpath, 1, function (error, job_id) {
+         instmanager.executeJob(headnode.id, cmd, work_dir, 1, function (error, job_id) {
             if (error) {return wfcb(error);}
 
             // Update task and DB
@@ -568,17 +751,21 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
 
       // Poll experiment status
       _pollExperiment(exp_id, system, function(error, status){
-         // Update status if the file exists
-         if(status != ""){
-            database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:status}});
+         // Check status
+         if(status != "deployed"){
+            return deployCallback(new Error("Failed to deploy experiment, status: "+status));
          }
-      });
 
-      console.log("["+exp_id+"] Deployed!");
-      deployCallback(null);
+         // Deployed
+         console.log("["+exp_id+"] Deployed!");
+         deployCallback(null);
+      });
    });
 }
 
+/**
+ * Launch compilation script of an experiment
+ */
 var _compileExperiment = function(task, exp_id, system, compileCallback){
    // Check the system is instanced
    if(system.status != "instanced"){
@@ -626,7 +813,6 @@ var _compileExperiment = function(task, exp_id, system, compileCallback){
          // Check task abort
          if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
-         console.log("["+exp.id+"] Executing creation script");
          var work_dir = image.workpath+"/"+exp.id;
          var exe_script = ''+
          '#!/bin/sh \n'+
@@ -647,6 +833,7 @@ var _compileExperiment = function(task, exp_id, system, compileCallback){
             wfcb(true, headnode);
          } else {
             // Execute job
+            console.log("["+exp.id+"] Executing compiling script");
             instmanager.executeJob(headnode.id, exe_script, work_dir, 1, function (error, job_id) {
                if (error) {return wfcb(error);}
 
@@ -657,7 +844,6 @@ var _compileExperiment = function(task, exp_id, system, compileCallback){
                // Check task abort
                if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
-               console.log("["+exp_id+"] Compiling...");
                wfcb(null, headnode);
             });
          }
@@ -666,13 +852,10 @@ var _compileExperiment = function(task, exp_id, system, compileCallback){
    function(error, headnode){
       if(error && error != true){ return compileCallback(error);}
 
+      console.log("["+exp_id+"] Compiling...");
+
       // Poll experiment status
-      _pollExperiment(exp_id, system, function(error, status){
-         // Update status if the file exists
-         if(status != ""){
-            database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:status}});
-         }
-      });
+      _pollExperiment(exp_id, system, function(error, status){});
 
       // Wait for command completion
       instmanager.waitJob(task.job_id, headnode.id, function(error){
@@ -683,19 +866,19 @@ var _compileExperiment = function(task, exp_id, system, compileCallback){
          database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
 
          // Check task abort
-         if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+         if(taskmanager.isTaskAborted(task.id)) {return compileCallback(new Error("Task aborted"));}
 
          // Poll experiment status
          _pollExperiment(exp_id, system, function(error, status){
-            // Update status if the file exists
-            if(status != ""){
-               database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:status}});
+            // Check status
+            if(status != "compiled"){
+               return compileCallback(new Error("Failed to compile experiment, status: "+status));
             }
-         });
 
-         // End compile task
-         console.log("["+exp_id+"] Compiled!");
-         compileCallback(null);
+            // End compile task
+            console.log("["+exp_id+"] Compiled!");
+            compileCallback(null);
+         });
       });
    });
 }
@@ -740,12 +923,11 @@ var _executeExperiment = function(task, exp_id, system, executionCallback){
             }
          });
       },
-      // Execute excution script
+      // Execute execution script
       function(app, exp, headnode, image, wfcb){
          // Check task abort
          if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
-         console.log("["+exp_id+"] Launching execution script");
          var work_dir = image.workpath+"/"+exp.id;
          var exe_script = ''+
          '#!/bin/sh \n'+
@@ -766,6 +948,7 @@ var _executeExperiment = function(task, exp_id, system, executionCallback){
             wfcb(true, headnode);
          } else {
             // Execute job
+            console.log("["+exp_id+"] Launching execution script");
             instmanager.executeJob(headnode.id, exe_script, work_dir, system.nodes, function (error, job_id) {
                if (error) {return wfcb(error);}
 
@@ -776,7 +959,6 @@ var _executeExperiment = function(task, exp_id, system, executionCallback){
                // Check task abort
                if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
-               console.log("["+exp_id+"] Executing...");
                wfcb(null, headnode);
             });
          }
@@ -784,6 +966,8 @@ var _executeExperiment = function(task, exp_id, system, executionCallback){
    ],
    function(error, headnode){
       if(error && error != true){return executionCallback(error);}
+
+      console.log("["+exp_id+"] Executing...");
 
       // Poll experiment status
       _pollExperiment(exp_id, system, function(error, status){
@@ -802,19 +986,19 @@ var _executeExperiment = function(task, exp_id, system, executionCallback){
          database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
 
          // Check task abort
-         if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+         if(taskmanager.isTaskAborted(task.id)) {return executionCallback(new Error("Task aborted"));}
 
          // Poll experiment status
          _pollExperiment(exp_id, system, function(error, status){
-            // Update status if the file exists
-            if(status != ""){
-               database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:status}});
+            // Check status
+            if(status != "done"){
+               return executionCallback(new Error("Failed to execute experiment, status: "+status));
             }
-         });
 
-         // End compile task
-         console.log("["+exp_id+"] Executed!");
-         executionCallback(null);
+            // End execution task
+            console.log("["+exp_id+"] Executed!");
+            executionCallback(null);
+         });
       });
    });
 }
@@ -822,7 +1006,7 @@ var _executeExperiment = function(task, exp_id, system, executionCallback){
 /**
  * Retrieve experiment output data
  */
-var _retrieveExperimentOutput = function(exp_id, system, retrieveCallback){
+var _retrieveExperimentOutput = function(task, exp_id, system, retrieveCallback){
    if(system.status != "instanced"){
       retrieveCallback(new Error("Target system is not instanced"));
       return;
@@ -885,6 +1069,71 @@ var _retrieveExperimentOutput = function(exp_id, system, retrieveCallback){
    });
 }
 
+/**
+ * Resets an experiment
+ */
+var _resetExperiment = function(exp_id, task, resetCallback){
+   async.waterfall([
+      // Get experiment
+      function(wfcb){
+         getExperiment(exp_id, null, wfcb);
+      },
+      // Update database
+      function(exp, wfcb){
+         database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"resetting"}});
+         wfcb(null, exp);
+      },
+      // Clean job
+      function(exp, wfcb){
+         if(exp.system){
+            console.log("["+exp_id+"] Reset: cleaning experiment");
+            var job_id = null;
+            if(task) job_id = task.job_id;
+            // Experiment will be removed completely from the instance
+            instmanager.cleanExperimentSystem(exp_id, job_id, exp.system, true, true, true, true, function(error){
+               if (error) {
+                  console.log('['+exp_id+'] Reset: Failed to clean experiment, error: '+error);
+               }
+               wfcb(null, exp);
+            });
+         } else {
+            wfcb(null, exp);
+         }
+      },
+      // Clean system
+      function(exp, wfcb){
+         if(exp.system){
+            console.log("["+exp_id+"] Reset: cleaning system");
+            instmanager.cleanSystem(exp.system, function(error){
+               if (error) {
+                  console.log('['+exp.id+'] Reset: Failed to clean system, error: '+error);
+               }
+               wfcb(error, exp);
+            });
+         } else {
+            wfcb(null, exp);
+         }
+      },
+   ],
+   function(error, exp){
+      if(error){
+         // Error trying to reset experiment
+         database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"reset_failed"}});
+         resetCallback(error);
+      } else {
+         // Update status
+         database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"created", system: exp.system}});
+         console.log("["+exp_id+"] Reset: done");
+
+         // Callback
+         resetCallback(null);
+      }
+   });
+}
+
+/**
+ * Get experiment status from target system and update in DB.
+ */
 var _pollExperiment = function(exp_id, system, pollCallback){
 
    async.waterfall([
@@ -954,6 +1203,9 @@ var _pollExperiment = function(exp_id, system, pollCallback){
    });
 }
 
+/**
+ * Update experiment logs in DB.
+ */
 var _pollExperimentLogs = function(exp_id, system, image, log_files, pollCallback){
    // Working directory
    var work_dir = image.workpath+"/"+exp_id;
@@ -990,200 +1242,11 @@ var _pollExperimentLogs = function(exp_id, system, image, log_files, pollCallbac
    });
 }
 
-/**
- * Prepare experiment handler
- */
-taskmanager.setTaskHandler("prepareExperiment", function(task){
-   // Get vars
-   var exp_id = task.exp_id;
-   var system = task.system;
-   var task_id = task.id;
-
-   // Prepare experiment
-   _prepareExperiment(task, exp_id, system, function(error){
-      if(error){
-         console.error("["+exp_id+"] prepareExperiment error: "+error);
-         // Set task failed
-         taskmanager.setTaskFailed(task_id, error);
-         return;
-      }
-
-      // Deploy task
-      var next_task = {
-         type: "deployExperiment",
-         exp_id: exp_id,
-         system: system
-      };
-
-      // Set task to done and setup next task
-      taskmanager.setTaskDone(task_id, next_task, exp_id);
-   });
-});
-
-/**
- * Deploy experiment handler
- */
-taskmanager.setTaskHandler("deployExperiment", function(task){
-   // Get vars
-   var exp_id = task.exp_id;
-   var system = task.system;
-   var task_id = task.id;
-
-   // Prepare experiment
-   _deployExperiment(task, exp_id, system, function(error){
-      if(error){
-         console.error("["+exp_id+"] deployExperiment error: "+error);
-         // Set task failed
-         taskmanager.setTaskFailed(task_id, error);
-
-         // Clean system
-         instmanager.cleanExperimentSystem(exp_id, task.job_id, system, true, true, true, true, function(error, system){
-            if(error) console.error("["+exp_id+"] deployExperiment clean system error: "+error);
-            instmanager.cleanSystem(system, function(error, system){
-               database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system}});
-               if(error) console.error("["+exp_id+"] deployExperiment clean error: "+error);
-            });
-         });
-         return;
-      }
-
-      // Compilation task
-      var next_task = {
-         type: "compileExperiment",
-         exp_id: exp_id,
-         system: system
-      };
-
-      // Set task to done and setup next task
-      taskmanager.setTaskDone(task_id, next_task, exp_id);
-   });
-});
-
-/**
- * Deploy experiment handler
- */
-taskmanager.setTaskHandler("compileExperiment", function(task){
-   // Get vars
-   var exp_id = task.exp_id;
-   var system = task.system;
-   var task_id = task.id;
-
-   // Prepare experiment
-   _compileExperiment(task, exp_id, system, function(error){
-      if(error){
-         console.error("["+exp_id+"] compileExperiment error: "+error);
-         // Set task failed
-         taskmanager.setTaskFailed(task_id, error);
-         return;
-      }
-
-      // Execution task
-      var next_task = {
-         type: "executeExperiment",
-         exp_id: exp_id,
-         system: system
-      };
-
-      // Set task to done and setup next task
-      taskmanager.setTaskDone(task_id, next_task, exp_id);
-   });
-});
-
-/**
- * Execute experiment handler
- */
-taskmanager.setTaskHandler("executeExperiment", function(task){
-   // Get vars
-   var exp_id = task.exp_id;
-   var system = task.system;
-   var task_id = task.id;
-
-   // Prepare experiment
-   _executeExperiment(task, exp_id, system, function(error){
-      if(error){
-         console.error("["+exp_id+"] executeExperiment error: "+error);
-         // Set task failed
-         taskmanager.setTaskFailed(task_id, error);
-
-         // Clean system
-         instmanager.cleanExperimentSystem(exp_id, task.job_id, system, true, true, true, true, function(error, system){
-            if(error) console.error("["+exp_id+"] executeExperiment error: "+error);
-            instmanager.cleanSystem(system, function(error, system){
-               database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system}});
-               if(error) console.error("["+exp_id+"] executeExperiment error: "+error);
-            });
-         });
-         return;
-      }
-
-      // Retrieve task
-      var next_task = {
-         type: "retrieveExperimentOutput",
-         exp_id: exp_id,
-         system: system
-      };
-
-      // Set task to done and setup next task
-      taskmanager.setTaskDone(task_id, next_task, exp_id);
-   });
-});
-
-/**
- * Retrieve data handler
- */
-taskmanager.setTaskHandler("retrieveExperimentOutput", function(task){
-   // Get vars
-   var exp_id = task.exp_id;
-   var system = task.system;
-   var task_id = task.id;
-
-   // Prepare experiment
-   _retrieveExperimentOutput(exp_id, system, function(error){
-      if(error){
-         console.error("["+exp_id+"] retrieveExperimentOutput error: "+error);
-         // Set task failed
-         taskmanager.setTaskFailed(task_id, error);
-         return;
-      }
-
-      // Set task to done
-      taskmanager.setTaskDone(task_id, null, null);
-
-      // Clean system
-      instmanager.cleanExperimentSystem(exp_id, task.job_id, system, true, true, true, true, function(error, system){
-         if(error) console.error("["+exp_id+"] retrieveExperimentOutput error: "+error);
-         instmanager.cleanSystem(system, function(error, system){
-            database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system}});
-            if(error) console.error("["+exp_id+"] retrieveExperimentOutput error: "+error);
-         });
-      });
-   });
-});
-
-/**
- * Reset experiment handler
- */
-taskmanager.setTaskHandler("resetExperiment", function(task){
-   // Get vars
-   var exp_id = task.exp_id;
-   var system = task.system;
-   var task_id = task.id;
-
-   // Prepare experiment
-   _resetExperiment(exp_id, task, function(error){
-      if(error){
-         console.error("["+exp_id+"] resetExperiment error: "+error);
-         // Set task failed
-         taskmanager.setTaskFailed(task_id, error);
-         return;
-      }
-
-      // Set task to done
-      taskmanager.setTaskDone(task_id, null, null);
-   });
-});
-
-exports.launchExperiment = launchExperiment;
+/******************************************************
+ *
+ * Public interface
+ *
+ *****************************************************/
 
 exports.getApplication = getApplication;
 exports.createApplication = createApplication;
@@ -1195,5 +1258,6 @@ exports.updateExperiment = updateExperiment;
 exports.resetExperiment = resetExperiment;
 exports.destroyExperiment = destroyExperiment;
 exports.searchExperiments = searchExperiments;
+exports.launchExperiment = launchExperiment;
 
 exports.getExperimentOutputFile = getExperimentOutputFile;
