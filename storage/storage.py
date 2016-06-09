@@ -213,6 +213,16 @@ class Storage(object):
 
         return url
 
+    def getExperimentCode(self, exp_id, app_id, fpath):
+        # Get input storage path
+        app_path = self.apppath + "/" + app_id
+
+        # Get file
+        fcontent = gevent.subprocess.check_output(
+            ["git", "show", exp_id+":"+fpath], cwd=app_path)
+
+        return fcontent
+
     def getExperimentOutputFile(self, exp_id):
         # Get output storage path
         file = self.outputpath + "/" + exp_id + "/output.tar.gz"

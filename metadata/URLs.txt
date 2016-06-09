@@ -62,4 +62,5 @@
 /cloud/experiments/:experimentId (POST) "Perform an operation on an experiment. Instant return, experiment must be pulled with GET to obtain status."
 
 /cloud/experiments/:experimentId/logs (GET) "Return experiment logs, ID is passed by parameter"
+/cloud/experiments/:experimentId/code?file=src/code.c (GET) "Return code file content"
 /cloud/experiments/:experimentId/download (GET) "Return experiment output data, ID is passed by parameter"

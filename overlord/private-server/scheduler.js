@@ -54,6 +54,24 @@ var getExperiment = function(exp_id, fields, getCallback){
 }
 
 /**
+ * Get experiment source file
+ */
+var getExperimentCode = function(exp_id, fpath, getCallback){
+   getExperiment(exp_id, null, function(error, exp){
+      if(error) return getCallback(error);
+
+      // Retrieve file contents
+      storage.client.invoke('getExperimentCode', exp_id, exp.app_id, fpath, function(error, fcontent){
+         if(error){
+            getCallback(error);
+         } else {
+            getCallback(null, fcontent);
+         }
+      });
+   })
+}
+
+/**
  * Get experiment output data file path
  */
 var getExperimentOutputFile = function(exp_id, getCallback){
@@ -1329,4 +1347,5 @@ exports.destroyExperiment = destroyExperiment;
 exports.searchExperiments = searchExperiments;
 exports.launchExperiment = launchExperiment;
 
+exports.getExperimentCode = getExperimentCode;
 exports.getExperimentOutputFile = getExperimentOutputFile;

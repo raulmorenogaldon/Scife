@@ -64,6 +64,14 @@ var ERRCODE = {
       'message': "Output data does not exist for this experiment.",
       'code': 46
    },
+   EXP_CODE_FILE_PATH_MISSING: {
+      'message': "Please provide a file path with 'file' query.",
+      'code': 47
+   },
+   EXP_CODE_FILE_NOT_FOUND: {
+      'message': "Source file does not exits.",
+      'code': 48
+   },
 }
 
 exports.HTTPCODE = HTTPCODE;
