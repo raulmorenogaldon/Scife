@@ -305,7 +305,6 @@ class ClusterMinion(minion.Minion):
 
         return "rmoreno2@galgo.i3a.info"
 
-
     def executeCommand(self, cmd, instance_id):
         # TODO: Check instance minion
 
@@ -428,6 +427,41 @@ class ClusterMinion(minion.Minion):
 
         self._instance_lock[instance_id] = False
         ####################
+
+    def getJobStatus(self, job_id, instance_id):
+        ####################
+        # Set the lock for the instance
+        while self._instance_lock[instance_id]:
+            gevent.sleep(0)
+        self._instance_lock[instance_id] = True
+
+        # Get instance command line
+        ssh = self._retrieveSSH()
+        if ssh is None:
+            self._instance_lock[instance_id] = False
+            raise Exception("Instance without SSH")
+
+        # Check if experiment is in jobs queue and terminate
+        status = "unknown"
+        if job_id is not None:
+            cmd = """{0}; qstat {1}""".format(
+                self._cmd_env, job_id
+            )
+            task = gevent.spawn(self._executeSSH, ssh, cmd)
+            gevent.joinall([task])
+            ret = task.value[1].read()
+            if "Unknown" not in ret:
+                status = "running"
+            else:
+                status = "finished"
+
+        # Close connection
+        ssh.close()
+
+        self._instance_lock[instance_id] = False
+        ####################
+
+        return status
 
     """ Private functions """
     def _loadConfig(self, config):
