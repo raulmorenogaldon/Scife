@@ -187,7 +187,7 @@ var destroyExperiment = function(exp_id, destroyCallback){
       // Clean system
       function(exp, wfcb){
          if(exp.system){
-            instmanager.cleanExperimentSystem(exp_id, null, exp.system, true, true, true, true, function(error, system){
+            instmanager.cleanExperimentSystem(exp_id, exp.system, true, true, true, true, function(error, system){
                wfcb(error, exp);
             });
          } else {
@@ -275,7 +275,7 @@ taskmanager.setTaskHandler("deployExperiment", function(task){
          taskmanager.setTaskFailed(task_id, error);
 
          // Clean system
-         instmanager.cleanExperimentSystem(exp_id, task.job_id, system, true, true, true, true, function(error, system){
+         instmanager.cleanExperimentSystem(exp_id, system, true, true, true, true, function(error, system){
             if(error) console.error("["+exp_id+"] deployExperiment clean system error: "+error);
             instmanager.cleanSystem(system, function(error, system){
                database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system}});
@@ -314,7 +314,7 @@ taskmanager.setTaskHandler("compileExperiment", function(task){
          taskmanager.setTaskFailed(task_id, error);
 
          // Clean system
-         instmanager.cleanExperimentSystem(exp_id, task.job_id, system, true, true, true, true, function(error, system){
+         instmanager.cleanExperimentSystem(exp_id, system, true, true, true, true, function(error, system){
             if(error) console.error("["+exp_id+"] compileExperiment error: "+error);
             instmanager.cleanSystem(system, function(error, system){
                database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system}});
@@ -353,7 +353,7 @@ taskmanager.setTaskHandler("executeExperiment", function(task){
          taskmanager.setTaskFailed(task_id, error);
 
          // Clean system
-         instmanager.cleanExperimentSystem(exp_id, task.job_id, system, true, true, true, true, function(error, system){
+         instmanager.cleanExperimentSystem(exp_id, system, true, true, true, true, function(error, system){
             if(error) console.error("["+exp_id+"] executeExperiment error: "+error);
             instmanager.cleanSystem(system, function(error, system){
                database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system}});
@@ -397,7 +397,7 @@ taskmanager.setTaskHandler("retrieveExperimentOutput", function(task){
       taskmanager.setTaskDone(task_id, null, null);
 
       // Clean system
-      instmanager.cleanExperimentSystem(exp_id, task.job_id, system, true, true, true, true, function(error, system){
+      instmanager.cleanExperimentSystem(exp_id, system, true, true, true, true, function(error, system){
          if(error) console.error("["+exp_id+"] retrieveExperimentOutput error: "+error);
          instmanager.cleanSystem(system, function(error, system){
             database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system}});
@@ -1090,7 +1090,7 @@ var _resetExperiment = function(exp_id, task, resetCallback){
             var job_id = null;
             if(task) job_id = task.job_id;
             // Experiment will be removed completely from the instance
-            instmanager.cleanExperimentSystem(exp_id, job_id, exp.system, true, true, true, true, function(error){
+            instmanager.cleanExperimentSystem(exp_id, exp.system, true, true, true, true, function(error){
                if (error) {
                   console.log('['+exp_id+'] Reset: Failed to clean experiment, error: '+error);
                }
@@ -1241,6 +1241,44 @@ var _pollExperimentLogs = function(exp_id, system, image, log_files, pollCallbac
       }
    });
 }
+
+/**
+ * Remove invalid status experiments in instances
+ */
+var _cleanInstances = function(){
+   // Wait for database to connect
+   if(!database.db){
+      return setTimeout(_cleanInstances, 1000);
+   }
+
+   // Iterate instances
+   database.db.collection('instances').find().forEach(function(inst){
+      // Iterate experiments
+      var exps = inst.exps;
+      for(var i = 0; i < exps.length; i++){
+         var exp_id = exps[i].exp_id;
+         (function(exp_id){
+            getExperiment(exp_id, null, function(error, exp){
+               if(!exp || exp.status == "created" || exp.status == "done" || exp.status == "failed_compilation" || exp.status == "failed_execution"){
+                  // Remove experiment from this instance
+                  instmanager.cleanExperiment(exp_id, inst.id, true, true, true, true, function(error){
+                     if(error) console.error("["+exp_id+"] Failed to clean experiment from instance '"+inst.id+"'");
+                     console.log("["+exp_id+"] Cleaned experiment from instance '"+inst.id+"'");
+                  });
+               }
+            });
+         })(exp_id);
+      }
+   });
+}
+
+/******************************************************
+ *
+ * Module initialization
+ *
+ *****************************************************/
+// Remove non executing experiments from instances
+_cleanInstances();
 
 /******************************************************
  *
