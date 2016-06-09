@@ -129,9 +129,9 @@ var createExperiment = function(exp_cfg, createCallback){
             }
          });
       },
-      // Obtain experiment source data tree
+      // Obtain experiment source code tree
       function(wfcb){
-         storage.client.invoke('getExperimentSrcFolderTree', exp_cfg.app_id, function (error, tree) {
+         storage.client.invoke('getExperimentSrcFolderTree', exp_cfg.id, exp_cfg.app_id, function (error, tree) {
             if(error){
                wfcb(error);
             } else {

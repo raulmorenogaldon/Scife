@@ -240,11 +240,11 @@ class Storage(object):
         path = self.inputpath + "/" + id
 
         # Create tree
-        return self._fillFolderTree(path)
+        return self._fillFolderTree(path, "")
 
-    def getExperimentSrcFolderTree(self, exp_id):
+    def getExperimentSrcFolderTree(self, exp_id, app_id):
         # Get input storage path
-        path = self.apppath + "/" + exp_id
+        root = self.apppath + "/" + app_id
 
         ########################
         # Wait for the lock
@@ -253,37 +253,39 @@ class Storage(object):
         self.lock = True
 
         # Check out experiment
-        gevent.subprocess.call(["git", "checkout", exp_id], cwd=path)
+        gevent.subprocess.call(["git", "checkout", exp_id], cwd=root)
 
         # Get tree
-        tree = self._fillFolderTree(path)
+        tree = self._fillFolderTree(root, "")
 
         # Checkout master
-        gevent.subprocess.call(["git", "checkout", "master"], cwd=path)
+        gevent.subprocess.call(["git", "checkout", "master"], cwd=root)
 
         self.lock = False
         ########################
         return tree
 
-    def _fillFolderTree(self, path):
+    def _fillFolderTree(self, root, rel_path):
         # Iterate current level tree
         tree = []
-        for file in os.listdir(path):
+        dir = os.path.join(root, rel_path)
+        for file in os.listdir(dir):
             if file[0] != '.':
-                filepath = os.path.join(path, file)
-                if os.path.isfile(filepath):
+                full_filepath = os.path.join(dir, file)
+                rel_filepath = os.path.join(rel_path, file)
+                if os.path.isfile(full_filepath):
                     # Add leaf
                     tree.append({
                         "label": file,
-                        "id": str(uuid.uuid1()),
+                        "id": rel_filepath,
                         "children": []
                     })
                 else:
                     # Add subtree
                     tree.append({
                         "label": file,
-                        "id": str(uuid.uuid1()),
-                        "children": self._fillFolderTree(filepath)
+                        "id": rel_filepath,
+                        "children": self._fillFolderTree(root, rel_filepath)
                     })
         return tree
 
