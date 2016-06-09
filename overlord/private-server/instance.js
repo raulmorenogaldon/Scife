@@ -277,7 +277,6 @@ var cleanExperiment = function(exp_id, inst_id, b_job, b_code, b_input, b_remove
 
       if(b_remove){
          // Remove from database
-         console.log("Removing from DB");
          database.db.collection('instances').updateOne({id: inst_id},{
             $pull: {exps: {exp_id: exp_id}}
          });
@@ -445,7 +444,7 @@ var abortJob = function(job_id, inst_id, cleanCallback){
          }
 
          // Callback
-         cleanCallback(null);
+         if(cleanCallback) cleanCallback(null);
       });
    }
 }

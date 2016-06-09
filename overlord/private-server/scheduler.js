@@ -14,10 +14,10 @@ var instmanager = require('./instance.js');
 var taskmanager = require('./task.js');
 
 /**
- * Module name
+ * Module vars
  */
 var MODULE_NAME = "SC";
-
+var pollInterval = 6000;
 
 /**
  * Get application metadata
@@ -470,6 +470,9 @@ var _workflowExperiment = function(exp_id, nodes, image_id, size_id){
          },
          // Prepare experiment for the system
          function(system, wfcb){
+            // Update DB
+            database.db.collection('experiments').updateOne({id: exp_id},{$set:{system:system}});
+
             console.log("["+exp_id+"] Workflow: Launching preparing task...");
 
             // Add prepare task
@@ -1135,6 +1138,11 @@ var _resetExperiment = function(exp_id, task, resetCallback){
  * Get experiment status from target system and update in DB.
  */
 var _pollExperiment = function(exp_id, system, pollCallback){
+   // Check system
+   if(!system || !system.instances || system.instances.length == 0){
+      // Nothing to poll
+      return pollCallback(null);
+   }
 
    async.waterfall([
       // Get experiment
@@ -1272,6 +1280,26 @@ var _cleanInstances = function(){
    });
 }
 
+/**
+ * Poll experiments
+ */
+var _pollExecutingExperiments = function(){
+   // Wait for database to connect
+   if(!database.db){
+      return setTimeout(_cleanInstances, 1000);
+   }
+
+   // Iterate experiments
+   database.db.collection('experiments').find({
+      status: { $in: ["deployed", "resetting", "compiling", "compiled", "executing"]}
+   }).forEach(function(exp){
+      // Poll experiment status
+      _pollExperiment(exp.id, exp.system, function(error, status){
+         if(error) console.error(error);
+      });
+   });
+}
+
 /******************************************************
  *
  * Module initialization
@@ -1279,6 +1307,9 @@ var _cleanInstances = function(){
  *****************************************************/
 // Remove non executing experiments from instances
 _cleanInstances();
+setInterval(_pollExecutingExperiments, pollInterval, function(error){
+   if(error) console.error(error);
+});
 
 /******************************************************
  *
