@@ -1159,7 +1159,11 @@ var _pollExperiment = function(exp_id, system, pollCallback){
    // Check system
    if(!system || !system.instances || system.instances.length == 0){
       // Nothing to poll
-      return pollCallback(null);
+      getExperiment(exp_id, null, function(error, exp){
+         if(error) return pollCallback(error);
+         pollCallback(null, exp.status);
+      });
+      return;
    }
 
    async.waterfall([
