@@ -392,6 +392,35 @@ router.get('/experiments/:exp_id/code', function (req, res, next) {
 });
 
 /**
+ * Save file changes
+ * @param {String} - The experiment id.
+ * @return {[Object]} - File contents
+ */
+router.post('/experiments/:exp_id/code', function (req, res, next) {
+   // Get file path if provided
+   var fpath = req.query.file;
+   if(!fpath){
+      return next({
+         'http': codes.HTTPCODE.BAD_REQUEST,
+         'json': codes.ERRCODE.EXP_CODE_FILE_PATH_MISSING
+      });
+   }
+
+   // TODO: Save file
+   // ...
+
+   // Reload trees
+   scheduler.reloadExperimentTree(req.params.exp_id, function(error){
+      if (error) {
+         console.log('Error in the request /experiments/:exp_id/code, err: ', error);
+         return next(error);
+      } else {
+         res.json(null);
+      }
+   });
+});
+
+/**
  * Get download link for experiment output data
  * @param {String} - The experiment id.
  * @return {[Object]} - A json Object with output data
