@@ -5,6 +5,7 @@ var express = require('express'),
    constants = require('../constants.json');
 
 var codes = require('../error_codes.js');
+var utils = require('../utils.js');
 var scheduler = require('../scheduler.js');
 var instmanager = require('../instance.js');
 
@@ -352,7 +353,7 @@ router.get('/experiments/:exp_id', function (req, res, next) {
  * @return {[Object]} - A json Object with experiment logs
  */
 router.get('/experiments/:exp_id/logs', function (req, res, next) {
-   scheduler.getExperiment(req.params.exp_id, {logs: 1}, function (error, result) {
+   scheduler.getExperiment(req.params.exp_id, {id: 1, logs: 1}, function (error, result) {
       if (error) {
          console.log('Error in the request /experiments/:exp_id/logs, err: ', error);
          return next(error);
@@ -361,6 +362,61 @@ router.get('/experiments/:exp_id/logs', function (req, res, next) {
       }
    });
 });
+
+/**
+ * Get experiment sources tree
+ * @param {String} - The experiment id.
+ * @return {[Object]} - A json Object with experiment sources tree
+ */
+router.get('/experiments/:exp_id/srctree', function (req, res, next) {
+   scheduler.getExperiment(req.params.exp_id, {id: 1, src_tree: 1}, function (error, result) {
+      if (error) {
+         console.log('Error in the request /experiments/:exp_id/srctree, err: ', error);
+         return next(error);
+      }
+
+      // Get folder path and depth if provided
+      var fpath = req.query.folder;
+      var depth = req.query.depth;
+      result = utils.cutTree(result.src_tree, fpath, depth);
+      if(!result){
+         return next({
+            'http': codes.HTTPCODE.NOT_FOUND,
+            'json': codes.ERRCODE.EXP_CODE_FILE_NOT_FOUND
+         });
+      }
+
+      res.json(result);
+   });
+});
+
+/**
+ * Get experiment input files tree
+ * @param {String} - The experiment id.
+ * @return {[Object]} - A json Object with experiment input files tree
+ */
+router.get('/experiments/:exp_id/inputtree', function (req, res, next) {
+   scheduler.getExperiment(req.params.exp_id, {id: 1, input_tree: 1}, function (error, result) {
+      if (error) {
+         console.log('Error in the request /experiments/:exp_id/inputtree, err: ', error);
+         return next(error);
+      }
+
+      // Get folder path and depth if provided
+      var fpath = req.query.folder;
+      var depth = req.query.depth;
+      result = utils.cutTree(result.input_tree, fpath, depth);
+      if(!result){
+         return next({
+            'http': codes.HTTPCODE.NOT_FOUND,
+            'json': codes.ERRCODE.EXP_INPUT_FILE_NOT_FOUND
+         });
+      }
+
+      res.json(result);
+   });
+});
+
 
 /**
  * Get experiment source file content

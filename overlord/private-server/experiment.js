@@ -25,7 +25,11 @@ var getExperiment = function(exp_id, fields, getCallback){
    }
 
    // Parse fields
-   if(!fields) fields = {};
+   if(!fields) fields = {
+         input_tree: 0,
+         src_tree: 0,
+         logs: 0
+   };
 
    // Retrieve experiment metadata
    database.db.collection('experiments').findOne({id: exp_id}, fields, function(error, exp){
@@ -57,8 +61,15 @@ var searchExperiments = function(name, searchCallback){
       query = ".*"+name+".*";
    }
 
+   // Projection
+   var fields = {
+         input_tree: 0,
+         src_tree: 0,
+         logs: 0
+   };
+
    // Retrieve experiment metadata
-   database.db.collection('experiments').find({name: {$regex: query}}).toArray(function(error, exps){
+   database.db.collection('experiments').find({name: {$regex: query}}, fields).toArray(function(error, exps){
       if(error){
          searchCallback(new Error("Query for experiments with name: " + name + " failed"));
       } else {

@@ -72,6 +72,10 @@ var ERRCODE = {
       'message': "Source file does not exits.",
       'code': 48
    },
+   EXP_INPUT_FILE_NOT_FOUND: {
+      'message': "Input file does not exits.",
+      'code': 49
+   },
 }
 
 exports.HTTPCODE = HTTPCODE;
