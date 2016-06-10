@@ -25,11 +25,19 @@ var getExperiment = function(exp_id, fields, getCallback){
    }
 
    // Parse fields
-   if(!fields) fields = {
+   if(!fields){
+      fields = {
          input_tree: 0,
          src_tree: 0,
          logs: 0
-   };
+      };
+   } else {
+      // Required values
+      fields.id = 1;
+      fields.name = 1;
+      fields.app_id = 1;
+      fields.status = 1;
+   }
 
    // Retrieve experiment metadata
    database.db.collection('experiments').findOne({id: exp_id}, fields, function(error, exp){

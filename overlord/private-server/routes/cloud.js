@@ -402,7 +402,7 @@ router.get('/experiments/:exp_id/srctree', function (req, res, next) {
       // Get folder path and depth if provided
       var fpath = req.query.folder;
       var depth = req.query.depth;
-      result = utils.cutTree(result.src_tree, fpath, depth);
+      result.src_tree = utils.cutTree(result.src_tree, fpath, depth);
       if(!result){
          return next({
             'http': codes.HTTPCODE.NOT_FOUND,
@@ -429,7 +429,7 @@ router.get('/experiments/:exp_id/inputtree', function (req, res, next) {
       // Get folder path and depth if provided
       var fpath = req.query.folder;
       var depth = req.query.depth;
-      result = utils.cutTree(result.input_tree, fpath, depth);
+      result.input_tree = utils.cutTree(result.input_tree, fpath, depth);
       if(!result){
          return next({
             'http': codes.HTTPCODE.NOT_FOUND,
