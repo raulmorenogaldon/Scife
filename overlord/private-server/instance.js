@@ -140,7 +140,7 @@ var requestInstance = function(image_id, size_id, requestCallback){
  */
 var getInstance = function(inst_id, getCallback){
    database.db.collection('instances').findOne({_id: inst_id}, function(error, inst){
-      if(error || inst == undefined){
+      if(error || !inst){
          getCallback(new Error('Instance with ID "'+inst_id+'" does not exists'));
       } else {
          getCallback(null, inst);
@@ -154,7 +154,7 @@ var getInstance = function(inst_id, getCallback){
  */
 var getImage = function(image_id, getCallback){
    database.db.collection('images').findOne({_id: image_id}, function(error, image){
-      if(error || image == undefined){
+      if(error || !image){
          getCallback(new Error('Image with ID "'+image_id+'" does not exists'));
       } else {
          getCallback(null, image);
@@ -168,7 +168,7 @@ var getImage = function(image_id, getCallback){
  */
 var getSize = function(size_id, getCallback){
    database.db.collection('sizes').findOne({_id: size_id}, function(error, size){
-      if(error || size == undefined){
+      if(error || !size){
          getCallback(new Error('Size with ID "'+size_id+'" does not exists'));
       } else {
          getCallback(null, size);

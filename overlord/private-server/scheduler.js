@@ -19,6 +19,12 @@ var taskmanager = require('./task.js');
 var MODULE_NAME = "SC";
 var pollInterval = 6000;
 
+/***********************************************************
+ * --------------------------------------------------------
+ * APPLICATION METHODS
+ * --------------------------------------------------------
+ ***********************************************************/
+
 /**
  * Get application metadata
  */
@@ -40,11 +46,11 @@ var searchApplications = function(name, searchCallback){
    apps.searchApplications(name, searchCallback);
 }
 
-/******************************************************
- *
- * Experiment handling functions
- *
- *****************************************************/
+/***********************************************************
+ * --------------------------------------------------------
+ * EXPERIMENT HANDLING METHODS
+ * --------------------------------------------------------
+ ***********************************************************/
 
 /**
  * Get experiment metadata
@@ -240,11 +246,47 @@ var destroyExperiment = function(exp_id, destroyCallback){
    });
 }
 
-/******************************************************
- *
- * Scheduling events
- *
- *****************************************************/
+/**
+ * Reload experiments' file tree.
+ */
+var reloadExperimentTree = function(exp_id, reloadCallback){
+   console.log("["+exp_id+"] Reloading trees...");
+   async.waterfall([
+      // Get experiment
+      function(wfcb){
+         getExperiment(exp_id, null, wfcb);
+      },
+      // Obtain experiment input data tree
+      function(exp, wfcb){
+         storage.client.invoke('getInputFolderTree', exp_id, function (error, tree) {
+            if(error) return wfcb(error);
+
+            database.db.collection('experiments').updateOne({id: exp_id},{$set: {input_tree: tree}});
+            wfcb(null, exp);
+         });
+      },
+      // Obtain experiment source code tree
+      function(exp, wfcb){
+         storage.client.invoke('getExperimentSrcFolderTree', exp_id, exp.app_id, function (error, tree) {
+            if(error) return wfcb(error);
+
+            database.db.collection('experiments').updateOne({id: exp_id},{$set: {src_tree: tree}});
+            wfcb(null);
+         });
+      }
+   ],
+   function(error){
+      if(error) return reloadCallback(error);
+      console.log("["+exp_id+"] Trees reloaded");
+      reloadCallback(error);
+   });
+}
+
+/***********************************************************
+ * --------------------------------------------------------
+ * SCHEDULING EVENTS
+ * --------------------------------------------------------
+ ***********************************************************/
 
 /**
  * Prepare experiment handler
@@ -449,11 +491,11 @@ taskmanager.setTaskHandler("resetExperiment", function(task){
 });
 
 
-/******************************************************
- *
- * PRIVATE functions
- *
- *****************************************************/
+/***********************************************************
+ * --------------------------------------------------------
+ * PRIVATE METHODS
+ * --------------------------------------------------------
+ ***********************************************************/
 
 /**
  * Initiates the event chain for experiment workflow execution
@@ -1322,58 +1364,22 @@ var _pollExecutingExperiments = function(){
    });
 }
 
-/**
- * Reload experiments' file tree.
- */
-var reloadExperimentTree = function(exp_id, reloadCallback){
-   console.log("["+exp_id+"] Reloading trees...");
-   async.waterfall([
-      // Get experiment
-      function(wfcb){
-         getExperiment(exp_id, null, wfcb);
-      },
-      // Obtain experiment input data tree
-      function(exp, wfcb){
-         storage.client.invoke('getInputFolderTree', exp_id, function (error, tree) {
-            if(error) return wfcb(error);
-
-            database.db.collection('experiments').updateOne({id: exp_id},{$set: {input_tree: tree}});
-            wfcb(null, exp);
-         });
-      },
-      // Obtain experiment source code tree
-      function(exp, wfcb){
-         storage.client.invoke('getExperimentSrcFolderTree', exp_id, exp.app_id, function (error, tree) {
-            if(error) return wfcb(error);
-
-            database.db.collection('experiments').updateOne({id: exp_id},{$set: {src_tree: tree}});
-            wfcb(null);
-         });
-      }
-   ],
-   function(error){
-      if(error) return reloadCallback(error);
-      console.log("["+exp_id+"] Trees reloaded");
-      reloadCallback(error);
-   });
-}
-
-/******************************************************
- *
- * Module initialization
- *
- *****************************************************/
+/***********************************************************
+ * --------------------------------------------------------
+ * MODULE INITIALIZATION
+ * --------------------------------------------------------
+ ***********************************************************/
 // Remove non executing experiments from instances
 _cleanInstances();
 setInterval(_pollExecutingExperiments, pollInterval, function(error){
    if(error) console.error(error);
 });
 
-/******************************************************
- *
- * Public interface
- *
- *****************************************************/
+/***********************************************************
+ * --------------------------------------------------------
+ * PUBLIC INTERFACE
+ * --------------------------------------------------------
+ ***********************************************************/
 
 exports.getApplication = getApplication;
 exports.createApplication = createApplication;

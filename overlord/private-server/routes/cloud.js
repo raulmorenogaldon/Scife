@@ -9,44 +9,6 @@ var utils = require('../utils.js');
 var scheduler = require('../scheduler.js');
 var instmanager = require('../instance.js');
 
-
-/***********************************************************
- * --------------------------------------------------------
- * LOGIN METHODS
- * --------------------------------------------------------
- ***********************************************************/
-
-// The config object depends on the provider
-//router.get('/login', function(req, res, next){
-//   var config = {
-//      'url': "galgo.i3a.info",
-//      'username': "rmoreno2",
-//   }
-//   minionClient.invoke("login", config, function(error, result, more){
-//      if(error){
-//         console.log("Error in the request /login");
-//         res.status(500); //Internal server error
-//         res.json(error);
-//      }else{
-//         res.json(result);
-//      }
-//   });
-//});
-
-/*
-// The config object depends on the provider
-router.post('login', function (req, res, next) {
-   minionClient.invoke('login', {config: 'hola'}, function (error, result, more) {
-      if (error) {
-         console.log('Error in the request /createstorage\n' + error);
-         res.json({error: error});
-      } else {
-         res.json({result: result});
-      }
-   });
-});
-*/
-
 /***********************************************************
  * --------------------------------------------------------
  * SIZE METHODS
@@ -68,6 +30,26 @@ router.get('/sizes', function (req, res, next) {
       res.json(result);
    });
 });
+/**
+ * Check size id parameter
+ * @param {String} - Size ID.
+ */
+router.param('size_id', function(req, res, next, size_id){
+   // Get size
+   instmanager.getSize(size_id, function (error, size) {
+      // Error retrieving this size
+      if(error){
+         return next({
+            'http': codes.HTTPCODE.NOT_FOUND,
+            'json': codes.ERRCODE.ID_NOT_FOUND
+         });
+      } else {
+         // Set parameter
+         req.size = size;
+         return next();
+      }
+   });
+});
 
 /**
  * Get the size info from de server.
@@ -75,14 +57,7 @@ router.get('/sizes', function (req, res, next) {
  * @return {Object} - A json Object with the follow structure: { "id":"size id", "name":"size name", "desc":"Description", "cpus":"Nº CPUs", "ram":"ram in mb"}
  */
 router.get('/sizes/:size_id', function (req, res, next) {
-   instmanager.getSize(req.params.size_id, function (error, result) {
-      if (error) {
-         console.log('Error in the request /sizes/:size_id');
-         res.status(500); //Internal server error
-         res.json(error);
-      }
-      res.json(result);
-   });
+   res.json(req.size);
 });
 
 /***********************************************************
@@ -108,19 +83,33 @@ router.get('/instances', function (req, res, next) {
 });
 
 /**
+ * Check instance id parameter
+ * @param {String} - Instance ID.
+ */
+router.param('instance_id', function(req, res, next, instance_id){
+   // Get instance
+   instmanager.getInstance(instance_id, function (error, instance) {
+      // Error retrieving this instance
+      if(error){
+         return next({
+            'http': codes.HTTPCODE.NOT_FOUND,
+            'json': codes.ERRCODE.ID_NOT_FOUND
+         });
+      } else {
+         // Set parameter
+         req.instance = instance;
+         return next();
+      }
+   });
+});
+
+/**
  * Get the instance info from de server.
  * @param {String} - The instance id.
  * @return {Object} - A json Object with the follow structure: {"id":"instance id", "name":"name", "desc":"description", "image_id":"image id", "size_id":"size id"}
  */
 router.get('/instances/:instance_id', function (req, res, next) {
-   instmanager.getInstance(req.params.instance_id, function (error, result){
-      if (error) {
-         console.log('Error in the request /instances/:instance_id');
-         res.status(500); //Internal server error
-         res.json(error);
-      }
-      res.json(result);
-   });
+   res.json(req.instance);
 });
 
 
@@ -146,19 +135,33 @@ router.get('/images', function (req, res, next) {
 });
 
 /**
+ * Check image id parameter
+ * @param {String} - Image ID.
+ */
+router.param('image_id', function(req, res, next, image_id){
+   // Get image
+   instmanager.getImage(image_id, function (error, image) {
+      // Error retrieving this image
+      if(error){
+         return next({
+            'http': codes.HTTPCODE.NOT_FOUND,
+            'json': codes.ERRCODE.ID_NOT_FOUND
+         });
+      } else {
+         // Set parameter
+         req.image = image;
+         return next();
+      }
+   });
+});
+
+/**
  * Get the image infor fron de server.
  * @param {String} - The image id.
  * @return {Object} - A json Object with the follow structure: {"id":"image id", "name":"name", "desc":"description"}
  */
 router.get('/images/:image_id', function (req, res, next) {
-   instmanager.getImage(req.params.image_id, function (error, result) {
-      if (error) {
-         console.log('Error in the request /images/:image_id');
-         res.status(500); //Internal server error
-         res.json(error);
-      }
-      res.json(result);
-   });
+   res.json(req.image);
 });
 
 /***********************************************************
@@ -211,6 +214,27 @@ router.post('/applications', function (req, res, next) {
          }
       });
    }
+});
+
+/**
+ * Check application id parameter
+ * @param {String} - The application ID.
+ */
+router.param('app_id', function(req, res, next, app_id){
+   // Get application
+   scheduler.getApplication(app_id, function (error, app) {
+      // Error retrieving this application
+      if(error){
+         return next({
+            'http': codes.HTTPCODE.NOT_FOUND,
+            'json': codes.ERRCODE.APP_NOT_FOUND
+         });
+      } else {
+         // Set parameter
+         req.app = app;
+         return next();
+      }
+   });
 });
 
 /**
