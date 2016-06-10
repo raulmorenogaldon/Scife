@@ -22,11 +22,7 @@ var instmanager = require('../instance.js');
  */
 router.get('/sizes', function (req, res, next) {
    instmanager.getSizesList(function (error, result){
-      if (error) {
-         console.log('Error in the request /sizes');
-         res.status(500); //Internal server error
-         res.json(error);
-      }
+      if(error) return next(error);
       res.json(result);
    });
 });
@@ -73,11 +69,7 @@ router.get('/sizes/:size_id', function (req, res, next) {
  */
 router.get('/instances', function (req, res, next) {
    instmanager.getInstancesList(function (error, result){
-      if (error) {
-         console.log('Error in the request /instances');
-         res.status(500); //Internal server error
-         res.json(error);
-      }
+      if(error) return next(error);
       res.json(result);
    });
 });
@@ -125,11 +117,7 @@ router.get('/instances/:instance_id', function (req, res, next) {
  */
 router.get('/images', function (req, res, next) {
    instmanager.getImagesList(function (error, result){
-      if (error) {
-         console.log('Error in the request /images');
-         res.status(500); //Internal server error
-         res.json(error);
-      }
+      if(error) return next(error);
       res.json(result);
    });
 });
@@ -176,14 +164,7 @@ router.get('/images/:image_id', function (req, res, next) {
  */
 router.get('/applications', function (req, res, next) {
    scheduler.searchApplications(null, function (error, result) {
-      if (error) {
-         console.log('Error in the GET request /applications, err: ', error);
-         res.status(codes.HTTPCODE.INTERNAL_ERROR); //Internal server error
-         res.json({
-            'errors': [codes.ERRCODE.UNKNOWN],
-            'details': error.message
-         });
-      }
+      if(error) return next(error);
       res.json(result);
    });
 });
@@ -203,7 +184,6 @@ router.post('/applications', function (req, res, next) {
       // Create experiment
       scheduler.createApplication(req.body, function (error, result) {
          if (error) {
-            console.log('Error in the POST creation request /applications, err: ', error);
             res.status(codes.HTTPCODE.INTERNAL_ERROR); //Internal server error
             res.json({
                'errors': [codes.ERRCODE.EXP_INCORRECT_PARAMS],
@@ -245,7 +225,6 @@ router.param('app_id', function(req, res, next, app_id){
 router.get('/applications/:app_id', function (req, res, next) {
    scheduler.getApplication(req.params.app_id, function (error, result, more) {
       if (error) {
-         console.log('Error in the request /applications/:app_id, err: ', error);
          res.status(codes.HTTPCODE.NOT_FOUND); //Not Found
          res.json({
             'errors': [
@@ -293,14 +272,7 @@ router.delete('/applications/:app_id', function (req, res, next) {
  */
 router.get('/experiments', function (req, res, next) {
    scheduler.searchExperiments(null, function (error, result) {
-      if (error) {
-         console.log('Error in the GET request /experiments, err: ', error);
-         res.status(codes.HTTPCODE.INTERNAL_ERROR); //Internal server error
-         res.json({
-            'errors': [codes.ERRCODE.UNKNOWN],
-            'details': error.message
-         });
-      }
+      if(error) return next(error);
       res.json(result);
    });
 });
@@ -319,7 +291,6 @@ router.post('/experiments', function (req, res, next) {
       // Create experiment
       scheduler.createExperiment(req.body, function (error, result) {
          if (error) {
-            console.log('Error in the POST creation request /experiments, err: ', error);
             res.status(codes.HTTPCODE.INTERNAL_ERROR); //Internal server error
             res.json({
                'errors': [codes.ERRCODE.EXP_INCORRECT_PARAMS],
@@ -378,12 +349,8 @@ router.get('/experiments/:exp_id', function (req, res, next) {
  */
 router.get('/experiments/:exp_id/logs', function (req, res, next) {
    scheduler.getExperiment(req.params.exp_id, {id: 1, logs: 1}, function (error, result) {
-      if (error) {
-         console.log('Error in the request /experiments/:exp_id/logs, err: ', error);
-         return next(error);
-      } else {
-         res.json(result);
-      }
+      if (error) return next(error);
+      res.json(result);
    });
 });
 
@@ -394,10 +361,7 @@ router.get('/experiments/:exp_id/logs', function (req, res, next) {
  */
 router.get('/experiments/:exp_id/srctree', function (req, res, next) {
    scheduler.getExperiment(req.params.exp_id, {id: 1, src_tree: 1}, function (error, result) {
-      if (error) {
-         console.log('Error in the request /experiments/:exp_id/srctree, err: ', error);
-         return next(error);
-      }
+      if (error) return next(error);
 
       // Get folder path and depth if provided
       var fpath = req.query.folder;
@@ -421,10 +385,7 @@ router.get('/experiments/:exp_id/srctree', function (req, res, next) {
  */
 router.get('/experiments/:exp_id/inputtree', function (req, res, next) {
    scheduler.getExperiment(req.params.exp_id, {id: 1, input_tree: 1}, function (error, result) {
-      if (error) {
-         console.log('Error in the request /experiments/:exp_id/inputtree, err: ', error);
-         return next(error);
-      }
+      if (error) return next(error);
 
       // Get folder path and depth if provided
       var fpath = req.query.folder;
@@ -460,7 +421,6 @@ router.get('/experiments/:exp_id/code', function (req, res, next) {
    // Get file contents
    scheduler.getExperimentCode(req.params.exp_id, fpath, function (error, fcontent) {
       if (error) {
-         console.log('Error in the request /experiments/:exp_id/code, err: ', error);
          return next({
             'http': codes.HTTPCODE.BAD_REQUEST,
             'json': codes.ERRCODE.EXP_CODE_FILE_NOT_FOUND
@@ -491,12 +451,8 @@ router.post('/experiments/:exp_id/code', function (req, res, next) {
 
    // Reload trees
    scheduler.reloadExperimentTree(req.params.exp_id, function(error){
-      if (error) {
-         console.log('Error in the request /experiments/:exp_id/code, err: ', error);
-         return next(error);
-      } else {
-         res.json(null);
-      }
+      if (error) return next(error);
+      res.json(null);
    });
 });
 
@@ -508,7 +464,6 @@ router.post('/experiments/:exp_id/code', function (req, res, next) {
 router.get('/experiments/:exp_id/download', function (req, res, next) {
    scheduler.getExperimentOutputFile(req.params.exp_id, function (error, file) {
       if (error) {
-         console.log('Error in the request /experiments/:exp_id/download, err: ', error);
          return next({
             'http': codes.HTTPCODE.NOT_FOUND,
             'json': codes.ERRCODE.EXP_NO_OUTPUT_DATA
@@ -524,7 +479,6 @@ router.get('/experiments/:exp_id/download', function (req, res, next) {
 
          // Send file
          var readStream = fs.createReadStream(file);
-         console.log("Sending: ", file);
          readStream.pipe(res);
       }
    });
@@ -536,12 +490,8 @@ router.get('/experiments/:exp_id/download', function (req, res, next) {
  */
 router.put('/experiments/:exp_id', function (req, res, next) {
    scheduler.updateExperiment(req.params.exp_id, req.body, function (error, result, more) {
-      if (error) {
-         console.log('Error in the PUT update request /experiments/:exp_id, err: ', error);
-         return next(error);
-      } else {
-         res.json(result);
-      }
+      if (error) return next(error);
+      res.json(result);
    });
 });
 
@@ -552,11 +502,8 @@ router.put('/experiments/:exp_id', function (req, res, next) {
 router.delete('/experiments/:exp_id', function (req, res, next) {
    // Remove experiment
    scheduler.destroyExperiment(req.params.exp_id, function(error){
-      if(error){
-         return next(error);
-      } else {
-         res.json(null);
-      }
+      if(error) return next(error);
+      res.json(null);
    });
 });
 
@@ -580,21 +527,15 @@ router.post('/experiments/:exp_id', function (req, res, next) {
       } else {
          // Launch experiment
          scheduler.launchExperiment(req.params.exp_id, req.body.nodes, req.body.image_id, req.body.size_id, function(error){
-            if(error){
-               return next(error);
-            } else {
-               res.json(null);
-            }
+            if(error) return next(error);
+            res.json(null);
          });
       }
    } else if (req.body.op == "reset") {
       // Reset experiment
       scheduler.resetExperiment(req.params.exp_id, function(error){
-         if(error){
-            return next(error);
-         } else {
-            res.json(null);
-         }
+         if(error) return next(error);
+         res.json(null);
       });
    } else {
       // Unknown operation
