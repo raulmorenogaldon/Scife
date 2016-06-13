@@ -76,6 +76,10 @@ var ERRCODE = {
       'message': "Input file does not exits.",
       'code': 49
    },
+   EXP_LOG_NOT_FOUND: {
+      'message': "Requested log does not exits.",
+      'code': 50
+   },
 }
 
 exports.HTTPCODE = HTTPCODE;
