@@ -350,7 +350,34 @@ router.get('/experiments/:exp_id', function (req, res, next) {
 router.get('/experiments/:exp_id/logs', function (req, res, next) {
    scheduler.getExperiment(req.params.exp_id, {id: 1, logs: 1}, function (error, result) {
       if (error) return next(error);
-      res.json(result);
+
+      // Provided specific log?
+      var log = req.query.log;
+      if(log){
+         // Search this log in result
+         var fcontent = null;
+         for(var i = 0; i < result.logs.length; i++){
+            if(result.logs[i].name == log){
+               fcontent = result.logs[i].content;
+               break;
+            }
+         }
+
+         // Not found
+         if(!fcontent){
+            return next({
+               'http': codes.HTTPCODE.NOT_FOUND,
+               'json': codes.ERRCODE.EXP_LOG_NOT_FOUND
+            });
+         }
+
+         // Response
+         res.set('Content-Type', 'text/plain');
+         res.send(fcontent);
+      } else {
+         // Response all logs
+         res.json(result);
+      }
    });
 });
 
@@ -426,7 +453,8 @@ router.get('/experiments/:exp_id/code', function (req, res, next) {
             'json': codes.ERRCODE.EXP_CODE_FILE_NOT_FOUND
          });
       } else {
-         res.json(fcontent);
+         res.set('Content-Type', 'text/plain');
+         res.send(fcontent);
       }
    });
 });
