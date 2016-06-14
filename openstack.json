@@ -1,6 +1,7 @@
 {
 	"listen": "tcp://0.0.0.0:4242",
    "db":"mongodb://localhost/test_db",
+   "network": "red prueba",
    "images": [
       {
          "id": "81743971-6f56-4c9f-a557-2edf4516d185",

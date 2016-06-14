@@ -24,6 +24,7 @@ var database = null;
 
 var auth_url = null;
 var compute_url = null;
+var network_label = null;
 
 /***********************************************************
  * --------------------------------------------------------
@@ -258,10 +259,32 @@ var _createOpenStackInstance = function(inst_cfg, createCallback){
 
       // Wait active
       _waitOpenStackInstanceActive(inst.id, function(error){
-         // Add to DB
-         database.collection('instances').insert(inst);
-         console.log('['+MINION_NAME+'] Instance "' + body.server.id + '" added to DB.');
-         createCallback(null, inst.id);
+
+         // Need a public IP?
+         if(inst_cfg.publicIP){
+            _assignOpenStackFloatIPInstance(inst.id, function(error, ip){
+               if(error){
+                  // Error assigning public IP, abort creation
+                  console.log('['+MINION_NAME+'] Failed to assign public IP to instance "' + body.server.id + '".');
+                  _destroyOpenStackInstance(inst.id, function(error){
+                  });
+                  return createCallback(error);
+               }
+               // Public IP assignation success
+               console.log('['+MINION_NAME+'] Assigned IP: '+ip+' to instance "' + body.server.id + '".');
+
+               // Add to DB
+               database.collection('instances').insert(inst);
+               console.log('['+MINION_NAME+'] Instance "' + body.server.id + '" added to DB.');
+               createCallback(null, inst.id);
+            });
+         } else {
+
+            // Add to DB
+            database.collection('instances').insert(inst);
+            console.log('['+MINION_NAME+'] Instance "' + body.server.id + '" added to DB.');
+            createCallback(null, inst.id);
+         }
       });
    });
 }
@@ -315,6 +338,115 @@ var _getOpenStackInstance = function(inst_id, getCallback){
    });
 }
 
+var _getOpenStackInstanceIPs = function(inst_id, getCallback){
+   if(!token) getCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) getCallback(new Error('Compute service URL is not defined.'));
+
+   var req = {
+      url: compute_url + '/servers/' + inst_id + '/ips/' + network_label,
+      method: 'GET',
+      headers: {
+         'X-Auth-Token': token,
+      }
+   };
+
+   // Send request
+   request(req, function(error, res, body){
+      if(error) return getCallback(error);
+      getCallback(null, JSON.parse(body)[network_label]);
+   });
+}
+
+var _getOpenStackFreeFloatIP = function(getCallback){
+   if(!token) getCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) getCallback(new Error('Compute service URL is not defined.'));
+
+   var req = {
+      url: compute_url + '/os-floating-ips',
+      method: 'GET',
+      headers: {
+         'X-Auth-Token': token,
+      }
+   };
+
+   // Send request
+   request(req, function(error, res, body){
+      if(error) return getCallback(error);
+
+      // Get floating IPs
+      var ips = JSON.parse(body).floating_ips;
+      if(!ips) getCallback(new Error("No floating ips in response from "+ req.url));
+
+      // Search for an empty IP
+      for(var i = 0; i < ips.length; i++){
+         if(!ips[i].instance_id) return getCallback(null, ips[i]);
+      }
+
+      // No IP found, allocate
+      __allocateOpenStackFloatIP(function(error, ip){
+         if(error) return getCallback(error);
+         getCallback(ip);
+      });
+   });
+}
+
+var _allocateOpenStackFloatIP = function(allocateCallback){
+   if(!token) assignCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) assignCallback(new Error('Compute service URL is not defined.'));
+
+   var req = {
+      url: compute_url + '/os-floating-ips',
+      method: 'POST',
+      json: true,
+      headers: {
+         'Content-Type': "application/json",
+         'X-Auth-Token': token,
+      }
+   };
+
+   req.body = {
+      pool: "external"
+   }
+
+   // Send request
+   request(req, function(error, res, body){
+      if(error) return allocateCallback(error);
+      allocateCallback(null, body.floating_ip);
+   });
+}
+
+var _assignOpenStackFloatIPInstance = function(inst_id, assignCallback){
+   if(!token) assignCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) assignCallback(new Error('Compute service URL is not defined.'));
+
+   // Allocate an IP
+   _getOpenStackFreeFloatIP(function(error, ip){
+      if(error) return assignCallback(error);
+
+      var req = {
+         url: compute_url + '/servers/' + inst_id + '/action',
+         method: 'POST',
+         json: true,
+         headers: {
+            'Content-Type': "application/json",
+            'X-Auth-Token': token,
+         }
+      };
+
+      req.body = {
+         addFloatingIp: {
+            address: ip.ip
+         }
+      };
+
+      // Send request
+      request(req, function(error, res, body){
+         if(error) return assignCallback(error);
+         assignCallback(null, ip.ip);
+      });
+   });
+}
+
 var _loadConfig = function(config, loadCallback){
    if(!config.db) return loadCallback(new Error("No db field in CFG."));
    if(!config.listen) return loadCallback(new Error("No listen field in CFG."));
@@ -343,6 +475,10 @@ var _loadConfig = function(config, loadCallback){
          login(function(error){
             if(error) wfcb(error);
             console.log("["+MINION_NAME+"] Successfull connection to OpenStack, token: " + token);
+
+            // Setup network label
+            network_label = config.network;
+            if(!network_label) console.error("["+MINION_NAME+"] No network label provided.");
 
             // Next
             wfcb(null);
@@ -527,7 +663,8 @@ function(error){
    var inst_cfg = {
       name: "Test inst from minion",
       image_id: "81743971-6f56-4c9f-a557-2edf4516d185",
-      size_id: "3"
+      size_id: "3",
+      publicIP: true
    };
 
    console.log("Creating: ");
@@ -536,15 +673,26 @@ function(error){
       if(error) return console.error(error);
       console.log("Created "+inst_id);
 
-      console.log("Destroying:");
-      destroyInstance(inst_id, function(error){
-         if(error) throw error;
-         console.log("Destroyed!");
-         destroyInstance(inst_id, function(error){
-            if(error) throw error;
-            console.log("again");
-         });
-      });
+      //_assignOpenStackFloatIPInstance(inst_id, function(error, res){
+      //   console.log("Assigned IP:");
+      //   console.log(res);
+
+      //   _getOpenStackInstanceIPs(inst_id, function(error, ips){
+      //      // Print info
+      //      console.log("IPs:");
+      //      console.log(JSON.stringify(ips,null,2));
+
+      //      //console.log("Destroying:");
+      //      //destroyInstance(inst_id, function(error){
+      //      //   if(error) throw error;
+      //      //   console.log("Destroyed!");
+      //      //   destroyInstance(inst_id, function(error){
+      //      //      if(error) throw error;
+      //      //      console.log("again");
+      //      //   });
+      //      //});
+      //   });
+      //});
    });
 
    console.log("Getting instances...");
