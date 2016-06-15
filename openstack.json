@@ -2,22 +2,25 @@
 	"listen": "tcp://0.0.0.0:4242",
    "db":"mongodb://localhost/test_db",
    "network": "red prueba",
+   "keypairname": "Minion",
+   "privatekeypath": "/home/devstack/.ssh/id_rsa",
    "images": [
       {
-         "id": "81743971-6f56-4c9f-a557-2edf4516d185",
+         "os_id": "81743971-6f56-4c9f-a557-2edf4516d185",
          "name": "Fedora",
+         "username": "fedora",
          "desc": "Description...",
          "workpath": "/home/fedora/workspace",
-         "inputpath": "/home/rmoreno2/inputdata",
-         "libpath": "/usr/local",
+         "inputpath": "/home/fedora/inputdata",
+         "libpath": "/usr",
          "tmppath": "/tmp"
       }
    ],
    "sizes": [
-      {"name": "little", "desc": "Description", "cpus": 1, "ram": 512, "id": "1"},
-      {"name": "small", "desc": "Description", "cpus": 1, "ram": 2048, "id": "2"},
-      {"name": "normal", "desc": "Description", "cpus": 2, "ram": 4096, "id": "3"},
-      {"name": "big", "desc": "Description", "cpus": 4, "ram": 8192, "id": "4"},
-      {"name": "huge", "desc": "Description", "cpus": 8, "ram": 16384, "id": "5"}
+      {"name": "little", "desc": "Description", "cpus": 1, "ram": 512, "os_id": "1"},
+      {"name": "small", "desc": "Description", "cpus": 1, "ram": 2048, "os_id": "2"},
+      {"name": "normal", "desc": "Description", "cpus": 2, "ram": 4096, "os_id": "3"},
+      {"name": "big", "desc": "Description", "cpus": 4, "ram": 8192, "os_id": "4"},
+      {"name": "huge", "desc": "Description", "cpus": 8, "ram": 16384, "os_id": "5"}
    ]
 }
