@@ -218,74 +218,114 @@ var _createOpenStackInstance = function(inst_cfg, createCallback){
    if(!token) createCallback(new Error('Minion is not connected to OpenStack cloud.'));
    if(!compute_url) createCallback(new Error('Compute service URL is not defined.'));
 
-   // Request type
-   var req = {
-      url: compute_url + '/servers',
-      method: 'POST',
-      json: true,
-      headers: {
-         'Content-Type': "application/json",
-         'X-Auth-Token': token,
-      }
-   };
+   // Get image and size
+   async.waterfall([
+      // Get image
+      function(wfcb){
+         getImages(inst_cfg.image_id, function(error, image){
+            if(error) return wfcb(error);
+            inst_cfg.image = image;
+            wfcb(null);
+         });
+      },
+      // Get size
+      function(wfcb){
+         getSizes(inst_cfg.size_id, function(error, size){
+            if(error) return wfcb(error);
+            inst_cfg.size = size;
+            wfcb(null);
+         });
+      },
+      // Request
+      function(wfcb){
+         // Request type
+         var req = {
+            url: compute_url + '/servers',
+            method: 'POST',
+            json: true,
+            headers: {
+               'Content-Type': "application/json",
+               'X-Auth-Token': token,
+            }
+         };
 
-   // Request body
-   req.body = {
-      server: {
-         name: inst_cfg.name,
-         imageRef: inst_cfg.image_id,
-         flavorRef: inst_cfg.size_id,
-         availability_zone: "nova",
-         security_groups: [{name: "default"}],
-      }
-   };
+         // Request body
+         req.body = {
+            server: {
+               name: inst_cfg.name,
+               imageRef: inst_cfg.image_id,
+               flavorRef: inst_cfg.size_id,
+               availability_zone: "nova",
+               security_groups: [{name: "default"}],
+            }
+         };
 
-   // Send request
-   request(req, function(error, res, body){
-      if(error) return createCallback(error);
-
-      console.log('['+MINION_NAME+'] Creating instance "' + body.server.id + '"');
-
-      // Create instance
-      var inst = {
-         _id: body.server.id,
-         id: body.server.id,
-         name: inst_cfg.name,
-         image_id: inst_cfg.image_id,
-         size_id: inst_cfg.size_id,
-         minion: MINION_NAME,
-         adminPass: body.server.adminPass
-      }
-
-      // Wait active
-      _waitOpenStackInstanceActive(inst.id, function(error){
-
-         // Need a public IP?
+         // Send request
+         request(req, function(error, res, body){
+            if(error) return wfcb(error);
+            inst_cfg.server = body.server;
+            wfcb(null)
+         });
+      },
+      // Wait ready
+      function(wfcb){
+         _waitOpenStackInstanceActive(inst_cfg.server.id, function(error){
+            if(error) return wfcb(error);
+            wfcb(null);
+         });
+      },
+      // Need a public IP?
+      function(wfcb){
          if(inst_cfg.publicIP){
-            _assignOpenStackFloatIPInstance(inst.id, function(error, ip){
-               if(error){
-                  // Error assigning public IP, abort creation
-                  console.log('['+MINION_NAME+'] Failed to assign public IP to instance "' + body.server.id + '".');
-                  _destroyOpenStackInstance(inst.id, function(error){
-                  });
-                  return createCallback(error);
-               }
-               // Public IP assignation success
-               console.log('['+MINION_NAME+'] Assigned IP: '+ip+' to instance "' + body.server.id + '".');
+            _assignOpenStackFloatIPInstance(inst_cfg.server.id, function(error, ip){
+               if(error) console.log('['+MINION_NAME+'] Failed to assign public IP to instance "' + inst_cfg.server.id + '".');
+               if(error) return wfcb(error);
 
-               // Add to DB
-               database.collection('instances').insert(inst);
-               console.log('['+MINION_NAME+'] Instance "' + body.server.id + '" added to DB.');
-               createCallback(null, inst.id);
+               // Public IP assignation success
+               console.log('['+MINION_NAME+'] Assigned IP: '+ip+' to instance "' + inst_cfg.server.id + '".');
+               wfcb(null);
             });
          } else {
-
-            // Add to DB
-            database.collection('instances').insert(inst);
-            console.log('['+MINION_NAME+'] Instance "' + body.server.id + '" added to DB.');
-            createCallback(null, inst.id);
+            // Skip step
+            wfcb(null);
          }
-      });
+      },
+      // Create instance metadata
+      function(wfcb){
+         var inst = {
+            _id: inst_cfg.server.id,
+            id: inst_cfg.server.id,
+            name: inst_cfg.name,
+            image_id: inst_cfg.image_id,
+            size_id: inst_cfg.size_id,
+            adminPass: inst_cfg.server.adminPass,
+            exps: [],
+            workpath: inst_cfg.image['workpath'],
+            inputpath: inst_cfg.image['inputpath'],
+            minion: MINION_NAME,
+            ready: true
+         };
+
+         wfcb(null, inst);
+      }
+   ],
+   function(error, inst){
+      if(error){
+         console.log('['+MINION_NAME+'] Failed to create instance, error: '+error.message);
+
+         // Destroy instance
+         if(inst_cfg.server) {
+            destroyInstance(inst_cfg.server.id, function(error){});
+         }
+
+         // Fail
+         return createCallback(error);
+      }
+
+      // Add to DB
+      database.collection('instances').insert(inst);
+      console.log('['+MINION_NAME+'] Instance "' + inst.id + '" added to DB.');
+      createCallback(null, inst.id);
    });
 }
 
@@ -383,9 +423,9 @@ var _getOpenStackFreeFloatIP = function(getCallback){
       }
 
       // No IP found, allocate
-      __allocateOpenStackFloatIP(function(error, ip){
+      _allocateOpenStackFloatIP(function(error, ip){
          if(error) return getCallback(error);
-         getCallback(ip);
+         getCallback(null, ip);
       });
    });
 }
