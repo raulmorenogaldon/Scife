@@ -2,6 +2,7 @@ var zerorpc = require('zerorpc');
 var async = require('async');
 var request = require('request');
 var fs = require('fs');
+var ssh2 = require('ssh2').Client;
 var mongo = require('mongodb').MongoClient;
 var utils = require('../../overlord/private-server/utils');
 
@@ -25,6 +26,9 @@ var database = null;
 var auth_url = null;
 var compute_url = null;
 var network_label = null;
+
+var keypair_name = null;
+var private_key_path = null;
 
 /***********************************************************
  * --------------------------------------------------------
@@ -157,6 +161,16 @@ var destroyInstance = function(inst_id, destroyCallback){
    });
 }
 
+var executeScript = function(script, work_dir, inst_id, nodes, executeCallback){
+   // Wrapper
+   _executeOpenStackInstanceScript(script, work_dir, inst_id, nodes, executeCallback);
+}
+
+var getJobStatus = function(job_id, inst_id, getCallback){
+   // Wrapper
+   _getOpenStackInstanceJobStatus(job_id, inst_id, getCallback);
+}
+
 var _getOpenStackImages = function(getCallback){
    if(!token) getCallback(new Error('Minion is not connected to OpenStack cloud.'));
    if(!compute_url) getCallback(new Error('Compute service URL is not defined.'));
@@ -219,6 +233,7 @@ var _createOpenStackInstance = function(inst_cfg, createCallback){
    if(!compute_url) createCallback(new Error('Compute service URL is not defined.'));
 
    // Get image and size
+   console.log('['+MINION_NAME+'] Creating instance "'+inst_cfg.name+'"...');
    async.waterfall([
       // Get image
       function(wfcb){
@@ -290,6 +305,14 @@ var _createOpenStackInstance = function(inst_cfg, createCallback){
             wfcb(null);
          }
       },
+      // Get IPs
+      function(wfcb){
+         // TODO: REMOVE
+         _getOpenStackInstanceIPs(inst_cfg.server.id, function(error, ips){
+            if(error) return wfcb(error);
+            wfcb(null);
+         });
+      },
       // Create instance metadata
       function(wfcb){
          var inst = {
@@ -356,6 +379,138 @@ var _destroyOpenStackInstance = function(inst_id, destroyCallback){
       if(error) return destroyCallback(error);
       console.log('['+MINION_NAME+'] Deleted OpenStack instance "' + inst_id + '"');
       destroyCallback(null);
+   });
+}
+
+var _executeOpenStackInstanceScript = function(script, work_dir, inst_id, nodes, executeCallback){
+   if(!token) executeCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) executeCallback(new Error('Compute service URL is not defined.'));
+
+   // Get instance data
+   _getOpenStackInstance(inst_id, function(error, inst){
+      if(error) return executeCallback(error);
+
+      // Get IP (prefer floating)
+      var ip_array = inst.addresses[network_label];
+      var ip = ip_array[0].addr;
+      for(var i = 0; i < ip_array.length; i++){
+         if(ip_array[i]['OS-EXT-IPS:type'] == 'floating'){
+            ip = ip_array[i].addr;
+            break;
+         }
+      }
+
+      // Create connection object
+      var conn = new ssh2();
+
+      // Define connection callback
+      conn.on('ready', function(){
+         // console.log("SSH connected!");
+
+         // Send Job
+         var pid = null;
+         var cmd = "nohup sh -c '"+script+"' > /dev/null 2>&1 & echo -n $!;"
+         conn.exec(cmd, function(error, stream){
+            if(error) return executeCallback(null);
+
+            // Handle received data
+            stream.on('close', function(code, signal){
+               // Command executed
+               conn.end();
+               executeCallback(null, pid);
+            }).on('data', function(data) {
+               pid = data;
+            }).stderr.on('data', function(data){
+               console.log("STDERR: " + data);
+            });
+         });
+      });
+
+      // Define error in connection callback
+      conn.on('error', function(error){
+         console.error("Error trying to connect with SSH: " + error.message);
+         executeCallback(error);
+      });
+
+      // SSH connect
+      // TODO: REMOVE
+      ip = "galgo.i3a.info";
+      //console.log("Connecting to " + ip);
+      getImages(inst.image_id, function(error, image){
+         if(error) return executeCallback(error);
+         conn.connect({
+            host: ip,
+            port: 22,
+            username: image.username,
+            privateKey: fs.readFileSync(private_key_path)
+         });
+      });
+   });
+}
+
+var _getOpenStackInstanceJobStatus = function(job_id, inst_id, getCallback){
+   if(!token) getCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) getCallback(new Error('Compute service URL is not defined.'));
+
+   // Get instance data
+   _getOpenStackInstance(inst_id, function(error, inst){
+      if(error) return getCallback(error);
+
+      // Get IP (prefer floating)
+      var ip_array = inst.addresses[network_label];
+      var ip = ip_array[0].addr;
+      for(var i = 0; i < ip_array.length; i++){
+         if(ip_array[i]['OS-EXT-IPS:type'] == 'floating'){
+            ip = ip_array[i].addr;
+            break;
+         }
+      }
+
+      // Create connection object
+      var conn = new ssh2();
+
+      // Define connection callback
+      conn.on('ready', function(){
+         // console.log("SSH connected!");
+
+         // Obtain pid status
+         var status = "finished";
+         var cmd = 'ps -ef | cut -d " " -f 2 | grep '+job_id
+         conn.exec(cmd, function(error, stream){
+            if(error) return getCallback(null);
+
+            // Handle received data
+            stream.on('close', function(code, signal){
+               // Command executed
+               conn.end();
+               getCallback(null, status);
+            }).on('data', function(data) {
+               status = "running";
+            }).stderr.on('data', function(data){
+               console.log("STDERR: " + data);
+            });
+         });
+      });
+
+      // Define error in connection callback
+      conn.on('error', function(error){
+         console.error("Error trying to connect with SSH: " + error.message);
+         executeCallback(error);
+      });
+
+      // SSH connect
+      // TODO: REMOVE
+      ip = "galgo.i3a.info";
+      // console.log("Connecting to " + ip);
+      getImages(inst.image_id, function(error, image){
+         if(error) return executeCallback(error);
+         conn.connect({
+            host: ip,
+            port: 22,
+            username: image.username,
+            privateKey: fs.readFileSync(private_key_path)
+         });
+      });
    });
 }
 
@@ -520,6 +675,14 @@ var _loadConfig = function(config, loadCallback){
             network_label = config.network;
             if(!network_label) console.error("["+MINION_NAME+"] No network label provided.");
 
+            // Setup keypair
+            keypair_name = config.keypairname;
+            if(!keypair_name) console.error("["+MINION_NAME+"] No keypair name provided.");
+
+            // Setup private key path
+            private_key_path = config.privatekeypath;
+            if(!private_key_path) console.error("["+MINION_NAME+"] No private key path provided.");
+
             // Next
             wfcb(null);
          });
@@ -531,7 +694,10 @@ var _loadConfig = function(config, loadCallback){
             login: login,
             getImages: getImages,
             getSizes: getSizes,
-            getInstances: getInstances
+            getInstances: getInstances,
+            createInstance: createInstance,
+            destroyInstance: destroyInstance,
+            executeScript: executeScript
          }, 30);
 
          // Listen
@@ -713,24 +879,21 @@ function(error){
       if(error) return console.error(error);
       console.log("Created "+inst_id);
 
-      //_assignOpenStackFloatIPInstance(inst_id, function(error, res){
-      //   console.log("Assigned IP:");
-      //   console.log(res);
+      executeScript("pwd", "/home/fedora", inst_id, 1, function(error, pid){
+         console.log("Waiting for: " + pid);
+         __waitJob(pid, inst_id, function(error){
+            if(error) console.error(error);
+            else console.log("Job finished!");
+         });
+      });
 
-      //   _getOpenStackInstanceIPs(inst_id, function(error, ips){
-      //      // Print info
-      //      console.log("IPs:");
-      //      console.log(JSON.stringify(ips,null,2));
-
-      //      //console.log("Destroying:");
-      //      //destroyInstance(inst_id, function(error){
-      //      //   if(error) throw error;
-      //      //   console.log("Destroyed!");
-      //      //   destroyInstance(inst_id, function(error){
-      //      //      if(error) throw error;
-      //      //      console.log("again");
-      //      //   });
-      //      //});
+      //console.log("Destroying:");
+      //destroyInstance(inst_id, function(error){
+      //   if(error) throw error;
+      //   console.log("Destroyed!");
+      //   destroyInstance(inst_id, function(error){
+      //      if(error) throw error;
+      //      console.log("again");
       //   });
       //});
    });
@@ -742,3 +905,14 @@ function(error){
       console.log(instances);
    });
 });
+
+var __waitJob = function(job_id, inst_id, waitCallback){
+   getJobStatus(job_id, inst_id, function(error, status){
+      if(error) return waitCallback(error);
+      if(status == "running"){
+         setTimeout(__waitJob, 1000, job_id, inst_id, waitCallback);
+      } else {
+         waitCallback(null);
+      }
+   });
+}
