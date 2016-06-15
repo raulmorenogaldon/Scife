@@ -1324,22 +1324,25 @@ var _cleanInstances = function(){
    }
 
    // Iterate instances
+   // TODO: Move this functionality to instance manager
    database.db.collection('instances').find().forEach(function(inst){
       // Iterate experiments
       var exps = inst.exps;
-      for(var i = 0; i < exps.length; i++){
-         var exp_id = exps[i].exp_id;
-         (function(exp_id){
-            getExperiment(exp_id, null, function(error, exp){
-               if(!exp || exp.status == "created" || exp.status == "done" || exp.status == "failed_compilation" || exp.status == "failed_execution"){
-                  // Remove experiment from this instance
-                  instmanager.cleanExperiment(exp_id, inst.id, true, true, true, true, function(error){
-                     if(error) console.error("["+exp_id+"] Failed to clean experiment from instance '"+inst.id+"'");
-                     console.log("["+exp_id+"] Cleaned experiment from instance '"+inst.id+"'");
-                  });
-               }
-            });
-         })(exp_id);
+      if(exps){
+         for(var i = 0; i < exps.length; i++){
+            var exp_id = exps[i].exp_id;
+            (function(exp_id){
+               getExperiment(exp_id, null, function(error, exp){
+                  if(!exp || exp.status == "created" || exp.status == "done" || exp.status == "failed_compilation" || exp.status == "failed_execution"){
+                     // Remove experiment from this instance
+                     instmanager.cleanExperiment(exp_id, inst.id, true, true, true, true, function(error){
+                        if(error) console.error("["+exp_id+"] Failed to clean experiment from instance '"+inst.id+"'");
+                        console.log("["+exp_id+"] Cleaned experiment from instance '"+inst.id+"'");
+                     });
+                  }
+               });
+            })(exp_id);
+         }
       }
    });
 }
