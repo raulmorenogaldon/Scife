@@ -303,6 +303,7 @@ taskmanager.setTaskHandler("prepareExperiment", function(task){
          console.error("["+exp_id+"] prepareExperiment error: "+error);
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
+         database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system, status: "failed_prepare"}});
          return;
       }
 
@@ -338,7 +339,7 @@ taskmanager.setTaskHandler("deployExperiment", function(task){
          instmanager.cleanExperimentSystem(exp_id, system, true, true, true, true, function(error, system){
             if(error) console.error("["+exp_id+"] deployExperiment clean system error: "+error);
             instmanager.cleanSystem(system, function(error, system){
-               database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system}});
+               database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system, status: "failed_deploy"}});
                if(error) console.error("["+exp_id+"] deployExperiment clean error: "+error);
             });
          });
@@ -709,7 +710,7 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
          if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
          console.log("["+exp.id+"] Cloning experiment into instance");
-         var cmd = "git clone -b "+exp.id+"-L "+exp.exp_url+" "+image.workpath+"/"+exp.id;
+         var cmd = "mkdir -p "+image.workpath+"; git clone -b "+exp.id+"-L "+exp.exp_url+" "+image.workpath+"/"+exp.id;
          var work_dir = image.workpath + "/" + exp.id;
 
          // Execute command

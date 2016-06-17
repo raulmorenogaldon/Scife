@@ -123,7 +123,8 @@ var requestInstance = function(image_id, size_id, requestCallback){
    minion.invoke('createInstance', {
       name:"Unnamed",
       image_id: image_id,
-      size_id: size_id
+      size_id: size_id,
+      publicIP: true
    }, function (error, instance_id) {
       if(error){
          requestCallback(new Error("Failed to create instance, err: " + error));
@@ -344,7 +345,7 @@ var executeCommand = function(inst_id, cmd, executeCallback){
       function(inst, minion, wfcb){
          minion.invoke('executeCommand', cmd, inst_id, function (error, result) {
             if (error) {
-               wfcb(new Error("Failed to execute command: "+ cmd+ "\nError: "+ error));
+               wfcb(error);
             } else {
                wfcb(null, result);
             }
@@ -379,7 +380,7 @@ var executeJob = function(inst_id, cmd, work_dir, nodes, executeCallback){
       function(inst, minion, wfcb){
          minion.invoke('executeScript', cmd, work_dir, inst_id, nodes, function (error, job_id) {
             if (error) {
-               wfcb(new Error("Failed to execute job command:\n", cmd, "\nError: ", error));
+               wfcb(error);
             } else {
                wfcb(null, job_id);
             }
@@ -409,7 +410,7 @@ var waitJob = function(job_id, inst_id, waitCallback){
       function(inst, minion, wfcb){
          minion.invoke('getJobStatus', job_id, inst_id, function (error, status) {
             if (error) {
-               wfcb(new Error("Failed to get job status: ", inst_id, "\nError: ", error));
+               wfcb(new Error("Failed to get job status: " + inst_id + ": " + error));
             } else {
                if(status == "finished" || status == "unknown"){
                   // Done
@@ -440,7 +441,7 @@ var abortJob = function(job_id, inst_id, cleanCallback){
       console.log("["+MODULE_NAME+"] Aborted job: "+job_id+" from instance "+inst_id);
       minionClient.invoke('cleanJob', job_id, inst_id, function (error, result) {
          if (error) {
-            return cleanCallback(new Error('Failed to abort job: "'+job_id+'", error: '+error));
+            return cleanCallback(new Error('Failed to abort job: "'+job_id+'": '+error));
          }
 
          // Callback
@@ -458,7 +459,7 @@ var _cleanExperimentCode = function(minion, exp_id, inst, cleanCallback){
    // Execute command
    minion.invoke('executeCommand', cmd, inst.id, function (error, result, more) {
       if (error) {
-         cleanCallback(new Error("Failed to clean experiment code, error: ", error));
+         cleanCallback(error);
       } else {
          cleanCallback(null);
       }
@@ -475,7 +476,7 @@ var _cleanExperimentInput = function(minion, exp_id, inst, cleanCallback){
    // Execute command
    minion.invoke('executeCommand', cmd, inst.id, function (error, result, more) {
       if (error) {
-         cleanCallback(new Error("Failed to clean experiment input data, error: ", error));
+         cleanCallback(error);
       } else {
          cleanCallback(null);
       }

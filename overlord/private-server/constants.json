@@ -1,5 +1,5 @@
 {
    "MONGO_URL":"mongodb://localhost/test_db",
-	"MINION_URL":"tcp://0.0.0.0:8238",
-	"STORAGE_URL":"tcp://0.0.0.0:8237"
+	"MINION_URL":"tcp://localhost:8239",
+	"STORAGE_URL":"tcp://localhost:8237"
 }
