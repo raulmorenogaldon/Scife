@@ -169,7 +169,9 @@ var resetExperiment = function(exp_id, resetCallback){
       // Abort all tasks
       taskmanager.abortQueue(exp_id, function(task){
          if(task && task.job_id && exp.system && exp.system.instances[0]){
-            instmanager.abortJob(task.job_id, exp.system.instances[0]);
+            instmanager.abortJob(task.job_id, exp.system.instances[0], function(error){
+               console.error(error);
+            });
          }
       }, function(error){
          // All task aborted and finished
@@ -745,7 +747,7 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
          if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
          console.log("["+exp.id+"] Making inputdata dir");
-         var cmd = "mkdir -p "+image.inputpath+"/"+exp.id+"; rsync -Lr "+exp.input_url+"/* "+image.inputpath+"/"+exp.id;
+         var cmd = "mkdir -p "+image.inputpath+"/"+exp.id+"; sshpass -p 'devstack' rsync -Lr "+exp.input_url+"/* "+image.inputpath+"/"+exp.id;
          var work_dir = image.workpath + "/" + exp.id;
 
          // Execute command
