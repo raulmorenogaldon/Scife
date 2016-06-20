@@ -335,6 +335,7 @@ class ClusterMinion(minion.Minion):
         task = gevent.spawn(self._executeSSH, ssh, cmd)
         gevent.joinall([task])
         ret_val = task.value[0].read()
+        ret_err = task.value[1].read()
 
         # Close connection
         ssh.close()
@@ -342,7 +343,10 @@ class ClusterMinion(minion.Minion):
         self._instance_lock[instance_id] = False
         ####################
 
-        return ret_val
+        return {
+            'stdout': ret_val,
+            'stderr': ret_err
+        }
 
     def executeScript(self, script, work_dir, instance_id, nodes):
         # TODO: Check instance minion

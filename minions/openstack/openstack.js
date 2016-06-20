@@ -170,12 +170,15 @@ var destroyInstance = function(inst_id, destroyCallback){
 
 var executeScript = function(script, work_dir, inst_id, nodes, executeCallback){
    // Wrapper
-   _executeOpenStackInstanceScript(script, work_dir, inst_id, nodes, true, executeCallback);
+   _executeOpenStackInstanceScript(script, work_dir, inst_id, nodes, false, function(error, output){
+      if(error) return executeCallback(error);
+      executeCallback(null, output.stdout);
+   });
 }
 
 var executeCommand = function(script, inst_id, executeCallback){
    // Wrapper
-   _executeOpenStackInstanceScript(script, null, inst_id, 1, false, executeCallback);
+   _executeOpenStackInstanceScript(script, null, inst_id, 1, true, executeCallback);
 }
 
 var getJobStatus = function(job_id, inst_id, getCallback){
@@ -415,75 +418,30 @@ var _executeOpenStackInstanceScript = function(script, work_dir, inst_id, nodes,
             }
          }
 
-         // Create connection object
-         var conn = new ssh2();
-         conn.retries = 0;
-
-         // Define connection callback
-         conn.on('ready', function(){
-            console.log('['+MINION_NAME+'] Connected...');
-            // Send Job
-            var output = "";
-            var cmd = null;
-            if(!work_dir) work_dir = "~";
-            if(blocking){
-               cmd = "nohup sh -c 'cd "+work_dir+"; "+script+"' > /dev/null 2>&1 & echo -n $!;"
-            } else {
-               cmd = "cd "+work_dir+"; "+script+";"
-            }
-            conn.exec(cmd, function(error, stream){
-               if(error) return executeCallback(error);
-
-               // Handle received data
-               stream.on('close', function(code, signal){
-                  // Command executed
-                  conn.end();
-                  console.log('['+MINION_NAME+'] Script output: ' + output);
-                  executeCallback(null, output);
-               }).on('data', function(data) {
-                  output = output + data;
-                  console.log('['+MINION_NAME+'] Script stdout: ' + data);
-               }).stderr.on('data', function(data){
-                  console.log('['+MINION_NAME+'] Script stderr: ' + data);
-               });
-            });
-         });
-
-         // Define error in connection callback
-         conn.on('error', function(error){
-            console.error('['+MINION_NAME+'] Error trying to connect with SSH: ' + error.message);
-            if(conn.retries++ < 3){
-               console.error('['+MINION_NAME+'] Retrying connection in 10 seconds...');
-               sleep.sleep(10);
-               // Get image data
-               getImages(inst.image_id, function(error, image){
-                  if(error) return executeCallback(error);
-                  console.log('['+MINION_NAME+'] Connecting to '+ image.username + '@' + ip);
-                  // SSH connect
-                  conn.connect({
-                     host: ip,
-                     port: 22,
-                     username: image.username,
-                     privateKey: fs.readFileSync(private_key_path)
-                  });
-               });
-               return;
-            }
-            executeCallback(error);
-         });
-
          // Get image data
+         var private_key = fs.readFileSync(private_key_path);
          getImages(inst.image_id, function(error, image){
             if(error) return executeCallback(error);
-            console.log('['+MINION_NAME+'] Connecting to '+ image.username + '@' + ip);
-            // SSH connect
-            conn.connect({
-               host: ip,
-               port: 22,
-               username: image.username,
-               privateKey: fs.readFileSync(private_key_path)
-            });
-         });
+
+            // Get connection
+            utils.connectSSH(image.username, ip, private_key, function(error, conn){
+               if(error) return executeCallback(error);
+
+               // Execute command
+               utils.execSSH(conn, script, work_dir, blocking, function(error, output){
+                  if(error){
+                     // Close connection
+                     utils.closeSSH();
+                     return executeCallback(error);
+                  }
+
+                  // Close connection
+                  utils.closeSSH();
+
+                  executeCallback(null, output);
+               }); // execSSH
+            }); // connectSSH
+         }); // getImages
       });
    });
 }
@@ -510,47 +468,38 @@ var _getOpenStackInstanceJobStatus = function(job_id, inst_id, getCallback){
             }
          }
 
-         // Create connection object
-         var conn = new ssh2();
+         // Get image data
+         var private_key = fs.readFileSync(private_key_path);
+         getImages(inst.image_id, function(error, image){
+            if(error) return getCallback(error);
 
-         // Define connection callback
-         conn.on('ready', function(){
-            // Obtain pid status
-            var status = "finished";
-            var cmd = 'ps -ef | cut -d " " -f 2 | grep '+job_id
-            conn.exec(cmd, function(error, stream){
+            // Get connection
+            utils.connectSSH(image.username, ip, private_key, function(error, conn){
                if(error) return getCallback(error);
 
-               // Handle received data
-               stream.on('close', function(code, signal){
-                  // Command executed
-                  conn.end();
+               // Execute command
+               var status = "finished";
+               var cmd = 'ps -ef | cut -d " " -f 2 | grep '+job_id
+               utils.execSSH(conn, cmd, null, true, function(error, output){
+                  if(error){
+                     // Close connection
+                     utils.closeSSH();
+                     return getCallback(error);
+                  }
+
+                  // Status depends on the output
+                  if(output.stdout != ""){
+                     // The job is running
+                     status = "running";
+                  }
+
+                  // Close connection
+                  utils.closeSSH();
+
                   getCallback(null, status);
-               }).on('data', function(data) {
-                  status = "running";
-               }).stderr.on('data', function(data){
-                  console.log("STDERR: " + data);
-               });
-            });
-         });
-
-         // Define error in connection callback
-         conn.on('error', function(error){
-            console.error('['+MINION_NAME+'] Error trying to connect with SSH: ' + error.message);
-            executeCallback(error);
-         });
-
-         // Get image data
-         getImages(inst.image_id, function(error, image){
-            if(error) return executeCallback(error);
-            // SSH connect
-            conn.connect({
-               host: ip,
-               port: 22,
-               username: image.username,
-               privateKey: fs.readFileSync(private_key_path)
-            });
-         });
+               }); // execSSH
+            }); // connectSSH
+         }); // getImages
       });
    });
 }
