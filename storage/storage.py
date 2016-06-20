@@ -197,10 +197,11 @@ class Storage(object):
 
     def getApplicationURL(self, app_id):
         # Get application storage path
-        app_path = self.apppath + "/" + app_id
+        #app_path = self.apppath + "/" + app_id
 
         # Get public URL for this experiment
-        url = "{0}@{1}:{2}".format(self.username, self.public_url, app_path)
+        #url = "{0}@{1}:{2}".format(self.username, self.public_url, app_path)
+        url = "git://{0}/{1}".format(self.public_url, app_id)
 
         return url
 
