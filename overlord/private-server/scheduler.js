@@ -333,7 +333,7 @@ taskmanager.setTaskHandler("deployExperiment", function(task){
    // Prepare experiment
    _deployExperiment(task, exp_id, system, function(error){
       if(error){
-         console.error("["+exp_id+"] deployExperiment error: "+error);
+         console.error("["+exp_id+"] deployExperiment error: "+error.message);
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
 
@@ -1254,10 +1254,13 @@ var _pollExperiment = function(exp_id, system, pollCallback){
       function(exp, headnode, image, wfcb){
          var work_dir = image.workpath+"/"+exp.id;
          var cmd = 'cat '+work_dir+'/EXPERIMENT_STATUS';
-         instmanager.executeCommand(system.instances[0], cmd, function (error, status) {
+         instmanager.executeCommand(system.instances[0], cmd, function (error, output) {
             if(error){
                wfcb(error);
             } else {
+               // Get status
+               var status = output.stdout;
+
                // Update status if the file exists
                if(status != ""){
                   database.db.collection('experiments').updateOne({id: exp.id},{$set:{status:status}});
@@ -1293,10 +1296,13 @@ var _pollExperimentLogs = function(exp_id, system, image, log_files, pollCallbac
       (function(i){
          tasks.push(function(taskcb){
             var cmd = 'cat '+work_dir+'/'+log_files[i];
-            instmanager.executeCommand(system.instances[0], cmd, function (error, content) {
+            instmanager.executeCommand(system.instances[0], cmd, function (error, output) {
                if(error){
                   taskcb(new Error("Failed to poll log "+ log_files[i]+ ", error: "+ error));
                } else {
+                  // Get log content
+                  var content = output.stdout;
+
                   // Add log
                   logs.push({name: log_files[i], content: content});
                   taskcb(null);

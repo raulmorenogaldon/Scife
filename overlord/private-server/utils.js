@@ -1,6 +1,94 @@
+var ssh2 = require('ssh2').Client;
+
+// Create SSH connection
+function connectSSH(username, host, private_key, connectCallback){
+   // Create connection object
+   var conn = new ssh2();
+   conn.retries = 0;
+
+   // Define connection callback
+   conn.on('ready', function(){
+      // Connected
+      connectCallback(null, conn);
+   });
+
+   // Retry on error in connection callback
+   conn.on('error', function(error){
+      if(conn.retries++ < 3){
+         setTimeout(function(){
+            // Retry SSH connection
+            conn.connect({
+               host: host,
+               port: 22,
+               username: username,
+               privateKey: private_key
+            });
+         }, 10000);
+         return;
+      }
+      // No more retries
+      connectCallback(error);
+   });
+
+   // SSH connect
+   conn.connect({
+      host: host,
+      port: 22,
+      username: username,
+      privateKey: private_key
+   });
+};
+
+// Execute a command
+function execSSH(conn, cmd, work_dir, blocking, execCallback){
+   // Check connection
+   if(!conn || !conn.exec) return execCallback(new Error("Invalid connection object."));
+
+   // Full command var
+   var full_cmd = null;
+
+   // If no work_dir is specified, use $HOME
+   if(!work_dir) work_dir = "~";
+
+   // If the command is blocking, then wait until command execution
+   if(blocking){
+      // Change to dir and execute
+      full_cmd = "cd "+work_dir+"; "+cmd+";"
+   } else {
+      // Create a background process
+      full_cmd = "nohup sh -c 'cd "+work_dir+"; "+cmd+"' > /dev/null 2>&1 & echo -n $!;"
+   }
+
+   // Output object with normal and error outputs.
+   var output = {
+      stdout: "",
+      stderr: ""
+   }
+
+   // Execute command
+   conn.exec(full_cmd, function(error, stream){
+      if(error) return execCallback(error);
+
+      // Handle received data
+      stream.on('close', function(code, signal){
+         // Command executed, return output
+         conn.end();
+         execCallback(null, output);
+      }).on('data', function(data) {
+         output.stdout = output.stdout + data;
+      }).stderr.on('data', function(data){
+         output.stderr = output.stderr + data;
+      });
+   });
+};
+
+// Close a connection
+function closeSSH(conn){
+   if(conn && conn.end) conn.end();
+};
 
 // Generate uuid
-function generateUUID() {
+function generateUUID(){
    var d = new Date().getTime();
    var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
       var r = (d + Math.random()*16)%16 | 0;
@@ -61,5 +149,8 @@ function cutTree(tree, fpath, depth){
    return tree;
 }
 
+module.exports.connectSSH = connectSSH;
+module.exports.execSSH = execSSH;
+module.exports.closeSSH = closeSSH;
 module.exports.generateUUID = generateUUID;
 module.exports.cutTree = cutTree;
