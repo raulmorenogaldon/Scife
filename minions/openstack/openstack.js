@@ -161,10 +161,22 @@ var createInstance = function(inst_cfg, createCallback){
 }
 
 var destroyInstance = function(inst_id, destroyCallback){
-   // Destroy instance
-   _destroyOpenStackInstance(inst_id, function(error){
+   // Get instance data
+   getInstances(inst_id, function(error, inst){
       if(error) return destroyCallback(error);
-      destroyCallback(null);
+
+      // Deallocate IP, no need to wait
+      if(inst.ip){
+         _deallocateOpenStackFloatingIP(inst.ip, function(error){
+            if(error) console.error(error);
+         });
+      }
+
+      // Destroy instance
+      _destroyOpenStackInstance(inst_id, function(error){
+         if(error) return destroyCallback(error);
+         destroyCallback(null);
+      });
    });
 }
 
@@ -172,6 +184,7 @@ var executeScript = function(script, work_dir, inst_id, nodes, executeCallback){
    // Wrapper
    _executeOpenStackInstanceScript(script, work_dir, inst_id, nodes, false, function(error, output){
       if(error) return executeCallback(error);
+      // Return job ID
       executeCallback(null, output.stdout);
    });
 }
@@ -184,6 +197,15 @@ var executeCommand = function(script, inst_id, executeCallback){
 var getJobStatus = function(job_id, inst_id, getCallback){
    // Wrapper
    _getOpenStackInstanceJobStatus(job_id, inst_id, getCallback);
+}
+
+var cleanJob = function(job_id, inst_id, cleanCallback){
+   // Kill PID
+   var cmd = 'kill -9 '+job_id;
+   _executeOpenStackInstanceScript(cmd, null, inst_id, 1, true, function(error, output){
+      if(error) return cleanCallback(error);
+      cleanCallback(null);
+   })
 }
 
 var _getOpenStackImages = function(getCallback){
@@ -314,12 +336,26 @@ var _createOpenStackInstance = function(inst_cfg, createCallback){
                if(error) return wfcb(error);
 
                // Public IP assignation success
+               inst_cfg.ip = ip;
                console.log('['+MINION_NAME+'] Assigned IP: '+ip+' to instance "' + inst_cfg.server.id + '".');
                wfcb(null);
             });
          } else {
             // Skip step
             wfcb(null);
+         }
+      },
+      // Wait SSH connectivity (5 minutes)
+      function(wfcb){
+         if(inst_cfg.ip){
+            var private_key = fs.readFileSync(private_key_path);
+            utils.connectSSH(inst_cfg.image.username, inst_cfg.ip, private_key, 300000, function(error, conn){
+               if(error) wfcb(error);
+               // Connected, close connection
+               utils.closeSSH(conn);
+               console.log('['+MINION_NAME+'] Established connectivity with instance "' + inst_cfg.server.id + '".');
+               wfcb(null);
+            });
          }
       },
       // Create instance metadata
@@ -335,10 +371,9 @@ var _createOpenStackInstance = function(inst_cfg, createCallback){
             workpath: inst_cfg.image['workpath'],
             inputpath: inst_cfg.image['inputpath'],
             minion: MINION_NAME,
+            ip: inst_cfg.ip,
             ready: true
          };
-         console.log(inst);
-
          wfcb(null, inst);
       }
    ],
@@ -398,52 +433,42 @@ var _executeOpenStackInstanceScript = function(script, work_dir, inst_id, nodes,
    if(!token) executeCallback(new Error('Minion is not connected to OpenStack cloud.'));
    if(!compute_url) executeCallback(new Error('Compute service URL is not defined.'));
 
-   console.log('['+MINION_NAME+'] Executing script (blck: ' + blocking + '):\n' + script);
+   console.log('['+MINION_NAME+']['+inst_id+'] Executing script (blck: ' + blocking + '): ' + script);
 
    // Get instance data
    getInstances(inst_id, function(error, inst){
       if(error) return executeCallback(error);
 
-      // Get OpenStack instance data
-      _getOpenStackInstance(inst_id, function(error, os_inst){
+      // Check IP
+      if(!inst.ip) return executeCallback(new Error('Instance has not floating IP.'));
+
+      // Get image data
+      var private_key = fs.readFileSync(private_key_path);
+      getImages(inst.image_id, function(error, image){
          if(error) return executeCallback(error);
 
-         // Get IP (prefer floating)
-         var ip_array = os_inst.addresses[network_label];
-         var ip = ip_array[0].addr;
-         for(var i = 0; i < ip_array.length; i++){
-            if(ip_array[i]['OS-EXT-IPS:type'] == 'floating'){
-               ip = ip_array[i].addr;
-               break;
-            }
-         }
-
-         // Get image data
-         var private_key = fs.readFileSync(private_key_path);
-         getImages(inst.image_id, function(error, image){
+         // Get connection
+         utils.connectSSH(image.username, inst.ip, private_key, 30000, function(error, conn){
             if(error) return executeCallback(error);
 
-            // Get connection
-            utils.connectSSH(image.username, ip, private_key, function(error, conn){
-               if(error) return executeCallback(error);
-
-               // Execute command
-               utils.execSSH(conn, script, work_dir, blocking, function(error, output){
-                  if(error){
-                     // Close connection
-                     utils.closeSSH();
-                     return executeCallback(error);
-                  }
-
+            // Execute command
+            console.log('['+MINION_NAME+']['+inst_id+'] Connected, executing command.');
+            utils.execSSH(conn, script, work_dir, blocking, function(error, output){
+               if(error){
                   // Close connection
-                  utils.closeSSH();
+                  utils.closeSSH(conn);
+                  return executeCallback(error);
+               }
 
-                  executeCallback(null, output);
-               }); // execSSH
-            }); // connectSSH
-         }); // getImages
-      });
-   });
+               // Close connection
+               utils.closeSSH(conn);
+
+               console.log('['+MINION_NAME+']['+inst_id+'] Executed command.');
+               executeCallback(null, output);
+            }); // execSSH
+         }); // connectSSH
+      }); // getImages
+   });// getInstances
 }
 
 var _getOpenStackInstanceJobStatus = function(job_id, inst_id, getCallback){
@@ -454,54 +479,44 @@ var _getOpenStackInstanceJobStatus = function(job_id, inst_id, getCallback){
    getInstances(inst_id, function(error, inst){
       if(error) return getCallback(error);
 
-      // Get OpenStack instance data
-      _getOpenStackInstance(inst_id, function(error, os_inst){
+      // Check IP
+      if(!inst.ip) return getCallback(new Error('Instance has not floating IP.'));
+
+      // Get image data
+      var private_key = fs.readFileSync(private_key_path);
+      getImages(inst.image_id, function(error, image){
          if(error) return getCallback(error);
 
-         // Get IP (prefer floating)
-         var ip_array = os_inst.addresses[network_label];
-         var ip = ip_array[0].addr;
-         for(var i = 0; i < ip_array.length; i++){
-            if(ip_array[i]['OS-EXT-IPS:type'] == 'floating'){
-               ip = ip_array[i].addr;
-               break;
-            }
-         }
-
-         // Get image data
-         var private_key = fs.readFileSync(private_key_path);
-         getImages(inst.image_id, function(error, image){
+         // Get connection
+         utils.connectSSH(image.username, inst.ip, private_key, 30000, function(error, conn){
             if(error) return getCallback(error);
+            console.log('['+MINION_NAME+']['+inst_id+'] Connected, retrieving job status.');
 
-            // Get connection
-            utils.connectSSH(image.username, ip, private_key, function(error, conn){
-               if(error) return getCallback(error);
-
-               // Execute command
-               var status = "finished";
-               var cmd = 'ps -ef | cut -d " " -f 2 | grep '+job_id
-               utils.execSSH(conn, cmd, null, true, function(error, output){
-                  if(error){
-                     // Close connection
-                     utils.closeSSH();
-                     return getCallback(error);
-                  }
-
-                  // Status depends on the output
-                  if(output.stdout != ""){
-                     // The job is running
-                     status = "running";
-                  }
-
+            // Execute command
+            var status = "finished";
+            var cmd = 'ps -ef | cut -d " " -f 2 | grep '+job_id
+            utils.execSSH(conn, cmd, null, true, function(error, output){
+               if(error){
                   // Close connection
-                  utils.closeSSH();
+                  utils.closeSSH(conn);
+                  return getCallback(error);
+               }
 
-                  getCallback(null, status);
-               }); // execSSH
-            }); // connectSSH
-         }); // getImages
-      });
-   });
+               // Status depends on the output
+               if(output.stdout != ""){
+                  // The job is running
+                  status = "running";
+               }
+
+               // Close connection
+               utils.closeSSH(conn);
+
+               console.log('['+MINION_NAME+']['+inst_id+'] Retrieved job status.');
+               getCallback(null, status);
+            }); // execSSH
+         }); // connectSSH
+      }); // getImages
+   }); // getInstances
 }
 
 var _getOpenStackInstance = function(inst_id, getCallback){
@@ -546,9 +561,36 @@ var _getOpenStackInstanceIPs = function(inst_id, getCallback){
    });
 }
 
+var _getOpenStackInstanceFloatingIP = function(inst_id, getCallback){
+   if(!token) getCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) getCallback(new Error('Compute service URL is not defined.'));
+
+   // Get OpenStack instance data
+   _getOpenStackInstance(inst_id, function(error, os_inst){
+      if(error) return getCallback(error);
+
+      // Get IP (prefer floating)
+      var ip_array = os_inst.addresses[network_label];
+      var ip = ip_array[0].addr;
+      for(var i = 0; i < ip_array.length; i++){
+         if(ip_array[i]['OS-EXT-IPS:type'] == 'floating'){
+            ip = ip_array[i].addr;
+            break;
+         }
+      }
+   });
+}
+
 var _getOpenStackFreeFloatIP = function(getCallback){
    if(!token) getCallback(new Error('Minion is not connected to OpenStack cloud.'));
    if(!compute_url) getCallback(new Error('Compute service URL is not defined.'));
+
+   // TODO: No way to know by now if an IP has been selected for other instance
+   // No IP found, allocate
+   return _allocateOpenStackFloatIP(function(error, ip){
+      if(error) return getCallback(error);
+      getCallback(null, ip);
+   });
 
    var req = {
       url: compute_url + '/os-floating-ips',
@@ -601,6 +643,26 @@ var _allocateOpenStackFloatIP = function(allocateCallback){
    request(req, function(error, res, body){
       if(error) return allocateCallback(error);
       allocateCallback(null, body.floating_ip);
+   });
+}
+
+var _deallocateOpenStackFloatingIP = function(ip, deallocateCallback){
+   if(!token) destroyCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) destroyCallback(new Error('Compute service URL is not defined.'));
+
+   // Request type
+   var req = {
+      url: compute_url + '/os-floating-ips/' + ip,
+      method: 'DELETE',
+      headers: {
+         'X-Auth-Token': token,
+      }
+   };
+
+   // Send request
+   request(req, function(error, res, body){
+      if(error) return deallocateCallback(error);
+      deallocateCallback(null);
    });
 }
 
@@ -693,7 +755,8 @@ var _loadConfig = function(config, loadCallback){
             destroyInstance: destroyInstance,
             executeScript: executeScript,
             executeCommand: executeCommand,
-            getJobStatus: getJobStatus
+            getJobStatus: getJobStatus,
+            cleanJob: cleanJob
          }, 30000);
 
          // Listen
@@ -853,6 +916,10 @@ async.waterfall([
    function(wfcb){
       console.log("["+MINION_NAME+"] Cleaning missing instances...");
       _cleanOpenStackMissingInstances(function(error){
+         // Set task
+         setInterval(_cleanOpenStackMissingInstances, 10000, function(error){
+            if(error) console.error(error);
+         });
          if(error) return wfcb(error);
          wfcb(null);
       });
