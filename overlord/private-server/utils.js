@@ -1,10 +1,12 @@
 var ssh2 = require('ssh2').Client;
 
 // Create SSH connection
-function connectSSH(username, host, private_key, connectCallback){
+function connectSSH(username, host, private_key, timeout, connectCallback){
    // Create connection object
    var conn = new ssh2();
-   conn.retries = 0;
+
+   // Timeout
+   var time_elapsed = 0;
 
    // Define connection callback
    conn.on('ready', function(){
@@ -14,8 +16,10 @@ function connectSSH(username, host, private_key, connectCallback){
 
    // Retry on error in connection callback
    conn.on('error', function(error){
-      if(conn.retries++ < 3){
+      if(time_elapsed < timeout){
          setTimeout(function(){
+            // Increate elapsed time
+            time_elapsed = time_elapsed + 5000;
             // Retry SSH connection
             conn.connect({
                host: host,
@@ -23,7 +27,7 @@ function connectSSH(username, host, private_key, connectCallback){
                username: username,
                privateKey: private_key
             });
-         }, 10000);
+         }, 5000);
          return;
       }
       // No more retries
