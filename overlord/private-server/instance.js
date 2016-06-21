@@ -15,7 +15,7 @@ var minionClient = new zerorpc.Client({
 	heartbeatInterval: 30000,
 	timeout: 3600
 });
-var destroyInterval = 10000;
+var destroyInterval = 30000;
 
 /**
  * Retrieves available sizes
@@ -95,8 +95,8 @@ var instanceSystem = function(system, instanceCallback){
 var cleanSystem = function(system, cleanCallback){
    // Remove system from instances
    if(system.instances){
-      for(var inst_id in system.instances){
-         database.db.collection('instances').updateOne({id: inst_id},{
+      for(var i = 0; i < system.instances.length; i++){
+         database.db.collection('instances').updateOne({id: system.instances[i]},{
             $set: { system: false}
          });
       }
@@ -126,11 +126,8 @@ var requestInstance = function(image_id, size_id, requestCallback){
       size_id: size_id,
       publicIP: true
    }, function (error, instance_id) {
-      if(error){
-         requestCallback(new Error("Failed to create instance, err: " + error));
-      } else {
-         requestCallback(null, instance_id);
-      }
+      if(error) return requestCallback(error);
+      requestCallback(null, instance_id);
    });
 }
 
@@ -246,6 +243,7 @@ var cleanExperiment = function(exp_id, inst_id, b_job, b_code, b_input, b_remove
       },
       // Clean jobs in this instance
       function(inst, minion, wfcb){
+         console.log("["+inst_id+"] Aborting jobs...");
          _abortInstanceJobs(exp_id, inst_id, function(error){
             wfcb(error, inst, minion);
          });
@@ -253,6 +251,7 @@ var cleanExperiment = function(exp_id, inst_id, b_job, b_code, b_input, b_remove
       // Clean code
       function(inst, minion, wfcb){
          if(b_remove || b_code){
+            console.log("["+inst_id+"] Cleaning code...");
             _cleanExperimentCode(minion, exp_id, inst, function(error){
                if(error) return wfcb(error);
                wfcb(null, inst, minion);
@@ -264,6 +263,7 @@ var cleanExperiment = function(exp_id, inst_id, b_job, b_code, b_input, b_remove
       // Clean input
       function(inst, minion, wfcb){
          if(b_remove || b_input){
+            console.log("["+inst_id+"] Cleaning input...");
             _cleanExperimentInput(minion, exp_id, inst, function(error){
                if(error) return wfcb(error);
                wfcb(null);
@@ -278,6 +278,7 @@ var cleanExperiment = function(exp_id, inst_id, b_job, b_code, b_input, b_remove
 
       if(b_remove){
          // Remove from database
+         console.log("["+inst_id+"] Removing experiment from DB...");
          database.db.collection('instances').updateOne({id: inst_id},{
             $pull: {exps: {exp_id: exp_id}}
          });
@@ -380,7 +381,7 @@ var executeJob = function(inst_id, cmd, work_dir, nodes, executeCallback){
       function(inst, minion, wfcb){
          minion.invoke('executeScript', cmd, work_dir, inst_id, nodes, function (error, job_id) {
             if (error) {
-               wfcb(error);
+               return wfcb(error);
             } else {
                wfcb(null, job_id);
             }
@@ -438,14 +439,14 @@ var waitJob = function(job_id, inst_id, waitCallback){
 var abortJob = function(job_id, inst_id, cleanCallback){
    if(job_id && inst_id){
       // Abort job
-      console.log("["+MODULE_NAME+"] Aborted job: "+job_id+" from instance "+inst_id);
+      console.log("["+MODULE_NAME+"]["+inst_id+"] Aborting job: "+job_id);
       minionClient.invoke('cleanJob', job_id, inst_id, function (error, result) {
          if (error) {
-            return cleanCallback(new Error('Failed to abort job: "'+job_id+'": '+error));
+            return cleanCallback(error);
          }
 
          // Callback
-         if(cleanCallback) cleanCallback(null);
+         cleanCallback(null);
       });
    }
 }
@@ -457,7 +458,7 @@ var _cleanExperimentCode = function(minion, exp_id, inst, cleanCallback){
    var work_dir = inst.workpath+"/"+exp_id;
    var cmd = 'rm -rf '+work_dir;
    // Execute command
-   minion.invoke('executeCommand', cmd, inst.id, function (error, result, more) {
+   minion.invoke('executeCommand', cmd, inst.id, function (error, output) {
       if (error) {
          cleanCallback(error);
       } else {
@@ -474,7 +475,7 @@ var _cleanExperimentInput = function(minion, exp_id, inst, cleanCallback){
    var input_dir = inst.inputpath+"/"+exp_id;
    var cmd = 'rm -rf '+input_dir;
    // Execute command
-   minion.invoke('executeCommand', cmd, inst.id, function (error, result, more) {
+   minion.invoke('executeCommand', cmd, inst.id, function (error, output) {
       if (error) {
          cleanCallback(error);
       } else {
@@ -500,7 +501,7 @@ var _getSuperfluousInstances = function(listCallback){
       // Iterate list
       for(var i = 0; i < insts.length; i++){
          // Empty?
-         if(!insts[i].exps || insts[i].exps.length == 0){
+         if(!insts[i].system && (!insts[i].exps || insts[i].exps.length == 0)){
             retList.push(insts[i]);
          }
       }
@@ -556,6 +557,8 @@ var _destroyEmptyInstances = function(destroyCallback){
    // Scalability code
    _getSuperfluousInstances(function(error, list){
       if(error) return destroyCallback(error);
+
+      if(list.length > 0) console.log('['+MODULE_NAME+'] Destroying empty instances: '+ list.length);
 
       // Destroy instances task
       var tasks = [];

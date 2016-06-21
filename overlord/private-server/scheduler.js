@@ -1367,7 +1367,7 @@ var _pollExecutingExperiments = function(){
 
    // Iterate experiments
    database.db.collection('experiments').find({
-      status: { $in: ["deployed", "resetting", "compiling", "compiled", "executing"]}
+      status: { $in: ["deployed", "compiling", "compiled", "executing"]}
    }).forEach(function(exp){
       // Poll experiment status
       _pollExperiment(exp.id, exp.system, function(error, status){
