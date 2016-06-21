@@ -459,6 +459,17 @@ router.get('/experiments/:exp_id/code', function (req, res, next) {
    });
 });
 
+router.use(function(req, res, next){
+   if (req.is('text/*')) {
+      req.text = '';
+      req.setEncoding('utf8');
+      req.on('data', function(chunk){ req.text += chunk  });
+      req.on('end', next);
+   } else {
+      next();
+   }
+});
+
 /**
  * Save file changes
  * @param {String} - The experiment id.
@@ -474,13 +485,26 @@ router.post('/experiments/:exp_id/code', function (req, res, next) {
       });
    }
 
-   // TODO: Save file
-   // ...
+   // File content in body
+   var fcontent = req.text;
 
-   // Reload trees
-   scheduler.reloadExperimentTree(req.params.exp_id, function(error){
-      if (error) return next(error);
-      res.json(null);
+   // Save file
+   scheduler.putExperimentCode(req.params.exp_id, fpath, fcontent, function (error) {
+      if (error) {
+         return next({
+            'http': codes.HTTPCODE.BAD_REQUEST,
+            'json': codes.ERRCODE.EXP_CODE_FILE_NOT_FOUND
+         });
+      }
+
+      // TODO: Reload labels
+      // ...
+
+      // Reload trees
+      scheduler.reloadExperimentTree(req.params.exp_id, function(error){
+         if (error) return next(error);
+         res.json(null);
+      });
    });
 });
 

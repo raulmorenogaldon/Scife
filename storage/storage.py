@@ -224,6 +224,46 @@ class Storage(object):
 
         return fcontent
 
+    def putExperimentCode(self, exp_id, app_id, fpath, fcontent):
+        # Get input storage path
+        app_path = self.apppath + "/" + app_id
+
+        ########################
+        # Wait for the lock
+        while self.lock:
+            gevent.sleep(0)
+        self.lock = True
+
+        # Check out experiment
+        gevent.subprocess.call(["git", "checkout", exp_id], cwd=app_path)
+
+        # Check if path exists
+        if not os.path.isdir(app_path):
+            # Release lock
+            self.lock = False
+            raise IOError("Path '{0}' not found".format(
+                fpath
+            ))
+
+        # Create new path
+        gevent.subprocess.call(["mkdir", "-p", os.path.dirname(fpath)], cwd=app_path)
+
+        # Save file
+        f = open(app_path + "/" + fpath, 'w')
+        f.write(fcontent)
+        f.close()
+
+        # Commit
+        gevent.subprocess.call(["git", "add", fpath], cwd=app_path)
+        gevent.subprocess.call(["git", "commit", "-m", "Commit..."], cwd=app_path)
+
+        # Checkout master
+        gevent.subprocess.call(["git", "checkout", "master"], cwd=app_path)
+
+        self.lock = False
+        ########################
+        return
+
     def getExperimentOutputFile(self, exp_id):
         # Get output storage path
         file = self.outputpath + "/" + exp_id + "/output.tar.gz"

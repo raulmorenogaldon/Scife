@@ -78,6 +78,24 @@ var getExperimentCode = function(exp_id, fpath, getCallback){
 }
 
 /**
+ * Save experiment source file
+ */
+var putExperimentCode = function(exp_id, fpath, fcontent, putCallback){
+   getExperiment(exp_id, null, function(error, exp){
+      if(error) return putCallback(error);
+
+      // Save file contents
+      storage.client.invoke('putExperimentCode', exp_id, exp.app_id, fpath, fcontent, function(error){
+         if(error){
+            putCallback(error);
+         } else {
+            putCallback(null);
+         }
+      });
+   })
+}
+
+/**
  * Get experiment output data file path
  */
 var getExperimentOutputFile = function(exp_id, getCallback){
@@ -1406,5 +1424,6 @@ exports.searchExperiments = searchExperiments;
 exports.launchExperiment = launchExperiment;
 
 exports.getExperimentCode = getExperimentCode;
+exports.putExperimentCode = putExperimentCode;
 exports.getExperimentOutputFile = getExperimentOutputFile;
 exports.reloadExperimentTree = reloadExperimentTree;
