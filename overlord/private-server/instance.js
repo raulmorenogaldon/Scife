@@ -566,13 +566,14 @@ var _destroyEmptyInstances = function(destroyCallback){
          (function(i){
             tasks.push(function(taskcb){
                // Destroy instance
+               console.log('['+MODULE_NAME+']['+list[i].id+'] Destroying...');
                destroyInstance(list[i].id, function(error){
                   if(error){
                      console.error('['+MODULE_NAME+'] Failed to destroy instance "'+list[i].id+'", error: '+error);
                   } else {
                      // Remove instance from DB
                      database.db.collection('instances').remove({_id: list[i].id});
-                     console.log('['+MODULE_NAME+'] Instance "'+list[i].id+'" destroyed');
+                     console.log('['+MODULE_NAME+']['+list[i].id+'] Instance destroyed');
                   }
 
                   // Always return no error

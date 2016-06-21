@@ -169,10 +169,12 @@ var destroyInstance = function(inst_id, destroyCallback){
       if(inst.ip){
          _deallocateOpenStackFloatingIP(inst.ip, function(error){
             if(error) console.error(error);
+            console.log('['+MINION_NAME+'] Deallocated '+inst.ip);
          });
       }
 
       // Destroy instance
+      console.log('['+MINION_NAME+'] Destroying '+inst_id);
       _destroyOpenStackInstance(inst_id, function(error){
          if(error) return destroyCallback(error);
          destroyCallback(null);
@@ -647,8 +649,8 @@ var _allocateOpenStackFloatIP = function(allocateCallback){
 }
 
 var _deallocateOpenStackFloatingIP = function(ip, deallocateCallback){
-   if(!token) destroyCallback(new Error('Minion is not connected to OpenStack cloud.'));
-   if(!compute_url) destroyCallback(new Error('Compute service URL is not defined.'));
+   if(!token) deallocateCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) deallocateCallback(new Error('Compute service URL is not defined.'));
 
    // Request type
    var req = {
