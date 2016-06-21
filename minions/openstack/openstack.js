@@ -167,9 +167,9 @@ var destroyInstance = function(inst_id, destroyCallback){
 
       // Deallocate IP, no need to wait
       if(inst.ip){
-         _deallocateOpenStackFloatingIP(inst.ip, function(error){
+         _deallocateOpenStackFloatingIP(inst.ip_id, function(error){
             if(error) console.error(error);
-            console.log('['+MINION_NAME+'] Deallocated '+inst.ip);
+            console.log('['+MINION_NAME+'] Deallocated '+inst.ip+' "'+inst.ip_id+'"');
          });
       }
 
@@ -338,8 +338,9 @@ var _createOpenStackInstance = function(inst_cfg, createCallback){
                if(error) return wfcb(error);
 
                // Public IP assignation success
-               inst_cfg.ip = ip;
-               console.log('['+MINION_NAME+'] Assigned IP: '+ip+' to instance "' + inst_cfg.server.id + '".');
+               inst_cfg.ip = ip.ip;
+               inst_cfg.ip_id = ip.id;
+               console.log('['+MINION_NAME+'] Assigned IP: '+inst_cfg.ip+' to instance "' + inst_cfg.server.id + '".');
                wfcb(null);
             });
          } else {
@@ -374,6 +375,7 @@ var _createOpenStackInstance = function(inst_cfg, createCallback){
             inputpath: inst_cfg.image['inputpath'],
             minion: MINION_NAME,
             ip: inst_cfg.ip,
+            ip_id: inst_cfg.ip_id,
             ready: true
          };
          wfcb(null, inst);
@@ -648,13 +650,13 @@ var _allocateOpenStackFloatIP = function(allocateCallback){
    });
 }
 
-var _deallocateOpenStackFloatingIP = function(ip, deallocateCallback){
+var _deallocateOpenStackFloatingIP = function(ip_id, deallocateCallback){
    if(!token) deallocateCallback(new Error('Minion is not connected to OpenStack cloud.'));
    if(!compute_url) deallocateCallback(new Error('Compute service URL is not defined.'));
 
    // Request type
    var req = {
-      url: compute_url + '/os-floating-ips/' + ip,
+      url: compute_url + '/os-floating-ips/' + ip_id,
       method: 'DELETE',
       headers: {
          'X-Auth-Token': token,
@@ -695,7 +697,7 @@ var _assignOpenStackFloatIPInstance = function(inst_id, assignCallback){
       // Send request
       request(req, function(error, res, body){
          if(error) return assignCallback(error);
-         assignCallback(null, ip.ip);
+         assignCallback(null, ip);
       });
    });
 }
