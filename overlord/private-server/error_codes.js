@@ -68,17 +68,21 @@ var ERRCODE = {
       'message': "Please provide a file path with 'file' query.",
       'code': 47
    },
+   EXP_INPUT_FILE_PATH_MISSING: {
+      'message': "Please provide a file path with 'file' query.",
+      'code': 48
+   },
    EXP_CODE_FILE_NOT_FOUND: {
       'message': "Source file does not exits.",
-      'code': 48
+      'code': 49
    },
    EXP_INPUT_FILE_NOT_FOUND: {
       'message': "Input file does not exits.",
-      'code': 49
+      'code': 50
    },
    EXP_LOG_NOT_FOUND: {
       'message': "Requested log does not exits.",
-      'code': 50
+      'code': 51
    },
 }
 

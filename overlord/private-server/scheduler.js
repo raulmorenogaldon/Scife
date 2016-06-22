@@ -86,11 +86,26 @@ var putExperimentCode = function(exp_id, fpath, fcontent, putCallback){
 
       // Save file contents
       storage.client.invoke('putExperimentCode', exp_id, exp.app_id, fpath, fcontent, function(error){
-         if(error){
-            putCallback(error);
-         } else {
-            putCallback(null);
-         }
+         if(error) return putCallback(error);
+         putCallback(null);
+      });
+   })
+}
+
+/**
+ * Save experiment input file
+ */
+var putExperimentInput = function(exp_id, fpath, src_file, putCallback){
+   getExperiment(exp_id, null, function(error, exp){
+      if(error) return putCallback(error);
+
+      // Get remote path
+      var src_path = constants.OVERLORD_USERNAME+'@'+constants.OVERLORD_IP+':'+src_file;
+
+      // Save file contents
+      storage.client.invoke('putExperimentInput', exp_id, exp.app_id, fpath, src_path, function(error){
+         if(error) return putCallback(error);
+         putCallback(null);
       });
    })
 }
@@ -309,6 +324,36 @@ var reloadExperimentTree = function(exp_id, reloadCallback){
  ***********************************************************/
 
 /**
+ * Deploy a cluster
+ */
+taskmanager.setTaskHandler("instanceSystem", function(task){
+   // Get vars
+   var exp_id = task.exp_id;
+   var system = task.system;
+   var task_id = task.id;
+
+   // Define and create a system
+   _instanceSystem(task, system, function(error, system){
+      if(error){
+         console.error('['+MODULE_NAME+']['+exp_id+'] instanceSystem error: '+error);
+         // Set task failed
+         taskmanager.setTaskFailed(task_id, error);
+         return;
+      }
+
+      // Deploy task
+      var next_task = {
+         type: "prepareExperiment",
+         exp_id: exp_id,
+         system: system
+      };
+
+      // Set task to done and setup next task
+      taskmanager.setTaskDone(task_id, next_task, exp_id);
+   });
+});
+
+/**
  * Prepare experiment handler
  */
 taskmanager.setTaskHandler("prepareExperiment", function(task){
@@ -320,7 +365,7 @@ taskmanager.setTaskHandler("prepareExperiment", function(task){
    // Prepare experiment
    _prepareExperiment(task, exp_id, system, function(error){
       if(error){
-         console.error("["+exp_id+"] prepareExperiment error: "+error);
+         console.error('['+MODULE_NAME+']['+exp_id+'] prepareExperiment error: '+error);
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
          database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system, status: "failed_prepare"}});
@@ -351,7 +396,7 @@ taskmanager.setTaskHandler("deployExperiment", function(task){
    // Prepare experiment
    _deployExperiment(task, exp_id, system, function(error){
       if(error){
-         console.error("["+exp_id+"] deployExperiment error: "+error.message);
+         console.error('['+MODULE_NAME+']['+exp_id+'] deployExperiment error: '+error.message);
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
 
@@ -390,7 +435,7 @@ taskmanager.setTaskHandler("compileExperiment", function(task){
    // Prepare experiment
    _compileExperiment(task, exp_id, system, function(error){
       if(error){
-         console.error("["+exp_id+"] compileExperiment error: "+error);
+         console.error('['+MODULE_NAME+']['+exp_id+'] compileExperiment error: '+error);
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
 
@@ -429,7 +474,7 @@ taskmanager.setTaskHandler("executeExperiment", function(task){
    // Prepare experiment
    _executeExperiment(task, exp_id, system, function(error){
       if(error){
-         console.error("["+exp_id+"] executeExperiment error: "+error);
+         console.error('['+MODULE_NAME+']['+exp_id+'] executeExperiment error: '+error);
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
 
@@ -468,7 +513,7 @@ taskmanager.setTaskHandler("retrieveExperimentOutput", function(task){
    // Prepare experiment
    _retrieveExperimentOutput(task, exp_id, system, function(error){
       if(error){
-         console.error("["+exp_id+"] retrieveExperimentOutput error: "+error);
+         console.error('['+MODULE_NAME+']['+exp_id+'] retrieveExperimentOutput error: '+error);
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
          return;
@@ -500,7 +545,7 @@ taskmanager.setTaskHandler("resetExperiment", function(task){
    // Prepare experiment
    _resetExperiment(exp_id, task, function(error){
       if(error){
-         console.error("["+exp_id+"] resetExperiment error: "+error);
+         console.error('['+MODULE_NAME+']['+exp_id+'] resetExperiment error: '+error);
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
          return;
@@ -531,23 +576,7 @@ var _workflowExperiment = function(exp_id, nodes, image_id, size_id){
          // First, define a system where execution will take place
          function(wfcb){
             console.log('['+exp_id+'] Workflow: Defining system...');
-            instmanager.defineSystem(nodes, image_id, size_id, wfcb);
-         },
-         // Instance system
-         function(system, wfcb){
-            console.log('['+exp_id+'] Workflow: Instancing system...');
-            instmanager.instanceSystem(system, function(error){
-               wfcb(error, system);
-            });
-         },
-         // Add experiment to instances
-         function(system, wfcb){
-            for(var i = 0; i < system.nodes; i++){
-               console.log('['+exp_id+'] Workflow: Adding experiment to instance "'+system.instances[i]+'"...');
-               // Add experiment to instance
-               instmanager.addExperiment(exp_id, system.instances[i]);
-            }
-            wfcb(null, system);
+            instmanager.defineSystem(nodes, image_id, size_id, exp.name, wfcb);
          },
          // Prepare experiment for the system
          function(system, wfcb){
@@ -558,7 +587,7 @@ var _workflowExperiment = function(exp_id, nodes, image_id, size_id){
 
             // Add prepare task
             var task = {
-               type: "prepareExperiment",
+               type: "instanceSystem",
                exp_id: exp_id,
                system: system
             };
@@ -570,6 +599,26 @@ var _workflowExperiment = function(exp_id, nodes, image_id, size_id){
       function(error){
          if(error) console.log("["+exp_id+"] Workflow: Failed, error: " + error);
       });
+   });
+}
+
+/**
+ * Instance a system to use with an experiment
+ */
+var _instanceSystem = function(task, system, createCallback){
+   // Check if task failed
+   console.log('['+MODULE_NAME+'] Instancing cluster...');
+   instmanager.instanceSystem(system, function(error){
+      if(error) return createCallback(error);
+
+      // Check task abort
+      if(taskmanager.isTaskAborted(task.id)){
+         // Clean system
+         return createCallback(new Error("Task aborted"));
+      }
+
+      console.log('['+MODULE_NAME+'] Cluster created.');
+      createCallback(null, system);
    });
 }
 
@@ -723,6 +772,17 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
          } else {
             wfcb(null, app, exp, headnode, image);
          }
+      },
+      // Add experiment to instances
+      function(app, exp, headnode, image, wfcb){
+         if(!task.job_id){
+            for(var i = 0; i < system.nodes; i++){
+               console.log('['+MODULE_NAME+']['+exp_id+'] Adding experiment to instance "'+system.instances[i]+'"...');
+               // Add experiment to instance
+               instmanager.addExperiment(exp_id, system.instances[i]);
+            }
+         }
+         wfcb(null, app, exp, headnode, image);
       },
       // Copy experiment in FS
       function(app, exp, headnode, image, wfcb){
@@ -1425,5 +1485,6 @@ exports.launchExperiment = launchExperiment;
 
 exports.getExperimentCode = getExperimentCode;
 exports.putExperimentCode = putExperimentCode;
+exports.putExperimentInput = putExperimentInput;
 exports.getExperimentOutputFile = getExperimentOutputFile;
 exports.reloadExperimentTree = reloadExperimentTree;

@@ -29,7 +29,7 @@ var getAvailableSizes = function(minion, getCallback){
 /**
  * Defines a system
  */
-var defineSystem = function(nodes, image_id, size_id, defineCallback){
+var defineSystem = function(nodes, image_id, size_id, prefix, defineCallback){
    getImage(image_id, function(error, image){
       if(error) defineCallback(error, null);
       getSize(size_id, function(error, size){
@@ -41,6 +41,7 @@ var defineSystem = function(nodes, image_id, size_id, defineCallback){
             nodes: nodes,
             image: image,
             size: size,
+            prefix: prefix,
             instances: []
          };
 
@@ -61,10 +62,9 @@ var instanceSystem = function(system, instanceCallback){
    var tasks = [];
    for(i = 0; i < system.nodes; i++){
       tasks.push(function(taskcb){
-         requestInstance(system.image.id, system.size.id, function (error, inst_id) {
-            if(error){
-               taskcb(error);
-            } else {
+         (function(i){
+            requestInstance(system.prefix+"_"+i, system.image.id, system.size.id, function (error, inst_id) {
+               if(error) return taskcb(error);
                // Add instance to system
                system.instances.push(inst_id);
                // Add system to instance
@@ -72,20 +72,17 @@ var instanceSystem = function(system, instanceCallback){
                   $set: { system: true}
                });
                taskcb(null);
-            }
-         });
+            });
+         })(i);
       });
    }
 
    // Execute tasks
    async.parallel(tasks, function(error){
-      if(error){
-         instanceCallback(error, null);
-      } else {
-         // Callback with instanced system
-         system.status = "instanced";
-         instanceCallback(null, system);
-      }
+      if(error) return instanceCallback(error, null);
+      // Callback with instanced system
+      system.status = "instanced";
+      instanceCallback(null, system);
    });
 }
 
@@ -115,13 +112,13 @@ var cleanSystem = function(system, cleanCallback){
  * @param {String} - Size ID.
  * @param {String} - Image ID.
  */
-var requestInstance = function(image_id, size_id, requestCallback){
+var requestInstance = function(name, image_id, size_id, requestCallback){
    // TODO: Select a minion
    var minion = minionClient;
 
    // Instance
    minion.invoke('createInstance', {
-      name:"Unnamed",
+      name: name,
       image_id: image_id,
       size_id: size_id,
       publicIP: true
@@ -320,11 +317,21 @@ var cleanExperimentSystem = function(exp_id, system, b_job, b_code, b_input, b_r
  * Add experiment to instance experiments
  */
 var addExperiment = function(exp_id, inst_id){
-   // Add experiment to instance
-   database.db.collection('instances').updateOne({
-      'id': inst_id,
-   },{
-      $push: {'exps': {exp_id: exp_id, jobs: []}}
+   // Get instance
+   getInstance(inst_id, function(error, inst){
+      if(error) return console.error(error);
+
+      // Check if already added
+      if(!inst.exps[exp_id]){
+         // Add experiment to instance
+         database.db.collection('instances').updateOne({
+            'id': inst_id,
+         },{
+            $push: {'exps': {exp_id: exp_id, jobs: []}}
+         });
+      } else {
+         console.log('['+MODULE_NAME+']['+exp_id+'] Experiment is already in instance "'+inst_id+'".');
+      }
    });
 }
 
