@@ -86,11 +86,26 @@ var putExperimentCode = function(exp_id, fpath, fcontent, putCallback){
 
       // Save file contents
       storage.client.invoke('putExperimentCode', exp_id, exp.app_id, fpath, fcontent, function(error){
-         if(error){
-            putCallback(error);
-         } else {
-            putCallback(null);
-         }
+         if(error) return putCallback(error);
+         putCallback(null);
+      });
+   })
+}
+
+/**
+ * Save experiment input file
+ */
+var putExperimentInput = function(exp_id, fpath, src_file, putCallback){
+   getExperiment(exp_id, null, function(error, exp){
+      if(error) return putCallback(error);
+
+      // Get remote path
+      var src_path = constants.OVERLORD_USERNAME+'@'+constants.OVERLORD_IP+':'+src_file;
+
+      // Save file contents
+      storage.client.invoke('putExperimentInput', exp_id, exp.app_id, fpath, src_path, function(error){
+         if(error) return putCallback(error);
+         putCallback(null);
       });
    })
 }
@@ -1470,5 +1485,6 @@ exports.launchExperiment = launchExperiment;
 
 exports.getExperimentCode = getExperimentCode;
 exports.putExperimentCode = putExperimentCode;
+exports.putExperimentInput = putExperimentInput;
 exports.getExperimentOutputFile = getExperimentOutputFile;
 exports.reloadExperimentTree = reloadExperimentTree;

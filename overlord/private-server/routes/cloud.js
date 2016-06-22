@@ -1,4 +1,5 @@
 var express = require('express'),
+   multer = require('multer'),
    router = express.Router(),
    zerorpc = require('zerorpc'),
    fs = require('fs'),
@@ -8,6 +9,11 @@ var codes = require('../error_codes.js');
 var utils = require('../utils.js');
 var scheduler = require('../scheduler.js');
 var instmanager = require('../instance.js');
+
+/**
+ * Multer tmp uploads
+ */
+var upload = multer({dest: '/tmp/'});
 
 /***********************************************************
  * --------------------------------------------------------
@@ -499,6 +505,47 @@ router.post('/experiments/:exp_id/code', function (req, res, next) {
 
       // TODO: Reload labels
       // ...
+
+      // Reload trees
+      scheduler.reloadExperimentTree(req.params.exp_id, function(error){
+         if (error) return next(error);
+         res.json(null);
+      });
+   });
+});
+
+/**
+ * Upload input file
+ * @param {String} - The experiment id.
+ * @return {[Object]} - File contents
+ */
+router.post('/experiments/:exp_id/input', upload.array('inputFile'), function (req, res, next) {
+   // Get file path if provided
+   var fpath = req.query.file;
+   if(!fpath){
+      return next({
+         'http': codes.HTTPCODE.BAD_REQUEST,
+         'json': codes.ERRCODE.EXP_INPUT_FILE_PATH_MISSING
+      });
+   }
+
+   if(!req.files || !req.files.length || req.files.length < 1){
+      return next(new Error("Malformed uploaded data."));
+   }
+
+   // Get uploaded file path
+   var finfo = req.files[0];
+   var tmpfile = finfo.path;
+
+   // Save to experiment data
+   scheduler.putExperimentInput(req.params.exp_id, fpath, tmpfile, function(error){
+      // Remove file
+      fs.unlink(tmpfile, function(error){
+         if(error) console.error(error);
+      });
+
+      // Error saving file?
+      if(error) return next(error);
 
       // Reload trees
       scheduler.reloadExperimentTree(req.params.exp_id, function(error){

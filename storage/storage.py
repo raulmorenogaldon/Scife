@@ -264,6 +264,26 @@ class Storage(object):
         ########################
         return
 
+    def putExperimentInput(self, exp_id, app_id, fpath, src_path):
+        # Get input storage path
+        exp_path = self.inputpath + "/" + exp_id
+
+        ########################
+        # Wait for the lock
+        while self.lock:
+            gevent.sleep(0)
+        self.lock = True
+
+        # Create new path
+        gevent.subprocess.call(["mkdir", "-p", os.path.dirname(fpath)], cwd=exp_path)
+
+        # Copy file
+        gevent.subprocess.call(["scp", src_path, fpath], cwd=exp_path)
+
+        self.lock = False
+        ########################
+        return
+
     def getExperimentOutputFile(self, exp_id):
         # Get output storage path
         file = self.outputpath + "/" + exp_id + "/output.tar.gz"
