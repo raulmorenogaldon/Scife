@@ -530,7 +530,7 @@ var _getOpenStackInstanceJobStatus = function(job_id, inst_id, getCallback){
 
             // Execute command
             var status = "finished";
-            var cmd = 'ps -ef | cut -d " " -f 2 | grep '+job_id
+            var cmd = 'ps -ef | tr -s [:blank:] | cut -d " " -f 2 | grep '+job_id
             utils.execSSH(conn, cmd, null, true, function(error, output){
                if(error){
                   // Close connection
