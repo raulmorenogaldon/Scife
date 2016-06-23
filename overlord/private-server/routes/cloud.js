@@ -465,8 +465,12 @@ router.get('/experiments/:exp_id/code', function (req, res, next) {
    });
 });
 
+/**
+ * Add field text when text/plain
+ */
 router.use(function(req, res, next){
    if (req.is('text/*')) {
+      console.log("Text");
       req.text = '';
       req.setEncoding('utf8');
       req.on('data', function(chunk){ req.text += chunk  });
@@ -488,6 +492,14 @@ router.post('/experiments/:exp_id/code', function (req, res, next) {
       return next({
          'http': codes.HTTPCODE.BAD_REQUEST,
          'json': codes.ERRCODE.EXP_CODE_FILE_PATH_MISSING
+      });
+   }
+
+   // Check data type
+   if(!req.text){
+      return next({
+         'http': codes.HTTPCODE.BAD_REQUEST,
+         'json': codes.ERRCODE.REQ_CONTENT_TYPE_TEXT_PLAIN
       });
    }
 

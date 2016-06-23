@@ -84,6 +84,11 @@ var ERRCODE = {
       'message': "Requested log does not exits.",
       'code': 51
    },
+   // Content-Type
+   REQ_CONTENT_TYPE_TEXT_PLAIN: {
+      'message': "Required Content-Type text/plain.",
+      'code': 100
+   },
 }
 
 exports.HTTPCODE = HTTPCODE;
