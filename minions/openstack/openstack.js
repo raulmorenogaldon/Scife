@@ -201,6 +201,38 @@ var getJobStatus = function(job_id, inst_id, getCallback){
    _getOpenStackInstanceJobStatus(job_id, inst_id, getCallback);
 }
 
+var getQuotas = function(getCallback){
+   // Get OpenStack quotas
+   _getOpenStackQuotas(function(error, os_quotas){
+      if(error) return getCallback(error);
+
+      // Convert data
+      console.log(os_quotas);
+      var aux = os_quotas.limits.absolute;
+      var quotas = {
+         cores: {
+            in_use: aux.totalCoresUsed,
+            limit: aux.maxTotalCores
+         },
+         floating_ips: {
+            in_use: aux.totalFloatingIpsUsed,
+            limit: aux.maxTotalFloatingIps
+         },
+         instances: {
+            in_use: aux.totalInstancesUsed,
+            limit: aux.maxTotalInstances
+         },
+         ram: {
+            in_use: aux.totalRAMUsed,
+            limit: aux.maxTotalRAMSize
+         }
+      }
+
+      // Return quotas
+      getCallback(null, quotas);
+   });
+}
+
 var cleanJob = function(job_id, inst_id, cleanCallback){
    // Kill PID
    var cmd = 'kill -9 '+job_id;
@@ -546,6 +578,29 @@ var _getOpenStackInstance = function(inst_id, getCallback){
    });
 }
 
+var _getOpenStackQuotas = function(getCallback){
+   if(!token) getCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) getCallback(new Error('Compute service URL is not defined.'));
+
+   var req = {
+      url: compute_url + '/limits',
+      method: 'GET',
+      headers: {
+         'X-Auth-Token': token,
+      }
+   };
+
+   // Send request
+   request(req, function(error, res, body){
+      if(error) return getCallback(error);
+
+      // Success??
+      var quotas = JSON.parse(body);
+      if(!quotas) return getCallback(new Error("Failed to get quotas.\n"), JSON.stringify(JSON.parse(body), null, 2));
+      getCallback(null, quotas);
+   });
+}
+
 var _getOpenStackInstanceIPs = function(inst_id, getCallback){
    if(!token) getCallback(new Error('Minion is not connected to OpenStack cloud.'));
    if(!compute_url) getCallback(new Error('Compute service URL is not defined.'));
@@ -760,7 +815,8 @@ var _loadConfig = function(config, loadCallback){
             executeScript: executeScript,
             executeCommand: executeCommand,
             getJobStatus: getJobStatus,
-            cleanJob: cleanJob
+            cleanJob: cleanJob,
+            getQuotas: getQuotas
          }, 30000);
 
          // Listen
