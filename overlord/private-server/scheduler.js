@@ -1005,15 +1005,16 @@ var _compileExperiment = function(task, exp_id, system, compileCallback){
       instmanager.waitJob(task.job_id, headnode.id, function(error){
          if(error){return compileCallback(error);}
 
-         // Update task and DB
-         task.job_id = null;
-         database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
-
-         // Check task abort
-         if(taskmanager.isTaskAborted(task.id)) {return compileCallback(new Error("Task aborted"));}
-
          // Poll experiment status
          _pollExperiment(exp_id, system, function(error, status){
+
+            // Update task and DB
+            task.job_id = null;
+            database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
+
+            // Check task abort
+            if(taskmanager.isTaskAborted(task.id)) {return compileCallback(new Error("Task aborted"));}
+
             // Check status
             if(status != "compiled"){
                return compileCallback(new Error("Failed to compile experiment, status: "+status));
@@ -1316,7 +1317,7 @@ var _pollExperiment = function(exp_id, system, pollCallback){
       },
       // Poll experiment logs
       function(exp, headnode, image, wfcb){
-         _pollExperimentLogs(exp.id, system, image, ['COMPILATION_LOG','EXECUTION_LOG'], function (error, logs) {
+         _pollExperimentLogs(exp.id, headnode.id, image, ['COMPILATION_LOG','EXECUTION_LOG','*.log'], function (error, logs) {
             if(error){
                wfcb(error);
             } else {
@@ -1332,7 +1333,7 @@ var _pollExperiment = function(exp_id, system, pollCallback){
       function(exp, headnode, image, wfcb){
          var work_dir = image.workpath+"/"+exp.id;
          var cmd = 'cat '+work_dir+'/EXPERIMENT_STATUS';
-         instmanager.executeCommand(system.instances[0], cmd, function (error, output) {
+         instmanager.executeCommand(headnode.id, cmd, function (error, output) {
             if(error){
                wfcb(error);
             } else {
@@ -1362,29 +1363,70 @@ var _pollExperiment = function(exp_id, system, pollCallback){
 /**
  * Update experiment logs in DB.
  */
-var _pollExperimentLogs = function(exp_id, system, image, log_files, pollCallback){
+var _pollExperimentLogs = function(exp_id, inst_id, image, log_files, pollCallback){
    // Working directory
    var work_dir = image.workpath+"/"+exp_id;
    var logs = [];
 
-   // Iterate logs
+   // Get log files list
+   _findExperimentLogs(exp_id, inst_id, image, log_files, function(error, loglist){
+      if(error) return pollCallback(error);
+
+      // Iterate logs
+      var tasks = [];
+      for(var i = 0; i < loglist.length; i++){
+         // var i must be independent between tasks
+         (function(i){
+            tasks.push(function(taskcb){
+               var cmd = 'cat '+loglist[i];
+               instmanager.executeCommand(inst_id, cmd, function (error, output) {
+                  if(error) return taskcb(new Error("Failed to poll log "+ loglist[i]+ ", error: "+ error));
+
+                  // Get log content
+                  var content = output.stdout;
+                  var log_filename = loglist[i].split('\\').pop().split('/').pop();
+
+                  // Add log
+                  logs.push({name: log_filename, content: content});
+                  taskcb(null);
+               });
+            });
+         })(i);
+      }
+
+      // Execute tasks
+      async.parallel(tasks, function(error){
+         if(error) return pollCallback(error);
+         pollCallback(null, logs);
+      });
+   });
+}
+
+/**
+ * Get log paths
+ */
+var _findExperimentLogs = function(exp_id, inst_id, image, log_files, findCallback){
+   // Working directory
+   var work_dir = image.workpath+"/"+exp_id;
+   var logs = [];
+
+   // Get log files list
    var tasks = [];
    for(var i = 0; i < log_files.length; i++){
       // var i must be independent between tasks
       (function(i){
          tasks.push(function(taskcb){
-            var cmd = 'cat '+work_dir+'/'+log_files[i];
-            instmanager.executeCommand(system.instances[0], cmd, function (error, output) {
-               if(error){
-                  taskcb(new Error("Failed to poll log "+ log_files[i]+ ", error: "+ error));
-               } else {
-                  // Get log content
-                  var content = output.stdout;
+            var cmd = 'find '+work_dir+' -name "'+log_files[i]+'"';
+            instmanager.executeCommand(inst_id, cmd, function (error, output) {
+               if(error) return taskcb(new Error("Failed to poll log "+ log_files[i]+ ", error: "+ error));
 
-                  // Add log
-                  logs.push({name: log_files[i], content: content});
-                  taskcb(null);
-               }
+               // Get logs path, filter empty
+               var loglist = output.stdout.split("\n");
+               loglist = loglist.filter(function(elem){ return elem && elem != "" });
+
+               // Add logs
+               logs = logs.concat(loglist);
+               taskcb(null);
             });
          });
       })(i);
@@ -1392,12 +1434,8 @@ var _pollExperimentLogs = function(exp_id, system, image, log_files, pollCallbac
 
    // Execute tasks
    async.parallel(tasks, function(error){
-      if(error){
-         pollCallback(error);
-      } else {
-         // Callback
-         pollCallback(null, logs);
-      }
+      if(error) return findCallback(error);
+      findCallback(null, logs);
    });
 }
 
