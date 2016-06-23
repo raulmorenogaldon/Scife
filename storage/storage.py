@@ -249,9 +249,13 @@ class Storage(object):
         gevent.subprocess.call(["mkdir", "-p", os.path.dirname(fpath)], cwd=app_path)
 
         # Save file
-        f = open(app_path + "/" + fpath, 'w')
-        f.write(fcontent)
-        f.close()
+        try:
+            f = open(app_path + "/" + fpath, 'w')
+            f.write(fcontent)
+            f.close()
+        except Exception as e:
+            self.lock = False
+            raise e
 
         # Commit
         gevent.subprocess.call(["git", "add", fpath], cwd=app_path)
