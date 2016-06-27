@@ -57,10 +57,10 @@ function execSSH(conn, cmd, work_dir, blocking, execCallback){
    // If the command is blocking, then wait until command execution
    if(blocking){
       // Change to dir and execute
-      full_cmd = "cd "+work_dir+"; "+cmd+";"
+      full_cmd = ". ~/.bash_profile; cd "+work_dir+"; "+cmd+";"
    } else {
       // Create a background process
-      full_cmd = "nohup sh -c 'cd "+work_dir+"; "+cmd+"' > /dev/null 2>&1 & echo -n $!;"
+      full_cmd = "nohup sh -c '. ~/.bash_profile; cd "+work_dir+"; "+cmd+"' > /dev/null 2>&1 & echo -n $!;"
    }
 
    // Output object with normal and error outputs.

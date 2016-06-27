@@ -341,6 +341,9 @@ taskmanager.setTaskHandler("instanceSystem", function(task){
          return;
       }
 
+      // Update DB
+      database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system}});
+
       // Deploy task
       var next_task = {
          type: "prepareExperiment",
@@ -1115,12 +1118,7 @@ var _executeExperiment = function(task, exp_id, system, executionCallback){
       console.log("["+exp_id+"] Executing...");
 
       // Poll experiment status
-      _pollExperiment(exp_id, system, function(error, status){
-         // Update status if the file exists
-         if(status != ""){
-            database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:status}});
-         }
-      });
+      _pollExperiment(exp_id, system, function(error, status){});
 
       // Wait for command completion
       instmanager.waitJob(task.job_id, headnode.id, function(error){
@@ -1317,7 +1315,7 @@ var _pollExperiment = function(exp_id, system, pollCallback){
       },
       // Poll experiment logs
       function(exp, headnode, image, wfcb){
-         _pollExperimentLogs(exp.id, headnode.id, image, ['COMPILATION_LOG','EXECUTION_LOG','*.log'], function (error, logs) {
+         _pollExperimentLogs(exp.id, headnode.id, image, ['COMPILATION_LOG','EXECUTION_LOG','*.log', '*.log.*', '*.bldlog.*'], function (error, logs) {
             if(error){
                wfcb(error);
             } else {
@@ -1352,11 +1350,8 @@ var _pollExperiment = function(exp_id, system, pollCallback){
       }
    ],
    function(error, status){
-      if(error){
-         pollCallback(error);
-      } else {
-         pollCallback(null, status);
-      }
+      if(error) return pollCallback(error);
+      pollCallback(null, status);
    });
 }
 
@@ -1500,7 +1495,7 @@ var _pollExecutingExperiments = function(){
 // Remove non executing experiments from instances
 _cleanInstances();
 setInterval(_pollExecutingExperiments, pollInterval, function(error){
-   if(error) console.error(error);
+   if(error) return console.error(error);
 });
 
 /***********************************************************

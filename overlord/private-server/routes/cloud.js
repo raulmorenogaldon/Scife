@@ -470,7 +470,6 @@ router.get('/experiments/:exp_id/code', function (req, res, next) {
  */
 router.use(function(req, res, next){
    if (req.is('text/*')) {
-      console.log("Text");
       req.text = '';
       req.setEncoding('utf8');
       req.on('data', function(chunk){ req.text += chunk  });

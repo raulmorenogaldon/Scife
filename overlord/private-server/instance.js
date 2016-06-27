@@ -416,7 +416,6 @@ var waitJob = function(job_id, inst_id, waitCallback){
       },
       // Get job status
       function(inst, minion, wfcb){
-         console.log("Waiting job:"+job_id);
          minion.invoke('getJobStatus', job_id, inst_id, function (error, status) {
             if (error) {
                wfcb(new Error("Failed to get job status: " + inst_id + ": " + error));
