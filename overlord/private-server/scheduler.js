@@ -17,7 +17,7 @@ var taskmanager = require('./task.js');
  * Module vars
  */
 var MODULE_NAME = "SC";
-var pollInterval = 6000;
+var pollInterval = 30000;
 
 /***********************************************************
  * --------------------------------------------------------
@@ -1190,6 +1190,24 @@ var _retrieveExperimentOutput = function(task, exp_id, system, retrieveCallback)
          var net_path = headnode.hostname + ":" + output_file;
 
          // Execute command
+         var cmd = 'cat '+work_dir+'/EXPERIMENT_STATUS';
+         HAY QUE COPIAR DESDE LA INSTANCIA AL STORAGE
+         instmanager.executeCommand(headnode.id, cmd, function (error, output) {
+            if(error){
+               wfcb(error);
+            } else {
+               // Get status
+               var status = output.stdout;
+
+               // Update status if the file exists
+               if(status != ""){
+                  database.db.collection('experiments').updateOne({id: exp.id},{$set:{status:status}});
+               }
+
+               // Callback status
+               wfcb(null, status);
+            }
+         });
          storage.client.invoke('retrieveExperimentOutput', exp.id, net_path, function (error) {
             if (error) {
                wfcb(new Error("Failed to retrieve experiment output data, error: ", error));
@@ -1356,6 +1374,10 @@ var _pollExperiment = function(exp_id, system, pollCallback){
 }
 
 /**
+ * Cache to avoid polling again
+ */
+var _polling = {};
+/**
  * Update experiment logs in DB.
  */
 var _pollExperimentLogs = function(exp_id, inst_id, image, log_files, pollCallback){
@@ -1363,73 +1385,80 @@ var _pollExperimentLogs = function(exp_id, inst_id, image, log_files, pollCallba
    var work_dir = image.workpath+"/"+exp_id;
    var logs = [];
 
-   // Get log files list
-   _findExperimentLogs(exp_id, inst_id, image, log_files, function(error, loglist){
-      if(error) return pollCallback(error);
+   // Avoid multiple polling
+   if(!_polling[exp_id]){
+      _polling[exp_id] = true;
 
-      // Iterate logs
-      var tasks = [];
-      for(var i = 0; i < loglist.length; i++){
-         // var i must be independent between tasks
-         (function(i){
-            tasks.push(function(taskcb){
-               var cmd = 'cat '+loglist[i];
-               instmanager.executeCommand(inst_id, cmd, function (error, output) {
-                  if(error) return taskcb(new Error("Failed to poll log "+ loglist[i]+ ", error: "+ error));
+      // Get log files list
+      _findExperimentLogs(exp_id, inst_id, image, log_files, function(error, loglist){
+         if(error){
+            _polling[exp_id] = false;
+            return pollCallback(error);
+         }
 
-                  // Get log content
-                  var content = output.stdout;
-                  var log_filename = loglist[i].split('\\').pop().split('/').pop();
+         // Iterate logs
+         var tasks = [];
+         for(var i = 0; i < loglist.length; i++){
+            // var i must be independent between tasks
+            (function(i){
+               tasks.push(function(taskcb){
+                  var cmd = 'zcat -f '+loglist[i];
+                  instmanager.executeCommand(inst_id, cmd, function (error, output) {
+                     if(error) return taskcb(new Error("Failed to poll log "+ loglist[i]+ ", error: "+ error));
 
-                  // Add log
-                  logs.push({name: log_filename, content: content});
-                  taskcb(null);
+                     // Get log content
+                     var content = output.stdout;
+                     var log_filename = loglist[i].split('\\').pop().split('/').pop();
+
+                     // Add log
+                     //console.log('['+MODULE_NAME+']['+exp_id+'] Updating log content: "'+log_filename);
+                     logs.push({name: log_filename, content: content});
+                     taskcb(null);
+                  });
                });
-            });
-         })(i);
-      }
+            })(i);
+         }
 
-      // Execute tasks
-      async.parallel(tasks, function(error){
-         if(error) return pollCallback(error);
-         pollCallback(null, logs);
+         // Execute tasks
+         async.series(tasks, function(error){
+            _polling[exp_id] = false;
+            if(error) return pollCallback(error);
+            // Sort
+            logs.sort(function(a,b){return (a.name > b.name) ? 1 : ((b.name > a.name) ? -1 : 0);});
+            pollCallback(null, logs);
+         });
       });
-   });
+   }
 }
 
 /**
  * Get log paths
  */
 var _findExperimentLogs = function(exp_id, inst_id, image, log_files, findCallback){
+   // No log files
+   if(!log_files || log_files.length <= 0) return findCallback(new Error("No log files specified."));
+
    // Working directory
    var work_dir = image.workpath+"/"+exp_id;
    var logs = [];
 
-   // Get log files list
-   var tasks = [];
-   for(var i = 0; i < log_files.length; i++){
-      // var i must be independent between tasks
-      (function(i){
-         tasks.push(function(taskcb){
-            var cmd = 'find '+work_dir+' -name "'+log_files[i]+'"';
-            instmanager.executeCommand(inst_id, cmd, function (error, output) {
-               if(error) return taskcb(new Error("Failed to poll log "+ log_files[i]+ ", error: "+ error));
-
-               // Get logs path, filter empty
-               var loglist = output.stdout.split("\n");
-               loglist = loglist.filter(function(elem){ return elem && elem != "" });
-
-               // Add logs
-               logs = logs.concat(loglist);
-               taskcb(null);
-            });
-         });
-      })(i);
+   // Prepare command to find logs
+   var cmd = 'find '+work_dir+ ' -name "'+log_files[0]+'"';
+   for(var i = 1; i < log_files.length; i++){
+      // Add option to find
+      cmd = cmd + ' -o -name "'+log_files[i]+'"';
    }
 
-   // Execute tasks
-   async.parallel(tasks, function(error){
-      if(error) return findCallback(error);
+   // Search logs in instance
+   instmanager.executeCommand(inst_id, cmd, function (error, output) {
+      if(error) return findCallback(new Error("Failed to poll log "+ log_files[i]+ ", error: "+ error));
+
+      // Get logs path, filter empty
+      var loglist = output.stdout.split("\n");
+      loglist = loglist.filter(function(elem){ return elem && elem != "" });
+
+      // Add logs
+      logs = logs.concat(loglist);
       findCallback(null, logs);
    });
 }
@@ -1478,11 +1507,11 @@ var _pollExecutingExperiments = function(){
 
    // Iterate experiments
    database.db.collection('experiments').find({
-      status: { $in: ["deployed", "compiling", "compiled", "executing"]}
+      status: { $in: ["deployed", "compiling", "executing"]}
    }).forEach(function(exp){
       // Poll experiment status
       _pollExperiment(exp.id, exp.system, function(error, status){
-         if(error) console.error(error);
+         if(error) console.error("["+MODULE_NAME+"] Failed to automatic poll: "+error);
       });
    });
 }

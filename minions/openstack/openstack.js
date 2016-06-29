@@ -406,6 +406,7 @@ var _createOpenStackInstance = function(inst_cfg, createCallback){
             workpath: inst_cfg.image['workpath'],
             inputpath: inst_cfg.image['inputpath'],
             minion: MINION_NAME,
+            hostname: inst_cfg.ip,
             ip: inst_cfg.ip,
             ip_id: inst_cfg.ip_id,
             ready: true
@@ -488,7 +489,7 @@ var _executeOpenStackInstanceScript = function(script, work_dir, inst_id, nodes,
             if(error) return executeCallback(error);
 
             // Execute command
-            console.log('['+MINION_NAME+']['+inst_id+'] Connected, executing command.');
+            //console.log('['+MINION_NAME+']['+inst_id+'] Connected, executing command.');
             utils.execSSH(conn, script, work_dir, blocking, function(error, output){
                if(error){
                   // Close connection
@@ -499,7 +500,7 @@ var _executeOpenStackInstanceScript = function(script, work_dir, inst_id, nodes,
                // Close connection
                utils.closeSSH(conn);
 
-               console.log('['+MINION_NAME+']['+inst_id+'] Executed command.');
+               //console.log('['+MINION_NAME+']['+inst_id+'] Executed command.');
                executeCallback(null, output);
             }); // execSSH
          }); // connectSSH
@@ -526,7 +527,7 @@ var _getOpenStackInstanceJobStatus = function(job_id, inst_id, getCallback){
          // Get connection
          utils.connectSSH(image.username, inst.ip, private_key, 30000, function(error, conn){
             if(error) return getCallback(error);
-            console.log('['+MINION_NAME+']['+inst_id+'] Connected, retrieving job status.');
+            //console.log('['+MINION_NAME+']['+inst_id+'] Connected, retrieving job status.');
 
             // Execute command
             var status = "finished";
@@ -547,7 +548,7 @@ var _getOpenStackInstanceJobStatus = function(job_id, inst_id, getCallback){
                // Close connection
                utils.closeSSH(conn);
 
-               console.log('['+MINION_NAME+']['+inst_id+'] Retrieved job status.');
+               //console.log('['+MINION_NAME+']['+inst_id+'] Retrieved job status.');
                getCallback(null, status);
             }); // execSSH
          }); // connectSSH
@@ -988,6 +989,12 @@ async.waterfall([
 function(error){
    if(error) throw error;
    console.log("["+MINION_NAME+"] Initialization completed.");
+
+   // Relogin (renew token) every quarter
+   setInterval(login, 900000, function(error){
+      if(error) return console.error("Failed to relogin.");
+      console.log("["+MINION_NAME+"] New token: "+token);
+   });
 
    //__test();
 });
