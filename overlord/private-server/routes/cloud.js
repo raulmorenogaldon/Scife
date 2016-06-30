@@ -584,7 +584,7 @@ router.get('/experiments/:exp_id/download', function (req, res, next) {
          res.writeHead(200, {
             'Content-Type': 'application/octet-stream',
             'Content-Length': stat.size,
-            'Content-Disposition': 'inline; filename="output.tar.gz"'
+            'Content-Disposition': 'inline; filename="'+req.exp.name+'.tar.gz"'
          });
 
          // Send file
