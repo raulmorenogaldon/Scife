@@ -522,6 +522,9 @@ taskmanager.setTaskHandler("retrieveExperimentOutput", function(task){
          return;
       }
 
+      // Set experiment to done status
+      database.db.collection('experiments').updateOne({id: exp_id},{$set:{status: "done"}});
+
       // Set task to done
       taskmanager.setTaskDone(task_id, null, null);
 
@@ -1002,30 +1005,31 @@ var _compileExperiment = function(task, exp_id, system, compileCallback){
       console.log("["+exp_id+"] Compiling...");
 
       // Poll experiment status
-      _pollExperiment(exp_id, system, function(error, status){});
-
-      // Wait for command completion
-      instmanager.waitJob(task.job_id, headnode.id, function(error){
+      _pollExperiment(exp_id, system, function(error, status){
          if(error){return compileCallback(error);}
 
-         // Poll experiment status
-         _pollExperiment(exp_id, system, function(error, status){
+         // Wait for command completion
+         instmanager.waitJob(task.job_id, headnode.id, function(error){
+            if(error){return compileCallback(error);}
 
-            // Update task and DB
-            task.job_id = null;
-            database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
+            // Poll experiment status
+            _pollExperiment(exp_id, system, function(error, status){
+               // Update task and DB
+               task.job_id = null;
+               database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
 
-            // Check task abort
-            if(taskmanager.isTaskAborted(task.id)) {return compileCallback(new Error("Task aborted"));}
+               // Check task abort
+               if(taskmanager.isTaskAborted(task.id)) {return compileCallback(new Error("Task aborted"));}
 
-            // Check status
-            if(status != "compiled"){
-               return compileCallback(new Error("Failed to compile experiment, status: "+status));
-            }
+               // Check status
+               if(status != "compiled"){
+                  return compileCallback(new Error("Failed to compile experiment, status: "+status));
+               }
 
-            // End compile task
-            console.log("["+exp_id+"] Compiled!");
-            compileCallback(null);
+               // End compile task
+               console.log("["+exp_id+"] Compiled!");
+               compileCallback(null);
+            });
          });
       });
    });
@@ -1084,7 +1088,7 @@ var _executeExperiment = function(task, exp_id, system, executionCallback){
          './'+app.execution_script+' &>EXECUTION_LOG \n'+
          'RETVAL=\$? \n'+
          'if [ \$RETVAL -eq 0 ]; then \n'+
-         'echo -n "done" > EXPERIMENT_STATUS \n'+
+         'echo -n "executed" > EXPERIMENT_STATUS \n'+
          'else \n'+
          'echo -n "failed_execution" > EXPERIMENT_STATUS \n'+
          'fi \n'+
@@ -1118,29 +1122,32 @@ var _executeExperiment = function(task, exp_id, system, executionCallback){
       console.log("["+exp_id+"] Executing...");
 
       // Poll experiment status
-      _pollExperiment(exp_id, system, function(error, status){});
-
-      // Wait for command completion
-      instmanager.waitJob(task.job_id, headnode.id, function(error){
+      _pollExperiment(exp_id, system, function(error, status){
          if(error){return executionCallback(error);}
 
-         // Update task and DB
-         task.job_id = null;
-         database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
+         // Wait for command completion
+         instmanager.waitJob(task.job_id, headnode.id, function(error){
+            if(error){return executionCallback(error);}
 
-         // Check task abort
-         if(taskmanager.isTaskAborted(task.id)) {return executionCallback(new Error("Task aborted"));}
+            // Poll experiment status
+            _pollExperiment(exp_id, system, function(error, status){
 
-         // Poll experiment status
-         _pollExperiment(exp_id, system, function(error, status){
-            // Check status
-            if(status != "done"){
-               return executionCallback(new Error("Failed to execute experiment, status: "+status));
-            }
+               // Update task and DB
+               task.job_id = null;
+               database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
 
-            // End execution task
-            console.log("["+exp_id+"] Executed!");
-            executionCallback(null);
+               // Check task abort
+               if(taskmanager.isTaskAborted(task.id)) {return executionCallback(new Error("Task aborted"));}
+
+               // Check status
+               if(status != "executed"){
+                  return executionCallback(new Error("Failed to execute experiment, status: "+status));
+               }
+
+               // End execution task
+               console.log("["+exp_id+"] Executed!");
+               executionCallback(null);
+            });
          });
       });
    });
@@ -1180,43 +1187,28 @@ var _retrieveExperimentOutput = function(task, exp_id, system, retrieveCallback)
             }
          });
       },
-      // Execute excution script
+      // Get storage URL
       function(exp, headnode, image, wfcb){
+         storage.client.invoke('getExperimentOutputURL', exp_id, function(error, url){
+            if(error) return wfcb(error);
+            wfcb(null, exp, headnode, image, url);
+         });
+      },
+      // Execute excution script
+      function(exp, headnode, image, url, wfcb){
          // Check task abort
          if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
          console.log("["+exp_id+"] Getting experiment output data path");
          var output_file = image.workpath+"/"+exp.id+"/output.tar.gz";
-         var net_path = headnode.hostname + ":" + output_file;
 
          // Execute command
-         var cmd = 'cat '+work_dir+'/EXPERIMENT_STATUS';
-         HAY QUE COPIAR DESDE LA INSTANCIA AL STORAGE
+         var cmd = "sshpass -p 'devstack' scp -o StrictHostKeyChecking=no "+output_file+" "+url+"/";
          instmanager.executeCommand(headnode.id, cmd, function (error, output) {
-            if(error){
-               wfcb(error);
-            } else {
-               // Get status
-               var status = output.stdout;
-
-               // Update status if the file exists
-               if(status != ""){
-                  database.db.collection('experiments').updateOne({id: exp.id},{$set:{status:status}});
-               }
-
-               // Callback status
-               wfcb(null, status);
-            }
-         });
-         storage.client.invoke('retrieveExperimentOutput', exp.id, net_path, function (error) {
-            if (error) {
-               wfcb(new Error("Failed to retrieve experiment output data, error: ", error));
-            } else {
-               // Check task abort
-               if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
-
-               wfcb(null);
-            }
+            if(error) return wfcb(error);
+            // Check task abort
+            if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+            wfcb(null);
          });
       }
    ],

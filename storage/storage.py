@@ -205,6 +205,14 @@ class Storage(object):
 
         return url
 
+    def getExperimentOutputURL(self, exp_id):
+        # Get output storage path
+        output_path = self.outputpath + "/" + exp_id
+
+        # Get output storage path
+        url = "{0}@{1}:{2}".format(self.username, self.public_url, output_path)
+        return url
+
     def getExperimentInputURL(self, exp_id):
         # Get input storage path
         input_path = self.inputpath + "/" + exp_id
