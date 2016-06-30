@@ -375,6 +375,9 @@ class ClusterMinion(minion.Minion):
 
         # Get size
         size = self._findSize(instance['size_id'])
+        if size is None:
+            self._instance_lock[instance_id] = False
+            raise Exception("Size not found: {0}".format(instance['size_id']))
 
         # QSUB launch command
         qsub_cmd = "qsub -N {0}-{1}-{2} -l select={0}:ncpus={1}:mem={2}MB -o {3} -e {3}".format(

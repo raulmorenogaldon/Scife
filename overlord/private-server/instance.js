@@ -11,10 +11,8 @@ var MODULE_NAME = "IM";
 /**
  * Module vars
  */
-var minionClient = new zerorpc.Client({
-	heartbeatInterval: 30000,
-	timeout: 3600
-});
+var dMinionClients = {};
+var vMinionClients = [];
 var destroyInterval = 30000;
 
 /**
@@ -113,18 +111,26 @@ var cleanSystem = function(system, cleanCallback){
  * @param {String} - Image ID.
  */
 var requestInstance = function(name, image_id, size_id, requestCallback){
-   // TODO: Select a minion
-   var minion = minionClient;
-
-   // Instance
-   minion.invoke('createInstance', {
-      name: name,
-      image_id: image_id,
-      size_id: size_id,
-      publicIP: true
-   }, function (error, instance_id) {
+   // Get image
+   getImage(image_id, function(error, image){
       if(error) return requestCallback(error);
-      requestCallback(null, instance_id);
+
+      // Get minion
+      var minion = dMinionClients[image.minion];
+
+      // Connected to minion?
+      if(!minion) return requestCallback(new Error("Minion "+image.minion+" not found."));
+
+      // Instance
+      minion.invoke('createInstance', {
+         name: name,
+         image_id: image_id,
+         size_id: size_id,
+         publicIP: true
+      }, function (error, instance_id) {
+         if(error) return requestCallback(error);
+         requestCallback(null, instance_id);
+      });
    });
 }
 
@@ -175,12 +181,29 @@ var getSize = function(size_id, getCallback){
  * Get images list
  */
 var getImagesList = function(getCallback){
-   minionClient.invoke('getImages', null, function (error, images) {
-      if(error){
-         getCallback(new Error('Failed to retrieve images'));
-      } else {
-         getCallback(null, images);
-      }
+   // Iterate minions
+   var tasks = [];
+   var list = [];
+   for(var i = 0; i < vMinionClients.length; i++){
+      // var i must be independent between tasks
+      (function(i){
+         tasks.push(function(taskcb){
+            var minion = vMinionClients[i];
+            minion.invoke('getImages', null, function (error, minion_images) {
+               if(error){
+                  taskcb(new Error('Failed to retrieve images'));
+               } else {
+                  // Add to list
+                  list = list.concat(minion_images);
+                  taskcb(null);
+               }
+            });
+         });
+      })(i);
+   }
+   async.parallel(tasks, function(error){
+      if(error) return getCallback(error);
+      getCallback(null, list);
    });
 }
 
@@ -188,12 +211,29 @@ var getImagesList = function(getCallback){
  * Get sizes list
  */
 var getSizesList = function(getCallback){
-   minionClient.invoke('getSizes', null, function (error, sizes) {
-      if(error){
-         getCallback(new Error('Failed to retrieve sizes'));
-      } else {
-         getCallback(null, sizes);
-      }
+   // Iterate minions
+   var tasks = [];
+   var list = [];
+   for(var i = 0; i < vMinionClients.length; i++){
+      // var i must be independent between tasks
+      (function(i){
+         tasks.push(function(taskcb){
+            var minion = vMinionClients[i];
+            minion.invoke('getSizes', null, function (error, minion_sizes) {
+               if(error){
+                  taskcb(new Error('Failed to retrieve sizes'));
+               } else {
+                  // Add to list
+                  list = list.concat(minion_sizes);
+                  taskcb(null);
+               }
+            });
+         });
+      })(i);
+   }
+   async.parallel(tasks, function(error){
+      if(error) return getCallback(error);
+      getCallback(null, list);
    });
 }
 
@@ -201,12 +241,29 @@ var getSizesList = function(getCallback){
  * Get instances list
  */
 var getInstancesList = function(getCallback){
-   minionClient.invoke('getInstances', null, function (error, insts) {
-      if(error){
-         getCallback(new Error('Failed to retrieve instances'));
-      } else {
-         getCallback(null, insts);
-      }
+   // Iterate minions
+   var tasks = [];
+   var list = [];
+   for(var i = 0; i < vMinionClients.length; i++){
+      // var i must be independent between tasks
+      (function(i){
+         tasks.push(function(taskcb){
+            var minion = vMinionClients[i];
+            minion.invoke('getInstances', null, function (error, minion_insts) {
+               if(error){
+                  taskcb(new Error('Failed to retrieve instances'));
+               } else {
+                  // Add to list
+                  list = list.concat(minion_insts);
+                  taskcb(null);
+               }
+            });
+         });
+      })(i);
+   }
+   async.parallel(tasks, function(error){
+      if(error) return getCallback(error);
+      getCallback(null, list);
    });
 }
 
@@ -214,13 +271,19 @@ var getInstancesList = function(getCallback){
  * Destroy instance
  */
 var destroyInstance = function(inst_id, destroyCallback){
-   // Destroy instance
-   minionClient.invoke('destroyInstance', inst_id, function (error) {
-      if(error){
-         destroyCallback(new Error("Failed to destroy instance " + inst_id + ", err: " + error));
-      } else {
+   // Get instance
+   getInstance(inst_id, function(error, inst){
+      if(error) return destroyCallback(error);
+
+      // Get minion
+      var minion = dMinionClients[inst.minion];
+      if(!minion) return destroyCallback(new Error("Minion "+inst.minion+" is not loaded."))
+
+      // Destroy instance
+      minion.invoke('destroyInstance', inst_id, function (error) {
+         if(error) return destroyCallback(new Error("Failed to destroy instance " + inst_id + ", err: " + error));
          destroyCallback(null);
-      }
+      });
    });
 }
 
@@ -233,10 +296,11 @@ var cleanExperiment = function(exp_id, inst_id, b_job, b_code, b_input, b_remove
       function(wfcb){
          getInstance(inst_id, wfcb);
       },
-      // TODO: Get minion for this instance
+      // Get minion for this instance
       function(inst, wfcb){
-         // minion = ...
-         wfcb(null, inst, minionClient);
+         var minion = dMinionClients[inst.minion];
+         if(!minion) return wfcb(new Error("Minion "+inst.minion+" is not loaded."))
+         wfcb(null, inst, minion);
       },
       // Clean jobs in this instance
       function(inst, minion, wfcb){
@@ -344,10 +408,11 @@ var executeCommand = function(inst_id, cmd, executeCallback){
       function(wfcb){
          getInstance(inst_id, wfcb);
       },
-      // TODO: Get minion for this instance
+      // Get minion for this instance
       function(inst, wfcb){
-         // minion = ...
-         wfcb(null, inst, minionClient);
+         var minion = dMinionClients[inst.minion];
+         if(!minion) return wfcb(new Error("Minion "+inst.minion+" is not loaded."))
+         wfcb(null, inst, minion);
       },
       // Execute command
       function(inst, minion, wfcb){
@@ -379,10 +444,11 @@ var executeJob = function(inst_id, cmd, work_dir, nodes, executeCallback){
       function(wfcb){
          getInstance(inst_id, wfcb);
       },
-      // TODO: Get minion for this instance
+      // Get minion for this instance
       function(inst, wfcb){
-         // minion = ...
-         wfcb(null, inst, minionClient);
+         var minion = dMinionClients[inst.minion];
+         if(!minion) return wfcb(new Error("Minion "+inst.minion+" is not loaded."))
+         wfcb(null, inst, minion);
       },
       // Execute command
       function(inst, minion, wfcb){
@@ -409,10 +475,11 @@ var waitJob = function(job_id, inst_id, waitCallback){
       function(wfcb){
          getInstance(inst_id, wfcb);
       },
-      // TODO: Get minion for this instance
+      // Get minion for this instance
       function(inst, wfcb){
-         // minion = ...
-         wfcb(null, inst, minionClient);
+         var minion = dMinionClients[inst.minion];
+         if(!minion) return wfcb(new Error("Minion "+inst.minion+" is not loaded."))
+         wfcb(null, inst, minion);
       },
       // Get job status
       function(inst, minion, wfcb){
@@ -445,15 +512,24 @@ var waitJob = function(job_id, inst_id, waitCallback){
  */
 var abortJob = function(job_id, inst_id, cleanCallback){
    if(job_id && inst_id){
-      // Abort job
-      console.log("["+MODULE_NAME+"]["+inst_id+"] Aborting job: "+job_id);
-      minionClient.invoke('cleanJob', job_id, inst_id, function (error, result) {
-         if (error) {
-            return cleanCallback(error);
-         }
+      // Get instance
+      getInstance(inst_id, function(error, inst){
+         if(error) return cleanCallback(error);
 
-         // Callback
-         cleanCallback(null);
+         // Get minion
+         var minion = dMinionClients[inst.minion];
+         if(!minion) return cleanCallback(new Error("Minion "+inst.minion+" is not loaded."))
+
+         // Abort job
+         console.log("["+MODULE_NAME+"]["+inst_id+"] Aborting job: "+job_id);
+         minion.invoke('cleanJob', job_id, inst_id, function (error, result) {
+            if (error) {
+               return cleanCallback(error);
+            }
+
+            // Callback
+            cleanCallback(null);
+         });
       });
    }
 }
@@ -600,20 +676,44 @@ var _destroyEmptyInstances = function(destroyCallback){
 /**
  * Initialize minions
  */
-console.log("["+MODULE_NAME+"] Connecting to minion in: " + constants.MINION_URL);
-minionClient.connect(constants.MINION_URL);
-
-
-/**
- * Task: Remove empty instances from the system
- */
-_destroyEmptyInstances(function(error){
+var tasks = [];
+for(var i = 0; i < constants.MINION_URL.length; i++){
+   // var i must be independent between tasks
+   (function(i){
+      tasks.push(function(taskcb){
+         var minion = new zerorpc.Client({
+            heartbeatInterval: 30000,
+            timeout: 3600
+         });
+         minion.minion_url = constants.MINION_URL[i];
+         minion.connect(minion.minion_url);
+         console.log("["+MODULE_NAME+"] Connecting to minion in: " + minion.minion_url);
+         minion.invoke('getMinionName', function (error, name) {
+            if(error){
+               console.error("["+MODULE_NAME+"] Failed to connect to minion "+minion.minion_url+".");
+               return taskcb(null);
+            }
+            console.log("["+MODULE_NAME+"] Connected to minion "+name+".");
+            dMinionClients[name] = minion;
+            vMinionClients.push(minion);
+            taskcb(null);
+         });
+      });
+   })(i);
+}
+async.parallel(tasks, function(error){
    if(error) console.error(error);
-});
-setInterval(_destroyEmptyInstances, destroyInterval, function(error){
-   if(error) console.error(error);
-});
 
+   /**
+    * Task: Remove empty instances from the system
+    */
+   _destroyEmptyInstances(function(error){
+      if(error) console.error(error);
+   });
+   setInterval(_destroyEmptyInstances, destroyInterval, function(error){
+      if(error) console.error(error);
+   });
+});
 
 module.exports.getInstance = getInstance;
 module.exports.getImage = getImage;

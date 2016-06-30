@@ -808,6 +808,7 @@ var _loadConfig = function(config, loadCallback){
          // Setup server
          zserver = new zerorpc.Server({
             login: login,
+            getMinionName: getMinionName,
             getImages: getImages,
             getSizes: getSizes,
             getInstances: getInstances,
