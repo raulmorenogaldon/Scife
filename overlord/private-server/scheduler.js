@@ -263,6 +263,13 @@ var destroyExperiment = function(exp_id, destroyCallback){
             wfcb(null);
          }
       },
+      // Remove experiment data from storage
+      function(wfcb){
+         storage.client.invoke('removeExperimentData', exp_id, function (error) {
+            if(error) return wfcb(error);
+            wfcb(null);
+         });
+      },
       // Remove from DB
       function(wfcb){
          database.db.collection('experiments').remove({id: exp_id});

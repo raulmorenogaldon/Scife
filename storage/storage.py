@@ -195,6 +195,15 @@ class Storage(object):
         ########################
         return exp_id
 
+    def removeExperimentData(self, exp_id):
+        # Remove output storage path
+        output_path = self.outputpath + "/" + exp_id
+        gevent.subprocess.call(["rm", "-rf", output_path])
+
+        # Remove input storage path
+        input_path = self.inputpath + "/" + exp_id
+        gevent.subprocess.call(["rm", "-rf", input_path])
+
     def getApplicationURL(self, app_id):
         # Get application storage path
         #app_path = self.apppath + "/" + app_id
