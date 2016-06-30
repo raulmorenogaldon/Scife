@@ -195,6 +195,15 @@ class Storage(object):
         ########################
         return exp_id
 
+    def removeExperimentData(self, exp_id):
+        # Remove output storage path
+        output_path = self.outputpath + "/" + exp_id
+        gevent.subprocess.call(["rm", "-rf", output_path])
+
+        # Remove input storage path
+        input_path = self.inputpath + "/" + exp_id
+        gevent.subprocess.call(["rm", "-rf", input_path])
+
     def getApplicationURL(self, app_id):
         # Get application storage path
         #app_path = self.apppath + "/" + app_id
@@ -203,6 +212,14 @@ class Storage(object):
         #url = "{0}@{1}:{2}".format(self.username, self.public_url, app_path)
         url = "git://{0}/{1}".format(self.public_url, app_id)
 
+        return url
+
+    def getExperimentOutputURL(self, exp_id):
+        # Get output storage path
+        output_path = self.outputpath + "/" + exp_id
+
+        # Get output storage path
+        url = "{0}@{1}:{2}".format(self.username, self.public_url, output_path)
         return url
 
     def getExperimentInputURL(self, exp_id):

@@ -470,7 +470,6 @@ router.get('/experiments/:exp_id/code', function (req, res, next) {
  */
 router.use(function(req, res, next){
    if (req.is('text/*')) {
-      console.log("Text");
       req.text = '';
       req.setEncoding('utf8');
       req.on('data', function(chunk){ req.text += chunk  });
@@ -585,7 +584,7 @@ router.get('/experiments/:exp_id/download', function (req, res, next) {
          res.writeHead(200, {
             'Content-Type': 'application/octet-stream',
             'Content-Length': stat.size,
-            'Content-Disposition': 'inline; filename="output.tar.gz"'
+            'Content-Disposition': 'inline; filename="'+req.exp.name+'.tar.gz"'
          });
 
          // Send file
