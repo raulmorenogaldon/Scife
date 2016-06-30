@@ -529,9 +529,6 @@ taskmanager.setTaskHandler("retrieveExperimentOutput", function(task){
          return;
       }
 
-      // Set experiment to done status
-      database.db.collection('experiments').updateOne({id: exp_id},{$set:{status: "done"}});
-
       // Set task to done
       taskmanager.setTaskDone(task_id, null, null);
 
@@ -543,6 +540,9 @@ taskmanager.setTaskHandler("retrieveExperimentOutput", function(task){
             if(error) console.error("["+exp_id+"] retrieveExperimentOutput error: "+error);
          });
       });
+
+      // Set experiment to done status
+      database.db.collection('experiments').updateOne({id: exp_id},{$set:{status: "done"}});
    });
 });
 
@@ -1138,7 +1138,6 @@ var _executeExperiment = function(task, exp_id, system, executionCallback){
 
             // Poll experiment status
             _pollExperiment(exp_id, system, function(error, status){
-
                // Update task and DB
                task.job_id = null;
                database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
