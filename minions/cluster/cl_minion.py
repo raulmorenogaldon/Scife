@@ -109,7 +109,7 @@ class ClusterMinion(minion.Minion):
             config = json.loads(json_config)
             self._loadConfig(config)
         except Exception as e:
-            print("Malformed config.json!")
+            print("Malformed configuration JSON!")
             raise e
 
         # Close connection
@@ -517,6 +517,26 @@ class ClusterMinion(minion.Minion):
                 size['minion'] = self.__class__.__name__
                 print("-- Adding size: {0}".format(size))
                 self._db.sizes.insert_one(size)
+
+        # Compatibles
+        images = self._db.images.find({'minion': self.__class__.__name__})
+        sizes = self._db.sizes.find({'minion': self.__class__.__name__})
+        sizes_compatible = []
+        print("Setting compatibles...")
+        for image in images:
+            for size in sizes:
+                print image
+                for comp_id in image['cl_sizes_compatible']:
+                    if comp_id == size['cl_id']:
+                        # Compatible
+                        sizes_compatible.append(size['id'])
+            # Add sizes_compatible to image
+            print("Sizes {0} are compatible with image {1}".format(
+                sizes_compatible, image['id']
+            ))
+            self._db.images.update_one({'id': image['id']}, {
+                '$set': {'sizes_compatible': sizes_compatible}
+            })
 
         print("Config loaded!")
 
