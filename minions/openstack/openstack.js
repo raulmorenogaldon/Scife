@@ -898,7 +898,40 @@ var _loadConfig = function(config, loadCallback){
             // Next
             wfcb(null);
          });
-      }
+      },
+      // Setup compatibility
+      function(wfcb){
+         console.log("["+MINION_NAME+"] Setting compatibility between images and sizes...");
+         // Get images from DB
+         database.collection('images').find({minion: MINION_NAME}).toArray().then(function(images){
+            // Get sizes from DB
+            database.collection('sizes').find({minion: MINION_NAME}).toArray().then(function(sizes){
+               // Iterate images
+               for(var i = 0; i < images.length; i++){
+
+                  // Sizes for this image
+                  var sizes_compatible = [];
+                  var image = images[i];
+                  // Iterate sizes
+                  for(var j = 0; j < sizes.length; j++){
+                     var size = sizes[j];
+
+                     // Compatibles?
+                     for(var z = 0; z < image.os_sizes_compatible.length; z++){
+                        var comp_id = image.os_sizes_compatible[z];
+                        if(size.os_id == comp_id){
+                           // Compatible!
+                           sizes_compatible.push(size.id);
+                        }
+                     }
+                  }
+                  // Save changes
+                  console.log('['+MINION_NAME+'] Sizes "'+sizes_compatible+'" are compatible with image "'+image.id+'".');
+                  database.collection('images').updateOne({id: image.id},{$set:{sizes_compatible:sizes_compatible}});
+               }
+            });
+         });
+      },
    ],
    function(error){
       if(error){

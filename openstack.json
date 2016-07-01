@@ -7,6 +7,7 @@
    "images": [
       {
          "os_id": "81743971-6f56-4c9f-a557-2edf4516d185",
+         "os_size_compatible": ["3", "4", "5"],
          "name": "Fedora",
          "username": "fedora",
          "desc": "Description...",
