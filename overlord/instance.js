@@ -2,6 +2,7 @@ var zerorpc = require('zerorpc');
 var async = require('async');
 var constants = require('./constants.json');
 var database = require('./database.js');
+var logger = require('./utils.js').logger;
 
 /**
  * Module name
@@ -304,7 +305,7 @@ var cleanExperiment = function(exp_id, inst_id, b_job, b_code, b_input, b_remove
       },
       // Clean jobs in this instance
       function(inst, minion, wfcb){
-         console.log("["+inst_id+"] Aborting jobs...");
+         logger.debug('['+MODULE_NAME+']['+inst.id+'] Clean: Aborting jobs...');
          _abortInstanceJobs(exp_id, inst_id, function(error){
             wfcb(error, inst, minion);
          });
@@ -312,7 +313,7 @@ var cleanExperiment = function(exp_id, inst_id, b_job, b_code, b_input, b_remove
       // Clean code
       function(inst, minion, wfcb){
          if(b_remove || b_code){
-            console.log("["+inst_id+"] Cleaning code...");
+            logger.debug('['+MODULE_NAME+']['+inst.id+'] Clean: Cleaning code...');
             _cleanExperimentCode(minion, exp_id, inst, function(error){
                if(error) return wfcb(error);
                wfcb(null, inst, minion);
@@ -324,7 +325,7 @@ var cleanExperiment = function(exp_id, inst_id, b_job, b_code, b_input, b_remove
       // Clean input
       function(inst, minion, wfcb){
          if(b_remove || b_input){
-            console.log("["+inst_id+"] Cleaning input...");
+            logger.debug('['+MODULE_NAME+']['+inst.id+'] Clean: Cleaning input...');
             _cleanExperimentInput(minion, exp_id, inst, function(error){
                if(error) return wfcb(error);
                wfcb(null);
@@ -339,7 +340,7 @@ var cleanExperiment = function(exp_id, inst_id, b_job, b_code, b_input, b_remove
 
       if(b_remove){
          // Remove from database
-         console.log("["+inst_id+"] Removing experiment from DB...");
+         logger.debug('['+MODULE_NAME+']['+inst_id+'] Clean: Removing experiment from instance...');
          database.db.collection('instances').updateOne({id: inst_id},{
             $pull: {exps: {exp_id: exp_id}}
          });
@@ -359,9 +360,9 @@ var cleanExperimentSystem = function(exp_id, system, b_job, b_code, b_input, b_r
       (function(inst){
          tasks.push(function(taskcb){
             if(system.instances[inst]){
-               console.log("["+system.instances[inst]+"] Cleaning instance...");
+               logger.debug('['+MODULE_NAME+']['+system.instances[inst]+'] CleanExperimentSystem: Cleaning instance...');
                cleanExperiment(exp_id, system.instances[inst], b_job, b_code, b_input, b_remove, function (error) {
-                  if(error) console.error('['+MODULE_NAME+'] Failed to clean instance, error: '+error);
+                  if(error) logger.error('['+MODULE_NAME+']['+system.instances[inst]+'] Failed to clean instance, error: ' + error);
                   return taskcb(null);
                });
             } else {
@@ -383,7 +384,7 @@ var cleanExperimentSystem = function(exp_id, system, b_job, b_code, b_input, b_r
 var addExperiment = function(exp_id, inst_id){
    // Get instance
    getInstance(inst_id, function(error, inst){
-      if(error) return console.error(error);
+      if(error) return logger.error('['+MODULE_NAME+']['+system.instances[inst]+'] AddExperiment: Error - ' + error);
 
       // Check if already added
       if(!inst.exps[exp_id]){
@@ -394,7 +395,7 @@ var addExperiment = function(exp_id, inst_id){
             $push: {'exps': {exp_id: exp_id, jobs: []}}
          });
       } else {
-         console.log('['+MODULE_NAME+']['+exp_id+'] Experiment is already in instance "'+inst_id+'".');
+         logger.info('['+MODULE_NAME+']['+inst_id+'] Experiment is already in instance - ' + exp_id);
       }
    });
 }
@@ -521,13 +522,14 @@ var abortJob = function(job_id, inst_id, cleanCallback){
          if(!minion) return cleanCallback(new Error("Minion "+inst.minion+" is not loaded."))
 
          // Abort job
-         console.log("["+MODULE_NAME+"]["+inst_id+"] Aborting job: "+job_id);
+         logger.debug('['+MODULE_NAME+']['+inst_id+'] Aborting job - ' + job_id);
          minion.invoke('cleanJob', job_id, inst_id, function (error, result) {
             if (error) {
                return cleanCallback(error);
             }
 
             // Callback
+            logger.debug('['+MODULE_NAME+']['+inst_id+'] Aborted job - ' + job_id);
             cleanCallback(null);
          });
       });
@@ -641,7 +643,7 @@ var _destroyEmptyInstances = function(destroyCallback){
    _getSuperfluousInstances(function(error, list){
       if(error) return destroyCallback(error);
 
-      if(list.length > 0) console.log('['+MODULE_NAME+'] Destroying empty instances: '+ list.length);
+      if(list.length > 0) logger.info('['+MODULE_NAME+'] DestroyEmpty: Destroying empty instances: '+ list.length);
 
       // Destroy instances task
       var tasks = [];
@@ -649,14 +651,14 @@ var _destroyEmptyInstances = function(destroyCallback){
          (function(i){
             tasks.push(function(taskcb){
                // Destroy instance
-               console.log('['+MODULE_NAME+']['+list[i].id+'] Destroying...');
+               logger.info('['+MODULE_NAME+']['+list[i].id+'] DestroyEmpty: Destroying...');
                destroyInstance(list[i].id, function(error){
                   if(error){
-                     console.error('['+MODULE_NAME+'] Failed to destroy instance "'+list[i].id+'", error: '+error);
+                     logger.error('['+MODULE_NAME+']['+list[i].id+'] DestroyEmpty: Failed to destroy instance - ' + error);
                   } else {
                      // Remove instance from DB
                      database.db.collection('instances').remove({_id: list[i].id});
-                     console.log('['+MODULE_NAME+']['+list[i].id+'] Instance destroyed');
+                     logger.info('['+MODULE_NAME+']['+list[i].id+'] DestroyEmpty: Done.');
                   }
 
                   // Always return no error
@@ -687,13 +689,13 @@ for(var i = 0; i < constants.MINION_URL.length; i++){
          });
          minion.minion_url = constants.MINION_URL[i];
          minion.connect(minion.minion_url);
-         console.log("["+MODULE_NAME+"] Connecting to minion in: " + minion.minion_url);
+         logger.info('['+MODULE_NAME+'] Connecting to minion in: ' + minion.minion_url);
          minion.invoke('getMinionName', function (error, name) {
             if(error){
-               console.error("["+MODULE_NAME+"] Failed to connect to minion "+minion.minion_url+".");
+               logger.error('['+MODULE_NAME+'] Failed to connect to minion '+minion.minion_url+'.');
                return taskcb(null);
             }
-            console.log("["+MODULE_NAME+"] Connected to minion "+name+".");
+            logger.log('['+MODULE_NAME+'] Connected to minion '+name+'.');
             dMinionClients[name] = minion;
             vMinionClients.push(minion);
             taskcb(null);
@@ -702,16 +704,16 @@ for(var i = 0; i < constants.MINION_URL.length; i++){
    })(i);
 }
 async.parallel(tasks, function(error){
-   if(error) console.error(error);
+   if(error) logger.error(error);
 
    /**
     * Task: Remove empty instances from the system
     */
    _destroyEmptyInstances(function(error){
-      if(error) console.error(error);
+      if(error) console.error('['+MODULE_NAME+'] DestroyEmpty: Failed - ' + error);
    });
    setInterval(_destroyEmptyInstances, destroyInterval, function(error){
-      if(error) console.error(error);
+      if(error) console.error('['+MODULE_NAME+'] DestroyEmpty: Failed - ' + error);
    });
 });
 

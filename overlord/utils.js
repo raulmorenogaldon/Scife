@@ -1,4 +1,10 @@
 var ssh2 = require('ssh2').Client;
+var winston = require('winston');
+
+/**
+ * Logger configuration
+ */
+winston.level = 'debug';
 
 // Create SSH connection
 function connectSSH(username, host, private_key, timeout, connectCallback){
@@ -158,3 +164,4 @@ module.exports.execSSH = execSSH;
 module.exports.closeSSH = closeSSH;
 module.exports.generateUUID = generateUUID;
 module.exports.cutTree = cutTree;
+module.exports.logger = winston;

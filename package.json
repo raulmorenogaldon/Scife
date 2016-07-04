@@ -1,0 +1,33 @@
+{
+  "name": "multicloud",
+  "version": "1.0.0",
+  "description": "This project consists in two parts:",
+  "main": "test_galgo.js",
+  "dependencies": {
+    "async": "^1.5.2",
+    "body-parser": "^1.15.2",
+    "cookie-parser": "^1.4.3",
+    "express": "^4.14.0",
+    "jsontool": "^7.0.2",
+    "libxmljs": "^0.18.0",
+    "mongodb": "^2.1.18",
+    "morgan": "^1.7.0",
+    "multer": "^1.1.0",
+    "request": "^2.72.0",
+    "ssh2": "^0.5.0",
+    "winston": "^2.2.0",
+    "zerorpc": "^0.9.6"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://raulmorenogaldon@bitbucket.org/cloudicados/multicloud.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "homepage": "https://bitbucket.org/cloudicados/multicloud#readme"
+}

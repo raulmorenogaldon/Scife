@@ -2,6 +2,7 @@ var zerorpc = require('zerorpc');
 var async = require('async');
 var constants = require('./constants.json');
 var codes = require('./error_codes.js');
+var logger = require('./utils.js').logger;
 
 /**
  * Load submodules
@@ -148,15 +149,19 @@ var searchExperiments = function(name, searchCallback){
  * Entry point for experiment execution
  */
 var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback){
+   logger.info('['+MODULE_NAME+']['+exp_id+'] Launch: Launching experiment...');
+
    // Check data
    async.waterfall([
       // Check experiment status
       function(wfcb){
          // Check image ID exists
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Launch: Checking image existence - '+image_id);
          instmanager.getImage(image_id, wfcb);
       },
       // Check size ID exists
       function(image, wfcb){
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Launch: Checking size existence - '+size_id);
          instmanager.getSize(size_id, wfcb);
       },
       // Get experiment
@@ -165,6 +170,7 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback
       },
       function(exp, wfcb){
          if(exp.status && exp.status != "created"){
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Launch: Already launched.');
             wfcb(new Error("Experiment " + exp.id + " is already launched!, status: " + exp.status));
          } else {
             wfcb(null);
@@ -174,6 +180,7 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback
    function(error){
       if(error){
          // Error trying to launch experiment
+         logger.error('['+MODULE_NAME+']['+exp_id+'] Launch: Error launching - '+error);
          launchCallback(error);
       } else {
          // Update status
@@ -183,6 +190,7 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback
          launchCallback(null);
 
          // Launch workflow
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Launch: Experiment launched.');
          _workflowExperiment(exp_id, nodes, image_id, size_id);
       }
    });
@@ -192,6 +200,8 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback
  * Reset experiment to "create" status
  */
 var resetExperiment = function(exp_id, resetCallback){
+   logger.info('['+MODULE_NAME+']['+exp_id+'] Reset: Resetting experiment...');
+
    // Update status
    database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"resetting"}});
 
@@ -200,18 +210,17 @@ var resetExperiment = function(exp_id, resetCallback){
       if(error) return resetCallback(error);
 
       // Abort all tasks
+      logger.debug('['+MODULE_NAME+']['+exp_id+'] Reset: Aborting queue...');
       taskmanager.abortQueue(exp_id, function(task){
          if(task && task.job_id && exp.system && exp.system.instances[0]){
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Reset: Aborting job - '+task.job_id);
             instmanager.abortJob(task.job_id, exp.system.instances[0], function(error){
                console.error(error);
             });
          }
       }, function(error){
          // All task aborted and finished
-         if(error) {
-            console.error(error);
-            return;
-         }
+         if(error) return logger.error('['+MODULE_NAME+']['+exp_id+'] Reset: Error aborting queue - '+error);
 
          // Add reset task
          var task = {
@@ -230,6 +239,7 @@ var resetExperiment = function(exp_id, resetCallback){
  * Remove an experiment.
  */
 var destroyExperiment = function(exp_id, destroyCallback){
+   logger.info('['+MODULE_NAME+']['+exp_id+'] Destroy: Destroying experiment...');
    async.waterfall([
       // Get experiment
       function(wfcb){
@@ -246,8 +256,9 @@ var destroyExperiment = function(exp_id, destroyCallback){
       // Clean system
       function(exp, wfcb){
          if(exp.system){
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Destroy: Cleaning system...');
             instmanager.cleanExperimentSystem(exp_id, exp.system, true, true, true, true, function(error, system){
-               wfcb(error, exp);
+               return wfcb(error, exp);
             });
          } else {
             wfcb(null, exp);
@@ -256,8 +267,9 @@ var destroyExperiment = function(exp_id, destroyCallback){
       // Destroy system
       function(exp, wfcb){
          if(exp.system){
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Destroy: Destroying system...');
             instmanager.cleanSystem(exp.system, function(error, system){
-               wfcb(error);
+               return wfcb(error);
             });
          } else {
             wfcb(null);
@@ -265,6 +277,7 @@ var destroyExperiment = function(exp_id, destroyCallback){
       },
       // Remove experiment data from storage
       function(wfcb){
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Destroy: Removing experiment data from storage...');
          storage.client.invoke('removeExperimentData', exp_id, function (error) {
             if(error) return wfcb(error);
             wfcb(null);
@@ -272,19 +285,19 @@ var destroyExperiment = function(exp_id, destroyCallback){
       },
       // Remove from DB
       function(wfcb){
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Destroy: Removing experiment from DB...');
          database.db.collection('experiments').remove({id: exp_id});
          wfcb(null);
       },
    ],
    function(error){
       if(error){
-         console.log("Error destroying experiment, error: " + error);
-         destroyCallback(error);
-      } else {
-         // Log success
-         console.log("Deleted experiment: " + exp_id);
-         destroyCallback(null);
+         logger.error('['+MODULE_NAME+']['+exp_id+'] Destroy: Error destroying experiment - '+error);
+         return destroyCallback(error);
       }
+      // Log success
+      logger.info('['+MODULE_NAME+']['+exp_id+'] Destroy: Deleted experiment.');
+      destroyCallback(null);
    });
 }
 
@@ -292,7 +305,7 @@ var destroyExperiment = function(exp_id, destroyCallback){
  * Reload experiments' file tree.
  */
 var reloadExperimentTree = function(exp_id, reloadCallback){
-   console.log("["+exp_id+"] Reloading trees...");
+   logger.info('['+MODULE_NAME+']['+exp_id+'] ReloadTree: Reloading experiment trees...');
    async.waterfall([
       // Get experiment
       function(wfcb){
@@ -300,6 +313,7 @@ var reloadExperimentTree = function(exp_id, reloadCallback){
       },
       // Obtain experiment input data tree
       function(exp, wfcb){
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] ReloadTree: Getting input folder tree...');
          storage.client.invoke('getInputFolderTree', exp_id, function (error, tree) {
             if(error) return wfcb(error);
 
@@ -309,6 +323,7 @@ var reloadExperimentTree = function(exp_id, reloadCallback){
       },
       // Obtain experiment source code tree
       function(exp, wfcb){
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] ReloadTree: Getting sources folder tree...');
          storage.client.invoke('getExperimentSrcFolderTree', exp_id, exp.app_id, function (error, tree) {
             if(error) return wfcb(error);
 
@@ -319,7 +334,7 @@ var reloadExperimentTree = function(exp_id, reloadCallback){
    ],
    function(error){
       if(error) return reloadCallback(error);
-      console.log("["+exp_id+"] Trees reloaded");
+      logger.info('['+MODULE_NAME+']['+exp_id+'] ReloadTree: Trees reloaded.');
       reloadCallback(error);
    });
 }
@@ -342,7 +357,6 @@ taskmanager.setTaskHandler("instanceSystem", function(task){
    // Define and create a system
    _instanceSystem(task, system, function(error, system){
       if(error){
-         console.error('['+MODULE_NAME+']['+exp_id+'] instanceSystem error: '+error);
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
          return;
@@ -375,7 +389,6 @@ taskmanager.setTaskHandler("prepareExperiment", function(task){
    // Prepare experiment
    _prepareExperiment(task, exp_id, system, function(error){
       if(error){
-         console.error('['+MODULE_NAME+']['+exp_id+'] prepareExperiment error: '+error);
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
          database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system, status: "failed_prepare"}});
@@ -406,16 +419,13 @@ taskmanager.setTaskHandler("deployExperiment", function(task){
    // Prepare experiment
    _deployExperiment(task, exp_id, system, function(error){
       if(error){
-         console.error('['+MODULE_NAME+']['+exp_id+'] deployExperiment error: '+error.message);
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
 
          // Clean system
          instmanager.cleanExperimentSystem(exp_id, system, true, true, true, true, function(error, system){
-            if(error) console.error("["+exp_id+"] deployExperiment clean system error: "+error);
             instmanager.cleanSystem(system, function(error, system){
                database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system, status: "failed_deploy"}});
-               if(error) console.error("["+exp_id+"] deployExperiment clean error: "+error);
             });
          });
          return;
@@ -445,16 +455,13 @@ taskmanager.setTaskHandler("compileExperiment", function(task){
    // Prepare experiment
    _compileExperiment(task, exp_id, system, function(error){
       if(error){
-         console.error('['+MODULE_NAME+']['+exp_id+'] compileExperiment error: '+error);
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
 
          // Clean system
          instmanager.cleanExperimentSystem(exp_id, system, true, true, true, true, function(error, system){
-            if(error) console.error("["+exp_id+"] compileExperiment error: "+error);
             instmanager.cleanSystem(system, function(error, system){
                database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system}});
-               if(error) console.error("["+exp_id+"] compileExperiment error: "+error);
             });
          });
          return;
@@ -484,16 +491,13 @@ taskmanager.setTaskHandler("executeExperiment", function(task){
    // Prepare experiment
    _executeExperiment(task, exp_id, system, function(error){
       if(error){
-         console.error('['+MODULE_NAME+']['+exp_id+'] executeExperiment error: '+error);
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
 
          // Clean system
          instmanager.cleanExperimentSystem(exp_id, system, true, true, true, true, function(error, system){
-            if(error) console.error("["+exp_id+"] executeExperiment error: "+error);
             instmanager.cleanSystem(system, function(error, system){
                database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system}});
-               if(error) console.error("["+exp_id+"] executeExperiment error: "+error);
             });
          });
          return;
@@ -523,7 +527,6 @@ taskmanager.setTaskHandler("retrieveExperimentOutput", function(task){
    // Prepare experiment
    _retrieveExperimentOutput(task, exp_id, system, function(error){
       if(error){
-         console.error('['+MODULE_NAME+']['+exp_id+'] retrieveExperimentOutput error: '+error);
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
          return;
@@ -534,10 +537,8 @@ taskmanager.setTaskHandler("retrieveExperimentOutput", function(task){
 
       // Clean system
       instmanager.cleanExperimentSystem(exp_id, system, true, true, true, true, function(error, system){
-         if(error) console.error("["+exp_id+"] retrieveExperimentOutput error: "+error);
          instmanager.cleanSystem(system, function(error, system){
             database.db.collection('experiments').updateOne({id: exp_id},{$set:{system: system}});
-            if(error) console.error("["+exp_id+"] retrieveExperimentOutput error: "+error);
          });
       });
 
@@ -558,7 +559,6 @@ taskmanager.setTaskHandler("resetExperiment", function(task){
    // Prepare experiment
    _resetExperiment(exp_id, task, function(error){
       if(error){
-         console.error('['+MODULE_NAME+']['+exp_id+'] resetExperiment error: '+error);
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
          return;
@@ -580,23 +580,21 @@ taskmanager.setTaskHandler("resetExperiment", function(task){
  * Initiates the event chain for experiment workflow execution
  */
 var _workflowExperiment = function(exp_id, nodes, image_id, size_id){
-
-   console.log("["+exp_id+"] Workflow: Begin");
+   logger.info('['+MODULE_NAME+']['+exp_id+'] Workflow: Begin...');
 
    getExperiment(exp_id, null, function(error, exp){
       // Execute operations on experiment
       async.waterfall([
          // First, define a system where execution will take place
          function(wfcb){
-            console.log('['+exp_id+'] Workflow: Defining system...');
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Workflow: Defining system...');
             instmanager.defineSystem(nodes, image_id, size_id, exp.name, wfcb);
          },
          // Prepare experiment for the system
          function(system, wfcb){
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Workflow: Defined system - '+ system);
             // Update DB
             database.db.collection('experiments').updateOne({id: exp_id},{$set:{system:system}});
-
-            console.log("["+exp_id+"] Workflow: Launching preparing task...");
 
             // Add prepare task
             var task = {
@@ -610,7 +608,7 @@ var _workflowExperiment = function(exp_id, nodes, image_id, size_id){
          }
       ],
       function(error){
-         if(error) console.log("["+exp_id+"] Workflow: Failed, error: " + error);
+         if(error) logger.error('['+MODULE_NAME+']['+exp_id+'] Workflow: Failed, error - ' + error);
       });
    });
 }
@@ -619,8 +617,9 @@ var _workflowExperiment = function(exp_id, nodes, image_id, size_id){
  * Instance a system to use with an experiment
  */
 var _instanceSystem = function(task, system, createCallback){
+   logger.info('['+MODULE_NAME+'] InstanceSystem: Instancing...');
+
    // Check if task failed
-   console.log('['+MODULE_NAME+'] Instancing cluster...');
    instmanager.instanceSystem(system, function(error){
       if(error) return createCallback(error);
 
@@ -630,7 +629,7 @@ var _instanceSystem = function(task, system, createCallback){
          return createCallback(new Error("Task aborted"));
       }
 
-      console.log('['+MODULE_NAME+'] Cluster created.');
+      logger.info('['+MODULE_NAME+'] Cluster created.');
       createCallback(null, system);
    });
 }
@@ -640,6 +639,7 @@ var _instanceSystem = function(task, system, createCallback){
  * Labels will be applied.
  */
 var _prepareExperiment = function(task, exp_id, system, prepareCallback){
+   logger.info('['+MODULE_NAME+']['+exp_id+'] Prepare: Preparing...');
    async.waterfall([
       // Get experiment
       function(wfcb){
@@ -657,7 +657,7 @@ var _prepareExperiment = function(task, exp_id, system, prepareCallback){
       },
       // Update labels for this system
       function(app, exp, wfcb){
-         console.log("["+exp_id+"] Preparing labels");
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Prepare: Preparing labels...');
          // Get application labels and join with experiment ones
          for(var i in app.labels){
             if(!exp.labels[app.labels[i]]){
@@ -684,6 +684,7 @@ var _prepareExperiment = function(task, exp_id, system, prepareCallback){
          exp.labels['#TOTALCPUS'] = totalcpus;
 
          // Apply labels
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Prepare: Storage call.');
          storage.client.invoke('prepareExperiment', app.id, exp.id, exp.labels, function(error){
             if(error){
                wfcb(error);
@@ -697,7 +698,7 @@ var _prepareExperiment = function(task, exp_id, system, prepareCallback){
       if(error){
          prepareCallback(error);
       } else {
-         console.log("["+exp_id+"] Prepared for deployment");
+         logger.info('['+MODULE_NAME+']['+exp_id+'] Prepare: Prepared for deployment.');
          prepareCallback(null);
       }
    });
@@ -707,6 +708,8 @@ var _prepareExperiment = function(task, exp_id, system, prepareCallback){
  * Deploy an experiment in target system
  */
 var _deployExperiment = function(task, exp_id, system, deployCallback){
+   logger.info('['+MODULE_NAME+']['+exp_id+'] Deploy: Deploying...');
+
    // Check the system is instanced
    if(system.status != "instanced"){
       deployCallback(new Error("Target system is not instanced"));
@@ -734,6 +737,7 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
       },
       // Get experiment URL
       function(app, exp, wfcb){
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Deploy: Getting application URL...');
          storage.client.invoke('getApplicationURL', app.id, function(error, url){
             if(error){
                wfcb(error);
@@ -745,6 +749,7 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
       },
       // Get input URL
       function(app, exp, wfcb){
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Deploy: Getting experiment URL...');
          storage.client.invoke('getExperimentInputURL', exp_id, function(error, url){
             if(error){
                wfcb(error);
@@ -777,7 +782,7 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
       // Abort previous job
       function(app, exp, headnode, image, wfcb){
          if(task.job_id){
-            console.log("["+exp.id+"] Aborting previous jobs...");
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Deploy: Aborting previous jobs...');
             instmanager.abortJob(task.job_id, headnode.id, function(error){
                if(error) {return wfcb(error);}
                wfcb(null, app, exp, headnode, image);
@@ -790,8 +795,8 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
       function(app, exp, headnode, image, wfcb){
          if(!task.job_id){
             for(var i = 0; i < system.nodes; i++){
-               console.log('['+MODULE_NAME+']['+exp_id+'] Adding experiment to instance "'+system.instances[i]+'"...');
                // Add experiment to instance
+               logger.debug('['+MODULE_NAME+']['+exp_id+'] Deploy: Adding experiment to instance - ' + system.instances[i]);
                instmanager.addExperiment(exp_id, system.instances[i]);
             }
          }
@@ -802,11 +807,11 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
          // Check task abort
          if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
-         console.log("["+exp.id+"] Cloning experiment into instance");
          var cmd = "mkdir -p "+image.workpath+"; git clone -b "+exp.id+"-L "+exp.exp_url+" "+image.workpath+"/"+exp.id;
          var work_dir = image.workpath + "/" + exp.id;
 
          // Execute command
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Deploy: Cloning experiment...');
          instmanager.executeJob(headnode.id, cmd, work_dir, 1, function (error, job_id) {
             if (error) {return wfcb(error);}
 
@@ -818,6 +823,7 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
             if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
             // Wait for command completion
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Deploy: Waiting - ' + job_id);
             instmanager.waitJob(job_id, headnode.id, function(error){
                if(error){return wfcb(error);}
 
@@ -837,11 +843,11 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
          // Check task abort
          if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
-         console.log("["+exp.id+"] Making inputdata dir");
          var cmd = "mkdir -p "+image.inputpath+"/"+exp.id+"; sshpass -p 'devstack' rsync -Lr "+exp.input_url+"/* "+image.inputpath+"/"+exp.id;
          var work_dir = image.workpath + "/" + exp.id;
 
          // Execute command
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Deploy: Making inputdata directory...');
          instmanager.executeJob(headnode.id, cmd, work_dir, 1, function (error, job_id) {
             if (error) {return wfcb(error);}
 
@@ -853,6 +859,7 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
             if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
             // Wait for command completion
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Deploy: Waiting - ' + job_id);
             instmanager.waitJob(job_id, headnode.id, function(error){
                if(error){return wfcb(error);}
 
@@ -872,11 +879,11 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
          // Check task abort
          if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
-         console.log("["+exp.id+"] Initializing EXPERIMENT_STATUS");
          var cmd = 'echo -n "deployed" > '+image.workpath+'/'+exp.id+'/EXPERIMENT_STATUS';
          var work_dir = image.workpath + "/" + exp.id;
 
          // Execute command
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Deploy: Initializing EXPERIMENT_STATUS...');
          instmanager.executeJob(headnode.id, cmd, work_dir, 1, function (error, job_id) {
             if (error) {return wfcb(error);}
 
@@ -888,6 +895,7 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
             if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
             // Wait for command completion
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Deploy: Waiting - ' + job_id);
             instmanager.waitJob(job_id, headnode.id, function(error){
                if(error){return wfcb(error);}
 
@@ -907,6 +915,7 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
       if(error){return deployCallback(error);}
 
       // Poll experiment status
+      logger.debug('['+MODULE_NAME+']['+exp_id+'] Deploy: Polling...');
       _pollExperiment(exp_id, system, function(error, status){
          // Check status
          if(status != "deployed"){
@@ -914,7 +923,7 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
          }
 
          // Deployed
-         console.log("["+exp_id+"] Deployed!");
+         logger.info('['+MODULE_NAME+']['+exp_id+'] Deploy: Done.');
          deployCallback(null);
       });
    });
@@ -924,6 +933,8 @@ var _deployExperiment = function(task, exp_id, system, deployCallback){
  * Launch compilation script of an experiment
  */
 var _compileExperiment = function(task, exp_id, system, compileCallback){
+   logger.info('['+MODULE_NAME+']['+exp_id+'] Compile: Begin.');
+
    // Check the system is instanced
    if(system.status != "instanced"){
       deployCallback(new Error("Target system is not instanced"));
@@ -990,9 +1001,10 @@ var _compileExperiment = function(task, exp_id, system, compileCallback){
             wfcb(true, headnode);
          } else {
             // Execute job
-            console.log("["+exp.id+"] Executing compiling script");
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Compile: Executing compiling script...');
             instmanager.executeJob(headnode.id, exe_script, work_dir, 1, function (error, job_id) {
                if (error) {return wfcb(error);}
+               logger.debug('['+MODULE_NAME+']['+exp_id+'] Compile: Job ID - ' + job_id);
 
                // Update task and DB
                task.job_id = job_id;
@@ -1008,18 +1020,19 @@ var _compileExperiment = function(task, exp_id, system, compileCallback){
    ],
    function(error, headnode){
       if(error && error != true){ return compileCallback(error);}
-
-      console.log("["+exp_id+"] Compiling...");
+      logger.info('['+MODULE_NAME+']['+exp_id+'] Compile: Compiling...');
 
       // Poll experiment status
       _pollExperiment(exp_id, system, function(error, status){
          if(error){return compileCallback(error);}
 
          // Wait for command completion
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Compile: Waiting - ' + task.job_id);
          instmanager.waitJob(task.job_id, headnode.id, function(error){
             if(error){return compileCallback(error);}
 
             // Poll experiment status
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Compile: Job done, polling...');
             _pollExperiment(exp_id, system, function(error, status){
                // Update task and DB
                task.job_id = null;
@@ -1034,7 +1047,7 @@ var _compileExperiment = function(task, exp_id, system, compileCallback){
                }
 
                // End compile task
-               console.log("["+exp_id+"] Compiled!");
+               logger.info('['+MODULE_NAME+']['+exp_id+'] Compile: Done.');
                compileCallback(null);
             });
          });
@@ -1046,6 +1059,7 @@ var _compileExperiment = function(task, exp_id, system, compileCallback){
  * Execute an experiment in target system
  */
 var _executeExperiment = function(task, exp_id, system, executionCallback){
+   logger.info('['+MODULE_NAME+']['+exp_id+'] Execute: Begin.');
 
    async.waterfall([
       // Get experiment
@@ -1107,7 +1121,7 @@ var _executeExperiment = function(task, exp_id, system, executionCallback){
             wfcb(true, headnode);
          } else {
             // Execute job
-            console.log("["+exp_id+"] Launching execution script");
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Execute: Launching execution script...');
             instmanager.executeJob(headnode.id, exe_script, work_dir, system.nodes, function (error, job_id) {
                if (error) {return wfcb(error);}
 
@@ -1125,18 +1139,19 @@ var _executeExperiment = function(task, exp_id, system, executionCallback){
    ],
    function(error, headnode){
       if(error && error != true){return executionCallback(error);}
-
-      console.log("["+exp_id+"] Executing...");
+      logger.info('['+MODULE_NAME+']['+exp_id+'] Execute: Executing...');
 
       // Poll experiment status
       _pollExperiment(exp_id, system, function(error, status){
          if(error){return executionCallback(error);}
 
          // Wait for command completion
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Execute: Waiting - ' + task.job_id);
          instmanager.waitJob(task.job_id, headnode.id, function(error){
             if(error){return executionCallback(error);}
 
             // Poll experiment status
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Execute: Job done, polling...');
             _pollExperiment(exp_id, system, function(error, status){
                // Update task and DB
                task.job_id = null;
@@ -1151,7 +1166,7 @@ var _executeExperiment = function(task, exp_id, system, executionCallback){
                }
 
                // End execution task
-               console.log("["+exp_id+"] Executed!");
+               logger.info('['+MODULE_NAME+']['+exp_id+'] Execute: Done.');
                executionCallback(null);
             });
          });
@@ -1163,6 +1178,8 @@ var _executeExperiment = function(task, exp_id, system, executionCallback){
  * Retrieve experiment output data
  */
 var _retrieveExperimentOutput = function(task, exp_id, system, retrieveCallback){
+   logger.info('['+MODULE_NAME+']['+exp_id+'] Retrieve: Begin.');
+
    if(system.status != "instanced"){
       retrieveCallback(new Error("Target system is not instanced"));
       return;
@@ -1195,6 +1212,7 @@ var _retrieveExperimentOutput = function(task, exp_id, system, retrieveCallback)
       },
       // Get storage URL
       function(exp, headnode, image, wfcb){
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Retrieve: Getting output URL...');
          storage.client.invoke('getExperimentOutputURL', exp_id, function(error, url){
             if(error) return wfcb(error);
             wfcb(null, exp, headnode, image, url);
@@ -1210,6 +1228,7 @@ var _retrieveExperimentOutput = function(task, exp_id, system, retrieveCallback)
 
          // Execute command
          var cmd = "sshpass -p 'devstack' scp -o StrictHostKeyChecking=no "+output_file+" "+url+"/";
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Retrieve: Copying output files to storage...');
          instmanager.executeCommand(headnode.id, cmd, function (error, output) {
             if(error) return wfcb(error);
             // Check task abort
@@ -1222,7 +1241,7 @@ var _retrieveExperimentOutput = function(task, exp_id, system, retrieveCallback)
       if(error){
          retrieveCallback(error);
       } else {
-         console.log("["+exp_id+"] Output data retrievement succeed");
+         logger.info('['+MODULE_NAME+']['+exp_id+'] Retrieve: Done.');
          retrieveCallback(null);
       }
    });
@@ -1232,6 +1251,7 @@ var _retrieveExperimentOutput = function(task, exp_id, system, retrieveCallback)
  * Resets an experiment
  */
 var _resetExperiment = function(exp_id, task, resetCallback){
+   logger.info('['+MODULE_NAME+']['+exp_id+'] Reset: Begin.');
    async.waterfall([
       // Get experiment
       function(wfcb){
@@ -1245,14 +1265,12 @@ var _resetExperiment = function(exp_id, task, resetCallback){
       // Clean job
       function(exp, wfcb){
          if(exp.system){
-            console.log("["+exp_id+"] Reset: cleaning experiment");
             var job_id = null;
             if(task) job_id = task.job_id;
             // Experiment will be removed completely from the instance
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Reset: Cleaning experiment...');
             instmanager.cleanExperimentSystem(exp_id, exp.system, true, true, true, true, function(error){
-               if (error) {
-                  console.log('['+exp_id+'] Reset: Failed to clean experiment, error: '+error);
-               }
+               if (error) logger.error('['+MODULE_NAME+']['+exp_id+'] Reset: Failed to clean experiment, error: ' + error);
                wfcb(null, exp);
             });
          } else {
@@ -1262,11 +1280,9 @@ var _resetExperiment = function(exp_id, task, resetCallback){
       // Clean system
       function(exp, wfcb){
          if(exp.system){
-            console.log("["+exp_id+"] Reset: cleaning system");
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Reset: Cleaning system...');
             instmanager.cleanSystem(exp.system, function(error){
-               if (error) {
-                  console.log('['+exp.id+'] Reset: Failed to clean system, error: '+error);
-               }
+               if (error) logger.error('['+MODULE_NAME+']['+exp_id+'] Reset: Failed to clean system, error: ' + error);
                wfcb(error, exp);
             });
          } else {
@@ -1282,9 +1298,9 @@ var _resetExperiment = function(exp_id, task, resetCallback){
       } else {
          // Update status
          database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"created", system: exp.system, logs:[]}});
-         console.log("["+exp_id+"] Reset: done");
 
          // Callback
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Reset: Done.');
          resetCallback(null);
       }
    });
@@ -1294,9 +1310,12 @@ var _resetExperiment = function(exp_id, task, resetCallback){
  * Get experiment status from target system and update in DB.
  */
 var _pollExperiment = function(exp_id, system, pollCallback){
+   logger.info('['+MODULE_NAME+']['+exp_id+'] Poll: Begin.');
+
    // Check system
    if(!system || !system.instances || system.instances.length == 0){
       // Nothing to poll
+      logger.debug('['+MODULE_NAME+']['+exp_id+'] Poll: nothing to poll.');
       getExperiment(exp_id, null, function(error, exp){
          if(error) return pollCallback(error);
          pollCallback(null, exp.status);
@@ -1311,6 +1330,7 @@ var _pollExperiment = function(exp_id, system, pollCallback){
       },
       // Get instance
       function(exp, wfcb){
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Poll: Getting instance...');
          instmanager.getInstance(system.instances[0], function(error, headnode){
             if(error){
                wfcb(error);
@@ -1321,6 +1341,7 @@ var _pollExperiment = function(exp_id, system, pollCallback){
       },
       // Get instance image
       function(exp, headnode, wfcb){
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Poll: Getting image...');
          instmanager.getImage(headnode.image_id, function(error, image){
             if(error){
                wfcb(error);
@@ -1331,42 +1352,39 @@ var _pollExperiment = function(exp_id, system, pollCallback){
       },
       // Poll experiment logs
       function(exp, headnode, image, wfcb){
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Poll: Polling logs...');
          _pollExperimentLogs(exp.id, headnode.id, image, ['COMPILATION_LOG','EXECUTION_LOG','*.log', '*.log.*', '*.bldlog.*'], function (error, logs) {
-            if(error){
-               wfcb(error);
-            } else {
-               // Update status
-               database.db.collection('experiments').updateOne({id: exp.id},{$set:{logs:logs}});
+            if(error) return wfcb(error);
+            // Update status
+            database.db.collection('experiments').updateOne({id: exp.id},{$set:{logs:logs}});
 
-               // Callback status
-               wfcb(null, exp, headnode, image);
-            }
+            // Callback status
+            wfcb(null, exp, headnode, image);
          });
       },
       // Poll experiment status
       function(exp, headnode, image, wfcb){
          var work_dir = image.workpath+"/"+exp.id;
          var cmd = 'cat '+work_dir+'/EXPERIMENT_STATUS';
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Poll: Polling status...');
          instmanager.executeCommand(headnode.id, cmd, function (error, output) {
-            if(error){
-               wfcb(error);
-            } else {
-               // Get status
-               var status = output.stdout;
+            if(error) return wfcb(error);
+            // Get status
+            var status = output.stdout;
 
-               // Update status if the file exists
-               if(status != ""){
-                  database.db.collection('experiments').updateOne({id: exp.id},{$set:{status:status}});
-               }
-
-               // Callback status
-               wfcb(null, status);
+            // Update status if the file exists
+            if(status != ""){
+               database.db.collection('experiments').updateOne({id: exp.id},{$set:{status:status}});
             }
+
+            // Callback status
+            wfcb(null, status);
          });
       }
    ],
    function(error, status){
       if(error) return pollCallback(error);
+      logger.info('['+MODULE_NAME+']['+exp_id+'] Poll: Done.');
       pollCallback(null, status);
    });
 }
@@ -1388,9 +1406,11 @@ var _pollExperimentLogs = function(exp_id, inst_id, image, log_files, pollCallba
       _polling[exp_id] = true;
 
       // Get log files list
+      logger.debug('['+MODULE_NAME+']['+exp_id+'] PollLogs: Finding logs - ' + log_files);
       _findExperimentLogs(exp_id, inst_id, image, log_files, function(error, loglist){
          if(error){
             _polling[exp_id] = false;
+            logger.error('['+MODULE_NAME+']['+exp_id+'] PollLogs: Error finding logs.');
             return pollCallback(error);
          }
 
@@ -1409,7 +1429,7 @@ var _pollExperimentLogs = function(exp_id, inst_id, image, log_files, pollCallba
                      var log_filename = loglist[i].split('\\').pop().split('/').pop();
 
                      // Add log
-                     //console.log('['+MODULE_NAME+']['+exp_id+'] Updating log content: "'+log_filename);
+                     logger.debug('['+MODULE_NAME+']['+exp_id+'] PollLogs: Updating log content - ' + log_filename);
                      logs.push({name: log_filename, content: content});
                      taskcb(null);
                   });
@@ -1423,6 +1443,7 @@ var _pollExperimentLogs = function(exp_id, inst_id, image, log_files, pollCallba
             if(error) return pollCallback(error);
             // Sort
             logs.sort(function(a,b){return (a.name > b.name) ? 1 : ((b.name > a.name) ? -1 : 0);});
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] PollLogs: Done.');
             pollCallback(null, logs);
          });
       });
@@ -1483,8 +1504,8 @@ var _cleanInstances = function(){
                   if(!exp || exp.status == "created" || exp.status == "done" || exp.status == "failed_compilation" || exp.status == "failed_execution"){
                      // Remove experiment from this instance
                      instmanager.cleanExperiment(exp_id, inst.id, true, true, true, true, function(error){
-                        if(error) console.error("["+exp_id+"] Failed to clean experiment from instance '"+inst.id+"'");
-                        console.log("["+exp_id+"] Cleaned experiment from instance '"+inst.id+"'");
+                        if(error) logger.error('['+MODULE_NAME+']['+exp_id+'] CleanInstances: Failed to clean experiment from instance - ' + inst.id);
+                        logger.info('['+MODULE_NAME+']['+exp_id+'] CleanInstances: Cleaned experiment from instance - ' + inst.id);
                      });
                   }
                });
@@ -1508,8 +1529,9 @@ var _pollExecutingExperiments = function(){
       status: { $in: ["deployed", "compiling", "executing"]}
    }).forEach(function(exp){
       // Poll experiment status
+      logger.debug('['+MODULE_NAME+']['+exp.id+'] PollExecuting: Polling...');
       _pollExperiment(exp.id, exp.system, function(error, status){
-         if(error) console.error("["+MODULE_NAME+"] Failed to automatic poll: "+error);
+         if(error) logger.error('['+MODULE_NAME+']['+exp.id+'] Failed to automatic poll: '+error);
       });
    });
 }

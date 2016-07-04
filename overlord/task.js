@@ -1,6 +1,7 @@
 var async = require('async');
 var constants = require('./constants.json');
 var utils = require('./utils.js');
+var logger = utils.logger;
 var database = require('./database.js');
 var EventEmitter = require('events').EventEmitter;
 
@@ -90,6 +91,7 @@ var setTaskFailed = function(task_id, error){
          task.details = error;
          // Update DB
          database.db.collection('tasks').updateOne({id: task.id},{$set:{_status:task._status, details:task.details}});
+         logger.error('['+MODULE_NAME+'] Task "'+task.type+'" failed: '+error);
       } else {
          // Aborted
          if(task._abortcb) task._abortcb(null, task);
@@ -165,7 +167,7 @@ var abortQueue = function(queue, abortTaskFunc, abortCallback){
 
    // Execute tasks
    // All aborted and finished
-   console.log('['+MODULE_NAME+'] Aborting queue "'+queue+'", '+tasks.length+' running tasks');
+   logger.info('['+MODULE_NAME+'] Aborting queue "'+queue+'", '+tasks.length+' running tasks');
    async.parallel(tasks, function(error, task){
       if(error){return abortCallback(error);}
       abortCallback(null);
@@ -205,6 +207,7 @@ var _launchTasks = function(){
             // Update DB
             database.db.collection('tasks').updateOne({id: task.id},{$set:{_status:task._status}});
             // Emit event
+            logger.info('['+MODULE_NAME+'] Task "'+task.type+'" emmited.');
             ee.emit(task.type, task);
          }
       }
@@ -236,7 +239,7 @@ var _loadTasks = function(){
 
    // Get tasks from DB
    database.db.collection('tasks').find().toArray(function(error, list){
-      console.log('['+MODULE_NAME+'] Loaded tasks');
+      logger.log('['+MODULE_NAME+'] Loaded tasks');
       // Relaunch running tasks
       for(var i = 0; i < list.length; i++){
          var task = list[i];
