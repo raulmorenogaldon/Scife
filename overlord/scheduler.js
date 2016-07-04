@@ -1281,7 +1281,7 @@ var _resetExperiment = function(exp_id, task, resetCallback){
          resetCallback(error);
       } else {
          // Update status
-         database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"created", system: exp.system}});
+         database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"created", system: exp.system, logs:[]}});
          console.log("["+exp_id+"] Reset: done");
 
          // Callback
