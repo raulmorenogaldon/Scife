@@ -54,31 +54,15 @@ var defineSystem = function(nodes, image_id, size_id, prefix, defineCallback){
  * Instance a system
  */
 var instanceSystem = function(system, instanceCallback){
-   // TODO: Set first instance as master
-   // Master tasks...
-
-   // Create instances tasks
-   var tasks = [];
-   for(i = 0; i < system.nodes; i++){
-      tasks.push(function(taskcb){
-         (function(i){
-            requestInstance(system.prefix+"_"+i, system.image.id, system.size.id, function (error, inst_id) {
-               if(error) return taskcb(error);
-               // Add instance to system
-               system.instances.push(inst_id);
-               // Add system to instance
-               database.db.collection('instances').updateOne({id: inst_id},{
-                  $set: { system: true}
-               });
-               taskcb(null);
-            });
-         })(i);
+   // Create instance
+   requestInstance(system.prefix, system.image.id, system.size.id, system.nodes, function (error, inst_id) {
+      if(error) return instanceCallback(error);
+      // Add instance to system
+      system.instances.push(inst_id);
+      // Add system to instance
+      database.db.collection('instances').updateOne({id: inst_id},{
+         $set: { in_use: true}
       });
-   }
-
-   // Execute tasks
-   async.parallel(tasks, function(error){
-      if(error) return instanceCallback(error, null);
       // Callback with instanced system
       system.status = "instanced";
       instanceCallback(null, system);
@@ -93,7 +77,7 @@ var cleanSystem = function(system, cleanCallback){
    if(system.instances){
       for(var i = 0; i < system.instances.length; i++){
          database.db.collection('instances').updateOne({id: system.instances[i]},{
-            $set: { system: false}
+            $set: { in_use: false}
          });
       }
    }
@@ -111,7 +95,7 @@ var cleanSystem = function(system, cleanCallback){
  * @param {String} - Size ID.
  * @param {String} - Image ID.
  */
-var requestInstance = function(name, image_id, size_id, requestCallback){
+var requestInstance = function(name, image_id, size_id, nodes, requestCallback){
    // Get image
    getImage(image_id, function(error, image){
       if(error) return requestCallback(error);
@@ -127,6 +111,7 @@ var requestInstance = function(name, image_id, size_id, requestCallback){
          name: name,
          image_id: image_id,
          size_id: size_id,
+         nodes: nodes,
          publicIP: true
       }, function (error, instance_id) {
          if(error) return requestCallback(error);
@@ -384,7 +369,7 @@ var cleanExperimentSystem = function(exp_id, system, b_job, b_code, b_input, b_r
 var addExperiment = function(exp_id, inst_id){
    // Get instance
    getInstance(inst_id, function(error, inst){
-      if(error) return logger.error('['+MODULE_NAME+']['+system.instances[inst]+'] AddExperiment: Error - ' + error);
+      if(error) return logger.error('['+MODULE_NAME+']['+inst_id+'] AddExperiment: Error - ' + error);
 
       // Check if already added
       if(!inst.exps[exp_id]){
@@ -586,7 +571,7 @@ var _getSuperfluousInstances = function(listCallback){
       // Iterate list
       for(var i = 0; i < insts.length; i++){
          // Empty?
-         if(!insts[i].system && (!insts[i].exps || insts[i].exps.length == 0)){
+         if(!insts[i].in_use && (!insts[i].exps || insts[i].exps.length == 0)){
             retList.push(insts[i]);
          }
       }
@@ -656,8 +641,6 @@ var _destroyEmptyInstances = function(destroyCallback){
                   if(error){
                      logger.error('['+MODULE_NAME+']['+list[i].id+'] DestroyEmpty: Failed to destroy instance - ' + error);
                   } else {
-                     // Remove instance from DB
-                     database.db.collection('instances').remove({_id: list[i].id});
                      logger.info('['+MODULE_NAME+']['+list[i].id+'] DestroyEmpty: Done.');
                   }
 

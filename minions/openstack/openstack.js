@@ -152,11 +152,81 @@ var createInstance = function(inst_cfg, createCallback){
    if(!inst_cfg.name) return createCallback(new Error("No name in inst_cfg."));
    if(!inst_cfg.image_id) return createCallback(new Error("No image_id in inst_cfg."));
    if(!inst_cfg.size_id) return createCallback(new Error("No size_id in inst_cfg."));
+   if(!inst_cfg.nodes) return createCallback(new Error("No nodes in inst_cfg."));
 
-   // Create instance
-   _createOpenStackInstance(inst_cfg, function(error, inst_id){
+   // Retrieve image
+   getImages(inst_cfg.image_id, function(error, image){
       if(error) return createCallback(error);
-      createCallback(null, inst_id);
+
+      // Cluster option
+      var headnode = {};
+      var insts = [];
+      var tasks = [];
+      for(var i = 0; i < inst_cfg.nodes; i++){
+         // var i must be independent between tasks
+         (function(i){
+            tasks.push(function(taskcb){
+               // Instance details
+               var aux_cfg = {
+                  name: inst_cfg.name + '-' + i,
+                  image_id: inst_cfg.image_id,
+                  size_id: inst_cfg.size_id
+               };
+               if(i == 0) aux_cfg.publicIP = true;
+
+               // Create OpenStack instance
+               _createOpenStackInstance(aux_cfg, function(error, os_inst_id){
+                  if(error) return taskcb(error);
+                  // Put public node in front
+                  if(i == 0){
+                     headnode = aux_cfg;
+                     insts.unshift(os_inst_id);
+                  }
+                  else insts.push(os_inst_id);
+
+                  // Created
+                  taskcb(null);
+               });
+            });
+         })(i);
+      }
+
+      // Execute tasks
+      async.parallel(tasks, function(error){
+         // Clean created instances
+         if(error){
+            for (var i = 0; i < insts.length; i++){
+               _destroyOpenStackInstance(insts[i], function(error){
+                  if(error) console.error(error);
+               });
+            }
+            return createCallback(error);
+         }
+
+         // Create instance metadata
+         var id = utils.generateUUID();
+         var inst = {
+            _id: id,
+            id: id,
+            name: inst_cfg.name,
+            image_id: inst_cfg.image_id,
+            size_id: inst_cfg.size_id,
+            exps: [],
+            workpath: image['workpath'],
+            inputpath: image['inputpath'],
+            minion: MINION_NAME,
+            hostname: headnode.ip,
+            ip: headnode.ip,
+            ip_id: headnode.ip_id,
+            members: insts,
+            ready: true
+         };
+
+         // Add to DB
+         console.log('['+MINION_NAME+']['+inst.id+'] Added instance to DB.');
+         database.collection('instances').insert(inst);
+         createCallback(null, inst.id);
+      });
    });
 }
 
@@ -167,18 +237,45 @@ var destroyInstance = function(inst_id, destroyCallback){
 
       // Deallocate IP, no need to wait
       if(inst.ip){
-         _deallocateOpenStackFloatingIP(inst.ip_id, function(error){
+         var ip_id = inst.ip_id;
+         var ip = inst.ip;
+         _deallocateOpenStackFloatingIP(ip_id, function(error){
             if(error) console.error(error);
-            console.log('['+MINION_NAME+'] Deallocated '+inst.ip+' "'+inst.ip_id+'"');
+            console.log('['+MINION_NAME+'] Deallocated '+ip+' "'+ip_id+'"');
          });
       }
 
-      // Destroy instance
-      console.log('['+MINION_NAME+'] Destroying '+inst_id);
-      _destroyOpenStackInstance(inst_id, function(error){
+      // Destroy members
+      _destroyInstanceMembers(inst.members, function(error){
          if(error) return destroyCallback(error);
+         // Remove instance from DB
+         database.collection('instances').remove({_id: inst_id});
          destroyCallback(null);
       });
+   });
+}
+
+var _destroyInstanceMembers = function(members, destroyCallback){
+   // Iterate instances
+   var tasks = [];
+   for(var i = 0; i < members.length; i++){
+      // var i must be independent between tasks
+      (function(i){
+         tasks.push(function(taskcb){
+            var os_inst_id = members[i];
+            // Get OpenStack instance
+            console.log('['+MINION_NAME+'] Destroying - ' + os_inst_id);
+            _destroyOpenStackInstance(os_inst_id, function(error){
+               return taskcb(error);
+            });
+         });
+      })(i);
+   }
+
+   // Execute tasks
+   async.parallel(tasks, function(error){
+      if(error) return destroyCallback(error);
+      destroyCallback(null);
    });
 }
 
@@ -391,46 +488,23 @@ var _createOpenStackInstance = function(inst_cfg, createCallback){
                console.log('['+MINION_NAME+'] Established connectivity with instance "' + inst_cfg.server.id + '".');
                wfcb(null);
             });
+         } else {
+            wfcb(null);
          }
       },
-      // Create instance metadata
-      function(wfcb){
-         var inst = {
-            _id: inst_cfg.server.id,
-            id: inst_cfg.server.id,
-            name: inst_cfg.name,
-            image_id: inst_cfg.image_id,
-            size_id: inst_cfg.size_id,
-            adminPass: inst_cfg.server.adminPass,
-            exps: [],
-            workpath: inst_cfg.image['workpath'],
-            inputpath: inst_cfg.image['inputpath'],
-            minion: MINION_NAME,
-            hostname: inst_cfg.ip,
-            ip: inst_cfg.ip,
-            ip_id: inst_cfg.ip_id,
-            ready: true
-         };
-         wfcb(null, inst);
-      }
    ],
    function(error, inst){
       if(error){
-         console.log('['+MINION_NAME+'] Failed to create instance, error: '+error.message);
-
+         console.log('['+MINION_NAME+'] Failed to create OpenStack instance, error: '+error.message);
          // Destroy instance
          if(inst_cfg.server) {
             destroyInstance(inst_cfg.server.id, function(error){});
          }
-
          // Fail
          return createCallback(error);
       }
-
-      // Add to DB
-      database.collection('instances').insert(inst);
-      console.log('['+MINION_NAME+'] Instance "' + inst.id + '" added to DB.');
-      createCallback(null, inst.id);
+      // Return OpenStack ID
+      createCallback(null, inst_cfg.server.id);
    });
 }
 
