@@ -26,70 +26,6 @@ var getAvailableSizes = function(minion, getCallback){
 }
 
 /**
- * Defines a system
- */
-var defineSystem = function(nodes, image_id, size_id, prefix, defineCallback){
-   getImage(image_id, function(error, image){
-      if(error) defineCallback(error, null);
-      getSize(size_id, function(error, size){
-         if(error) defineCallback(error, null);
-
-         // Define system data
-         var system = {
-            status: "defined",
-            nodes: nodes,
-            image: image,
-            size: size,
-            prefix: prefix,
-            instances: []
-         };
-
-         // Return
-         return defineCallback(null, system);
-      });
-   });
-}
-
-/**
- * Instance a system
- */
-var instanceSystem = function(system, instanceCallback){
-   // Create instance
-   requestInstance(system.prefix, system.image.id, system.size.id, system.nodes, function (error, inst_id) {
-      if(error) return instanceCallback(error);
-      // Add instance to system
-      system.instances.push(inst_id);
-      // Add system to instance
-      database.db.collection('instances').updateOne({id: inst_id},{
-         $set: { in_use: true}
-      });
-      // Callback with instanced system
-      system.status = "instanced";
-      instanceCallback(null, system);
-   });
-}
-
-/**
- * Remove instances from the system
- */
-var cleanSystem = function(system, cleanCallback){
-   // Remove system from instances
-   if(system.instances){
-      for(var i = 0; i < system.instances.length; i++){
-         database.db.collection('instances').updateOne({id: system.instances[i]},{
-            $set: { in_use: false}
-         });
-      }
-   }
-
-   // Clean instance list
-   system.instances = [];
-   system.status = "defined";
-
-   return cleanCallback(null, system);
-}
-
-/**
  * Obtains a dedicated instance.
  * It could be an existing one or a newly instanced one
  * @param {String} - Size ID.
@@ -709,10 +645,6 @@ module.exports.getImagesList = getImagesList;
 module.exports.getSizesList = getSizesList;
 module.exports.getInstancesList = getInstancesList;
 
-module.exports.defineSystem = defineSystem;
-module.exports.instanceSystem = instanceSystem;
-module.exports.cleanSystem = cleanSystem;
-
 module.exports.requestInstance = requestInstance;
 module.exports.destroyInstance = destroyInstance;
 
@@ -723,4 +655,3 @@ module.exports.waitJob = waitJob;
 module.exports.abortJob = abortJob;
 
 module.exports.cleanExperiment = cleanExperiment;
-module.exports.cleanExperimentSystem = cleanExperimentSystem;
