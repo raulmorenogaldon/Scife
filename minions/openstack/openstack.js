@@ -219,6 +219,7 @@ var createInstance = function(inst_cfg, createCallback){
             ip: headnode.ip,
             ip_id: headnode.ip_id,
             members: insts,
+            nodes: insts.length,
             in_use: true,
             idle_time: Date.now(),
             ready: true
@@ -235,7 +236,11 @@ var createInstance = function(inst_cfg, createCallback){
 var destroyInstance = function(inst_id, destroyCallback){
    // Get instance data
    getInstances(inst_id, function(error, inst){
-      if(error) return destroyCallback(error);
+      if(error){
+         // Remove instance from DB
+         database.collection('instances').remove({_id: inst_id});
+         return destroyCallback(error);
+      }
 
       // Deallocate IP, no need to wait
       if(inst.ip){
@@ -249,9 +254,9 @@ var destroyInstance = function(inst_id, destroyCallback){
 
       // Destroy members
       _destroyInstanceMembers(inst.members, function(error){
-         if(error) return destroyCallback(error);
          // Remove instance from DB
          database.collection('instances').remove({_id: inst_id});
+         if(error) return destroyCallback(error);
          destroyCallback(null);
       });
    });
