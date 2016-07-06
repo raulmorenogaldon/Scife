@@ -170,6 +170,7 @@ var createExperiment = function(exp_cfg, createCallback){
             app_id: exp_cfg.app_id,
             input_tree: exp_cfg.input_tree,
             src_tree: exp_cfg.src_tree,
+            inst_id: null,
             labels: ('labels' in exp_cfg) ? exp_cfg.labels : {},
             exec_env: ('exec_env' in exp_cfg) ? exp_cfg.exec_env : {}
          };
