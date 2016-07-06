@@ -152,6 +152,7 @@ class ClusterMinion(minion.Minion):
     def createInstance(self, instance_cfg):
         """Reserve resources in cluster"""
         name = instance_cfg['name']
+        nodes = instance_cfg['nodes']
 
         # Get image
         image_id = instance_cfg['image_id']
@@ -177,6 +178,7 @@ class ClusterMinion(minion.Minion):
             'image_id': image_id,
             'size_id': size_id,
             'exps': [],
+            'nodes': nodes,
             'workpath': image['workpath'],
             'inputpath': image['inputpath'],
             'minion': self.__class__.__name__,
