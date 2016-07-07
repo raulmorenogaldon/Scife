@@ -5,7 +5,7 @@ var fs = require('fs');
 var sleep = require('sleep');
 var ssh2 = require('ssh2').Client;
 var mongo = require('mongodb').MongoClient;
-var utils = require('../../overlord/private-server/utils');
+var utils = require('../../overlord/utils');
 
 /***********************************************************
  * --------------------------------------------------------
@@ -162,6 +162,7 @@ var createInstance = function(inst_cfg, createCallback){
       var headnode = {};
       var insts = [];
       var tasks = [];
+      var failed = false;
       for(var i = 0; i < inst_cfg.nodes; i++){
          // var i must be independent between tasks
          (function(i){
@@ -176,7 +177,12 @@ var createInstance = function(inst_cfg, createCallback){
 
                // Create OpenStack instance
                _createOpenStackInstance(aux_cfg, function(error, os_inst_id){
-                  if(error) return taskcb(error);
+                  if(error) {
+                     failed = true;
+                     // We want to execute the parallel part when all tasks ended.
+                     return taskcb(null);
+                  }
+
                   // Put public node in front
                   if(i == 0){
                      headnode = aux_cfg;
@@ -194,13 +200,15 @@ var createInstance = function(inst_cfg, createCallback){
       // Execute tasks
       async.parallel(tasks, function(error){
          // Clean created instances
-         if(error){
+         if(error || failed){
             for (var i = 0; i < insts.length; i++){
+               console.error('['+MINION_NAME+'] Destroying OpenStack instance "'+insts[i]+'".');
                _destroyOpenStackInstance(insts[i], function(error){
-                  if(error) console.error(error);
+                  if(error) console.error('['+MINION_NAME+'] Error destroying OpenStack instance "'+insts[i]+'" - ' + error);
                });
             }
-            return createCallback(error);
+            if(failed) return createCallback(new Error('Failed to create instance members.'));
+            else return createCallback(error);
          }
 
          // Create instance metadata
@@ -220,15 +228,33 @@ var createInstance = function(inst_cfg, createCallback){
             ip_id: headnode.ip_id,
             members: insts,
             nodes: insts.length,
-            in_use: true,
+            in_use: false,
             idle_time: Date.now(),
-            ready: true
+            ready: false
          };
 
          // Add to DB
-         console.log('['+MINION_NAME+']['+inst.id+'] Added instance to DB.');
-         database.collection('instances').insert(inst);
-         createCallback(null, inst.id);
+         database.collection('instances').insert(inst, function(error){
+            if(error) return createCallback(error);
+            console.log('['+MINION_NAME+']['+inst.id+'] Added instance to DB.');
+
+            // Configure cluster
+            _configureInstance(inst.id, function(error){
+               if(error){
+                  for (var i = 0; i < insts.length; i++){
+                     _destroyOpenStackInstance(insts[i], function(error){
+                        if(error) console.error(error);
+                     });
+                  }
+                  return createCallback(error);
+               }
+
+               // Set instance as ready
+               database.collection('instances').updateOne({id:inst.id},{"$set":{ready: true, idle_time: Date.now()}});
+               console.log('['+MINION_NAME+']['+inst.id+'] Ready.');
+               createCallback(null, inst.id);
+            });
+         });
       });
    });
 }
@@ -346,6 +372,130 @@ var cleanJob = function(job_id, inst_id, cleanCallback){
    })
 }
 
+var _configureInstance = function(inst_id, configureCallback){
+   async.waterfall([
+      // Get hosts
+      function(wfcb){
+         _getInstanceHosts(inst_id, wfcb);
+      },
+      // Check connectivity with all instance members
+      function(hosts, wfcb){
+         _checkHostsConnectivity(inst_id, hosts, function(error, output){
+            if(error) wfcb(error);
+            wfcb(null, hosts);
+         });
+      },
+      // Build hosts file and copy to main host
+      function(hosts, wfcb){
+         var hostfile = '';
+         for(var i = 0; i < hosts.length; i++){
+            hostfile = hostfile + hosts[i] + '\n';
+         }
+
+         // Copy to main host
+         var cmd = 'echo -n "'+hostfile+'" > ~/hosts';
+         _executeOpenStackInstanceScript(cmd, null, inst_id, 1, true, wfcb);
+      }
+   ],
+   function(error){
+      if(error) return configureCallback(error);
+      configureCallback(null);
+   });
+};
+
+var _getInstanceHosts = function(inst_id, getCallback){
+   // Get instance data
+   getInstances(inst_id, function(error, inst){
+      if(error) return getCallback(error);
+
+      // Iterate instances
+      var hosts = [];
+      var tasks = [];
+      for(var i = 0; i < inst.members.length; i++){
+         // var i must be independent between tasks
+         (function(i){
+            tasks.push(function(taskcb){
+               _getOpenStackInstanceIPs(inst.members[i], function(error, ips){
+                  if(error) taskcb(error);
+                  // Get IP
+                  hosts.push(ips[0].addr)
+                  taskcb(null);
+               });
+            });
+         })(i);
+      }
+
+      // Execute tasks
+      async.parallel(tasks, function(error){
+         if(error) return getCallback(error);
+         getCallback(null, hosts);
+      });
+   });
+}
+
+var _checkHostsConnectivity = function(inst_id, hosts, checkCallback){
+   // Get instance data
+   getInstances(inst_id, function(error, inst){
+      if(error) return checkCallback(error);
+      getImages(inst.image_id, function(error, image){
+         if(error) return checkCallback(error);
+
+         // Load private key
+         var private_key = fs.readFileSync(private_key_path);
+
+         // Iterate hosts
+         var tasks = [];
+         for(var i = 0; i < hosts.length; i++){
+            // var i must be independent between tasks
+            (function(i){
+               tasks.push(function(taskcb){
+                  // First, connect to instance
+                  utils.connectSSH(image.username, inst.ip, private_key, 300000, function(error, conn){
+                     if(error) taskcb(error);
+                     // Check ssh command
+                     //var cmd = 'ssh -o StrictHostKeyChecking=no ' + hosts[i] + ' exit; echo -n $?';
+                     var cmd = ''+
+                        '#!/bin/sh \n'+
+                        '((count = 20))\n'+
+                        'while [[ \$count -ne 0 ]] ; do\n'+
+                        'ssh -q -o StrictHostKeyChecking=no '+hosts[i]+' exit\n'+
+                        'rc=\$?\n'+
+                        'if [[ \$rc -eq 0 ]] ; then\n'+
+                        '((count = 1))\n'+
+                        'else\n'+
+                        'sleep 3\n'+
+                        'fi\n'+
+                        '((count = count - 1))\n'+
+                        'done\n'+
+                        'echo -n \$rc';
+                     utils.execSSH(conn, cmd, null, true, function(error, output){
+                        // Close connection
+                        utils.closeSSH(conn);
+
+                        console.log(output);
+                        if(error || output.stdout != '0'){
+                           console.error('['+MINION_NAME+'] Connection with ' + hosts[i] + ': ERROR - ' + output.stdout);
+                           return taskcb(new Error('Failed to connect to ' + hosts[i]));
+                        }
+
+                        // OK
+                        console.log('['+MINION_NAME+'] Connection with ' + hosts[i] + ': OK.');
+                        taskcb(null);
+                     });
+                  });
+               });
+            })(i);
+         }
+
+         // Execute tasks
+         async.series(tasks, function(error){
+            if(error) return checkCallback(error);
+            checkCallback(null, hosts);
+         });
+      });
+   });
+}
+
 var _getOpenStackImages = function(getCallback){
    if(!token) getCallback(new Error('Minion is not connected to OpenStack cloud.'));
    if(!compute_url) getCallback(new Error('Compute service URL is not defined.'));
@@ -408,7 +558,7 @@ var _createOpenStackInstance = function(inst_cfg, createCallback){
    if(!compute_url) createCallback(new Error('Compute service URL is not defined.'));
 
    // Get image and size
-   console.log('['+MINION_NAME+'] Creating instance "'+inst_cfg.name+'"...');
+   console.log('['+MINION_NAME+'] Creating OpenStack instance "'+inst_cfg.name+'"...');
    async.waterfall([
       // Get image
       function(wfcb){
@@ -466,6 +616,15 @@ var _createOpenStackInstance = function(inst_cfg, createCallback){
             wfcb(null);
          });
       },
+      // Get private IPs
+      function(wfcb){
+         // Get private ip
+         _getOpenStackInstanceIPs(inst_cfg.server.id, function(error, ips){
+            if(error) wfcb(error);
+            inst_cfg.ip_private = ips[0].addr;
+            wfcb(null);
+         });
+      },
       // Need a public IP?
       function(wfcb){
          if(inst_cfg.publicIP){
@@ -480,7 +639,6 @@ var _createOpenStackInstance = function(inst_cfg, createCallback){
                wfcb(null);
             });
          } else {
-            // Skip step
             wfcb(null);
          }
       },
@@ -502,7 +660,7 @@ var _createOpenStackInstance = function(inst_cfg, createCallback){
    ],
    function(error, inst){
       if(error){
-         console.log('['+MINION_NAME+'] Failed to create OpenStack instance, error: '+error.message);
+         console.error('['+MINION_NAME+'] Failed to create OpenStack instance, error: '+error.message);
          // Destroy instance
          if(inst_cfg.server) {
             destroyInstance(inst_cfg.server.id, function(error){});

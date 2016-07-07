@@ -91,7 +91,7 @@ var setTaskFailed = function(task_id, error){
          task.details = error;
          // Update DB
          database.db.collection('tasks').updateOne({id: task.id},{$set:{_status:task._status, details:task.details}});
-         logger.error('['+MODULE_NAME+'] Task "'+task.type+'" failed: '+error);
+         logger.error('['+MODULE_NAME+'] Task "'+task.type+'" failed: '+error+'. Stack: '+error.stack);
       } else {
          // Aborted
          if(task._abortcb) task._abortcb(null, task);

@@ -295,6 +295,9 @@ var cleanExperiment = function(exp_id, inst_id, b_job, b_code, b_input, b_remove
          database.db.collection('instances').updateOne({id: inst_id},{
             $pull: {exps: {exp_id: exp_id}}
          });
+         database.db.collection('instances').updateOne({id: inst_id},{
+            $set: {in_use: false}
+         });
       }
       cleanCallback(null);
    });
@@ -508,7 +511,7 @@ var _getSuperfluousInstances = function(listCallback){
       // Iterate list
       for(var i = 0; i < insts.length; i++){
          // Empty?
-         if(!insts[i].in_use && (!insts[i].exps || insts[i].exps.length == 0)){
+         if(insts[i].ready && !insts[i].in_use && (!insts[i].exps || insts[i].exps.length == 0)){
             retList.push(insts[i]);
          }
       }
