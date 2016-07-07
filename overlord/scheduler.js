@@ -1389,7 +1389,7 @@ var _cleanInstances = function(){
 var _pollExecutingExperiments = function(){
    // Wait for database to connect
    if(!database.db){
-      return setTimeout(_cleanInstances, 1000);
+      return setTimeout(_pollExecutingExperiments, 1000);
    }
 
    // Iterate experiments

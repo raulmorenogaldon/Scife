@@ -564,6 +564,11 @@ var _abortInstanceJobs = function(exp_id, inst_id, abortCallback){
  * Destroy empty instances
  */
 var _destroyEmptyInstances = function(destroyCallback){
+   // Wait for database to connect
+   if(!database.db){
+      return setTimeout(_destroyEmptyInstances, 1000, destroyCallback);
+   }
+
    // Scalability code
    _getSuperfluousInstances(function(error, list){
       if(error) return destroyCallback(error);
