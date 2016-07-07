@@ -376,7 +376,7 @@ class Storage(object):
                 else:
                     # Add subtree
                     tree.append({
-                        "label": file+"/",
+                        "label": file,
                         "id": rel_filepath+"/",
                         "children": self._fillFolderTree(root, rel_filepath)
                     })
