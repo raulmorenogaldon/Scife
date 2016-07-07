@@ -494,16 +494,20 @@ router.post('/experiments/:exp_id/code', function (req, res, next) {
       });
    }
 
-   // Check data type
-   if(!req.text){
-      return next({
-         'http': codes.HTTPCODE.BAD_REQUEST,
-         'json': codes.ERRCODE.REQ_CONTENT_TYPE_TEXT_PLAIN
-      });
-   }
+   // Check if passed folder or filename
+   var fcontent = null;
+   if(fpath.slice(-1) != '/'){
+      // Check data type
+      if(!req.text){
+         return next({
+            'http': codes.HTTPCODE.BAD_REQUEST,
+            'json': codes.ERRCODE.REQ_CONTENT_TYPE_TEXT_PLAIN
+         });
+      }
 
-   // File content in body
-   var fcontent = req.text;
+      // File content in body
+      fcontent = req.text;
+   }
 
    // Save file
    scheduler.putExperimentCode(req.params.exp_id, fpath, fcontent, function (error) {
@@ -540,18 +544,23 @@ router.post('/experiments/:exp_id/input', upload.array('inputFile'), function (r
       });
    }
 
-   if(!req.files || !req.files.length || req.files.length < 1){
-      return next(new Error("Malformed uploaded data."));
+   // Check if passed folder or filename
+   var finfo = null;
+   var tmpfile = null;
+   if(fpath.slice(-1) != '/'){
+      // Check files in packet
+      if(!req.files || !req.files.length || req.files.length < 1){
+         return next(new Error("Malformed uploaded data."));
+      }
+      // File, get uploaded file path
+      finfo = req.files[0];
+      tmpfile = finfo.path;
    }
-
-   // Get uploaded file path
-   var finfo = req.files[0];
-   var tmpfile = finfo.path;
 
    // Save to experiment data
    scheduler.putExperimentInput(req.params.exp_id, fpath, tmpfile, function(error){
       // Remove file
-      fs.unlink(tmpfile, function(error){
+      if(tmpfile) fs.unlink(tmpfile, function(error){
          if(error) console.error(error);
       });
 

@@ -101,7 +101,8 @@ var putExperimentInput = function(exp_id, fpath, src_file, putCallback){
       if(error) return putCallback(error);
 
       // Get remote path
-      var src_path = constants.OVERLORD_USERNAME+'@'+constants.OVERLORD_IP+':'+src_file;
+      var src_path = null;
+      if(src_file) src_path = constants.OVERLORD_USERNAME+'@'+constants.OVERLORD_IP+':'+src_file;
 
       // Save file contents
       storage.client.invoke('putExperimentInput', exp_id, exp.app_id, fpath, src_path, function(error){
@@ -273,10 +274,10 @@ var destroyExperiment = function(exp_id, destroyCallback){
          if(exp.inst_id){
             logger.debug('['+MODULE_NAME+']['+exp_id+'] Destroy: Cleaning instance...');
             instmanager.cleanExperiment(exp_id, exp.inst_id, true, true, true, true, function(error){
-               return wfcb(error, exp);
+               return wfcb(error);
             });
          } else {
-            wfcb(null, exp);
+            wfcb(null);
          }
       },
       // Remove experiment data from storage

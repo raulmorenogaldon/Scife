@@ -236,8 +236,11 @@ class Storage(object):
         app_path = self.apppath + "/" + app_id
 
         # Get file
-        fcontent = gevent.subprocess.check_output(
-            ["git", "show", exp_id+":"+fpath], cwd=app_path)
+        try:
+            fcontent = gevent.subprocess.check_output(
+                ["git", "show", exp_id+":"+fpath], cwd=app_path)
+        except:
+            raise IOError("Not a file: '{0}'.".format(fpath))
 
         return fcontent
 
@@ -265,17 +268,23 @@ class Storage(object):
         # Create new path
         gevent.subprocess.call(["mkdir", "-p", os.path.dirname(fpath)], cwd=app_path)
 
-        # Save file
-        try:
-            f = open(app_path + "/" + fpath, 'w')
-            f.write(fcontent)
-            f.close()
-        except Exception as e:
-            self.lock = False
-            raise e
+        if fcontent is not None:
+            # File case
+            try:
+                f = open(app_path + "/" + fpath, 'w')
+                f.write(fcontent)
+                f.close()
+            except Exception as e:
+                self.lock = False
+                raise e
+            gevent.subprocess.call(["git", "add", fpath], cwd=app_path)
+        else:
+            # Keep empty folder
+            gitkeep = os.path.dirname(fpath)+"/.gitkeep"
+            gevent.subprocess.call(["touch", gitkeep], cwd=app_path)
+            gevent.subprocess.call(["git", "add", gitkeep], cwd=app_path)
 
         # Commit
-        gevent.subprocess.call(["git", "add", fpath], cwd=app_path)
         gevent.subprocess.call(["git", "commit", "-m", "Commit..."], cwd=app_path)
 
         # Checkout master
@@ -299,7 +308,9 @@ class Storage(object):
         gevent.subprocess.call(["mkdir", "-p", os.path.dirname(fpath)], cwd=exp_path)
 
         # Copy file
-        gevent.subprocess.call(["scp", src_path, fpath], cwd=exp_path)
+        if src_path is not None:
+            print "hola"
+            gevent.subprocess.call(["scp", src_path, fpath], cwd=exp_path)
 
         self.lock = False
         ########################
@@ -365,8 +376,8 @@ class Storage(object):
                 else:
                     # Add subtree
                     tree.append({
-                        "label": file,
-                        "id": rel_filepath,
+                        "label": file+"/",
+                        "id": rel_filepath+"/",
                         "children": self._fillFolderTree(root, rel_filepath)
                     })
         return tree
