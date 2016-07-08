@@ -372,7 +372,7 @@ taskmanager.setTaskHandler("instanceExperiment", function(task){
       database.db.collection('experiments').updateOne({id: exp_id},{$set:{inst_id: inst_id}});
       instmanager.addExperiment(exp_id, inst_id);
 
-      // Deploy task
+      // Prepare task
       var next_task = {
          type: "prepareExperiment",
          exp_id: exp_id,

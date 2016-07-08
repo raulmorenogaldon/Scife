@@ -385,6 +385,13 @@ var _configureInstance = function(inst_id, configureCallback){
             wfcb(null, hosts);
          });
       },
+      // Setup NFS
+      function(hosts, wfcb){
+         _setupNFS(inst_id, hosts, function(error){
+            if(error) return wfcb(error);
+            wfcb(error, hosts);
+         });
+      },
       // Build hosts file and copy to main host
       function(hosts, wfcb){
          var hostfile = '';
@@ -402,6 +409,68 @@ var _configureInstance = function(inst_id, configureCallback){
       configureCallback(null);
    });
 };
+
+var _setupNFS = function(inst_id, hosts, setupCallback){
+   // Get instance data
+   getInstances(inst_id, function(error, inst){
+      if(error) return setupCallback(error);
+      // Get image data
+      getImages(inst.image_id, function(error, image){
+         if(error) return setupCallback(error);
+
+         // Create paths and add to exports
+         var cmd = ''+
+            '#!/bin/sh\n'+
+            'mkdir -p '+image.workpath+'\n'+
+            'mkdir -p '+image.inputpath+'\n'+
+            'echo "'+image.workpath+' *(rw,async,udp,no_subtree_check,no_root_squash)" | sudo tee /etc/exports\n'+
+            'echo "'+image.inputpath+' *(rw,async,udp,no_subtree_check,no_root_squash)" | sudo tee --append /etc/exports\n'+
+            'sudo exportfs -a\n'+
+            'sudo systemctl restart rpcbind';
+            'sudo systemctl restart nfs';
+         _executeOpenStackInstanceScript(cmd, null, inst_id, 1, true, function(error, output){
+            console.log(output);
+            if(error) return setupCallback(error);
+
+            // Iterate hosts
+            var tasks = [];
+            for(var i = 1; i < hosts.length; i++){
+               // var i must be independent between tasks
+               (function(i){
+                  tasks.push(function(taskcb){
+                     // Script to mount paths
+                     var member_script = ''+
+                        '#!/bin/sh\n'+
+                        'sudo umount '+image.workpath+'\n'+
+                        'sudo umount '+image.inputpath+'\n'+
+                        'mkdir -p '+image.workpath+'\n'+
+                        'mkdir -p '+image.inputpath+'\n'+
+                        'sudo mount '+hosts[0]+':'+image.workpath+' '+image.workpath+'\n'+
+                        'sudo mount '+hosts[0]+':'+image.inputpath+' '+image.inputpath+'\n'+
+                        'sudo systemctl restart rpcbind';
+
+                     // Mount NFS in members
+                     var cmd = 'ssh -q -o StrictHostKeyChecking=no '+hosts[i]+' "'+member_script+'"';
+                     _executeOpenStackInstanceScript(cmd, null, inst_id, 1, true, function(error, output){
+                        console.log(output);
+                        if(error) return taskcb(error);
+
+                        console.log('['+MINION_NAME+'] Mounted NFS in ' + hosts[i]);
+                        taskcb(null);
+                     });
+                  });
+               })(i);
+            }
+
+            // Execute tasks
+            async.series(tasks, function(error){
+               if(error) return setupCallback(error);
+               setupCallback(null);
+            });
+         });
+      });
+   });
+}
 
 var _getInstanceHosts = function(inst_id, getCallback){
    // Get instance data
@@ -426,7 +495,7 @@ var _getInstanceHosts = function(inst_id, getCallback){
       }
 
       // Execute tasks
-      async.parallel(tasks, function(error){
+      async.series(tasks, function(error){
          if(error) return getCallback(error);
          getCallback(null, hosts);
       });
@@ -472,7 +541,6 @@ var _checkHostsConnectivity = function(inst_id, hosts, checkCallback){
                         // Close connection
                         utils.closeSSH(conn);
 
-                        console.log(output);
                         if(error || output.stdout != '0'){
                            console.error('['+MINION_NAME+'] Connection with ' + hosts[i] + ': ERROR - ' + output.stdout);
                            return taskcb(new Error('Failed to connect to ' + hosts[i]));
@@ -663,7 +731,7 @@ var _createOpenStackInstance = function(inst_cfg, createCallback){
          console.error('['+MINION_NAME+'] Failed to create OpenStack instance, error: '+error.message);
          // Destroy instance
          if(inst_cfg.server) {
-            destroyInstance(inst_cfg.server.id, function(error){});
+            _destroyOpenStackInstance(inst_cfg.server.id, function(error){});
          }
          // Fail
          return createCallback(error);
@@ -941,6 +1009,7 @@ var _allocateOpenStackFloatIP = function(allocateCallback){
    // Send request
    request(req, function(error, res, body){
       if(error) return allocateCallback(error);
+      if(!body.floating_ip) return allocateCallback(new Error("Error getting field in float IP response: "+JSON.stringify(body)));
       allocateCallback(null, body.floating_ip);
    });
 }
