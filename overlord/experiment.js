@@ -78,11 +78,8 @@ var searchExperiments = function(name, searchCallback){
 
    // Retrieve experiment metadata
    database.db.collection('experiments').find({name: {$regex: query}}, fields).toArray(function(error, exps){
-      if(error){
-         searchCallback(new Error("Query for experiments with name: " + name + " failed"));
-      } else {
-         searchCallback(null, exps);
-      }
+      if(error) return searchCallback(new Error("Query for experiments with name: " + name + " failed"));
+      searchCallback(null, exps);
    });
 }
 
@@ -187,13 +184,7 @@ var createExperiment = function(exp_cfg, createCallback){
       }
    ],
    function(error, exp){
-      if(error){
-         console.log("Error creating experiment with config: " + JSON.stringify(exp_cfg));
-         createCallback(error);
-      }
-
-      // Return experiment data
-      console.log("Created experiment " + exp.id);
+      if(error) return createCallback(error);
       createCallback(null, exp);
    });
 }
@@ -204,9 +195,8 @@ var createExperiment = function(exp_cfg, createCallback){
 var updateExperiment = function(exp_id, exp_cfg, updateCallback){
    // Get experiment
    getExperiment(exp_id, function(error, exp){
-      if(error){
-         updateCallback(error);
-      }
+      if(error) return updateCallback(error);
+
       // Get valid parameters
       var new_exp = {};
       if('name' in exp_cfg) new_exp.name = exp_cfg.name;
