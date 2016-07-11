@@ -1190,6 +1190,10 @@ var _resetExperiment = function(exp_id, task, resetCallback){
 }
 
 /**
+ * Cache to avoid polling again
+ */
+var _polling = {};
+/**
  * Get experiment status from target instance and update in DB.
  */
 var _pollExperiment = function(exp_id, inst_id, pollCallback){
@@ -1206,63 +1210,83 @@ var _pollExperiment = function(exp_id, inst_id, pollCallback){
       return;
    }
 
-   async.waterfall([
-      // Get experiment
-      function(wfcb){
-         getExperiment(exp_id, null, wfcb);
-      },
-      // Get instance
-      function(exp, wfcb){
-         logger.debug('['+MODULE_NAME+']['+exp_id+'] Poll: Getting instance...');
-         instmanager.getInstance(inst_id, true, false, function(error, inst){
-            if(error) return wfcb(error);
-            wfcb(null, exp, inst);
-         });
-      },
-      // Poll experiment logs
-      function(exp, inst, wfcb){
-         logger.debug('['+MODULE_NAME+']['+exp_id+'] Poll: Polling logs...');
-         _pollExperimentLogs(exp.id, inst.id, inst.image, ['COMPILATION_LOG','EXECUTION_LOG','*.log', '*.log.*', '*.bldlog.*'], function (error, logs) {
-            if(error) return wfcb(error);
-            // Update status
-            database.db.collection('experiments').updateOne({id: exp.id},{$set:{logs:logs}});
+   // Avoid multiple polling
+   if(!_polling[exp_id]){
+      _polling[exp_id] = true;
 
-            // Callback status
-            wfcb(null, exp, inst);
-         });
-      },
-      // Poll experiment status
-      function(exp, inst, wfcb){
-         var work_dir = inst.image.workpath+"/"+exp.id;
-         var cmd = 'cat '+work_dir+'/EXPERIMENT_STATUS';
-         logger.debug('['+MODULE_NAME+']['+exp_id+'] Poll: Polling status...');
-         instmanager.executeCommand(inst.id, cmd, function (error, output) {
-            if(error) return wfcb(error);
+      async.waterfall([
+         // Get experiment
+         function(wfcb){
+            getExperiment(exp_id, null, wfcb);
+         },
+         // Get instance
+         function(exp, wfcb){
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Poll: Getting instance...');
+            instmanager.getInstance(inst_id, true, false, function(error, inst){
+               if(error) return wfcb(error);
+               wfcb(null, exp, inst);
+            });
+         },
+         // Poll experiment logs
+         function(exp, inst, wfcb){
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Poll: Polling logs...');
+            _pollExperimentLogs(exp.id, inst.id, inst.image, ['COMPILATION_LOG','EXECUTION_LOG','*.log', '*.log.*', '*.bldlog.*'], function (error, logs) {
+               if(error) return wfcb(error);
+               // Update status
+               database.db.collection('experiments').updateOne({id: exp.id},{$set:{logs:logs}});
 
-            // Get status
-            var status = output.stdout;
+               // Callback status
+               wfcb(null, exp, inst);
+            });
+         },
+         // Poll experiment status
+         function(exp, inst, wfcb){
+            var work_dir = inst.image.workpath+"/"+exp.id;
+            var cmd = 'cat '+work_dir+'/EXPERIMENT_STATUS';
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Poll: Polling status...');
+            instmanager.executeCommand(inst.id, cmd, function (error, output) {
+               if(error) return wfcb(error);
 
-            // Update status if the file exists
-            if(status != ""){
-               database.db.collection('experiments').updateOne({id: exp.id},{$set:{status:status}});
-            }
+               // Get status
+               var status = output.stdout;
 
-            // Callback status
-            wfcb(null, status);
-         });
-      }
-   ],
-   function(error, status){
-      if(error) return pollCallback(error);
-      logger.info('['+MODULE_NAME+']['+exp_id+'] Poll: Done - ' + status);
-      pollCallback(null, status);
-   });
+               // Update status if the file exists
+               if(status != ""){
+                  database.db.collection('experiments').updateOne({id: exp.id},{$set:{status:status}});
+               }
+
+               // Callback status
+               wfcb(null, status);
+            });
+         }
+      ],
+      function(error, status){
+         _polling[exp_id] = false;
+         if(error) return pollCallback(error);
+         logger.info('['+MODULE_NAME+']['+exp_id+'] Poll: Done - ' + status);
+         pollCallback(null, status);
+      });
+   } else {
+      return setTimeout(_waitPollFinish, 3000, exp_id, pollCallback);
+   }
 }
 
 /**
- * Cache to avoid polling again
+ * Wait until polling is done and return status.
  */
-var _polling = {};
+var _waitPollFinish = function(exp_id, pollCallback){
+   // Wait poll to end
+   if(!_polling[exp_id]){
+      // Finished!
+      getExperiment(exp_id, null, function(error, exp){
+         if(error) return pollCallback(error);
+         return pollCallback(null, exp.status);
+      });
+   } else {
+      return setTimeout(_waitPollFinish, 3000, exp_id, pollCallback);
+   }
+}
+
 /**
  * Update experiment logs in DB.
  */
@@ -1271,53 +1295,47 @@ var _pollExperimentLogs = function(exp_id, inst_id, image, log_files, pollCallba
    var work_dir = image.workpath+"/"+exp_id;
    var logs = [];
 
-   // Avoid multiple polling
-   if(!_polling[exp_id]){
-      _polling[exp_id] = true;
+   // Get log files list
+   logger.debug('['+MODULE_NAME+']['+exp_id+'] PollLogs: Finding logs - ' + log_files);
+   _findExperimentLogs(exp_id, inst_id, image, log_files, function(error, loglist){
+      if(error){
+         _polling[exp_id] = false;
+         logger.error('['+MODULE_NAME+']['+exp_id+'] PollLogs: Error finding logs.');
+         return pollCallback(error);
+      }
 
-      // Get log files list
-      logger.debug('['+MODULE_NAME+']['+exp_id+'] PollLogs: Finding logs - ' + log_files);
-      _findExperimentLogs(exp_id, inst_id, image, log_files, function(error, loglist){
-         if(error){
-            _polling[exp_id] = false;
-            logger.error('['+MODULE_NAME+']['+exp_id+'] PollLogs: Error finding logs.');
-            return pollCallback(error);
-         }
+      // Iterate logs
+      var tasks = [];
+      for(var i = 0; i < loglist.length; i++){
+         // var i must be independent between tasks
+         (function(i){
+            tasks.push(function(taskcb){
+               var cmd = 'zcat -f '+loglist[i];
+               instmanager.executeCommand(inst_id, cmd, function (error, output) {
+                  if(error) return taskcb(new Error("Failed to poll log "+ loglist[i]+ ", error: "+ error));
 
-         // Iterate logs
-         var tasks = [];
-         for(var i = 0; i < loglist.length; i++){
-            // var i must be independent between tasks
-            (function(i){
-               tasks.push(function(taskcb){
-                  var cmd = 'zcat -f '+loglist[i];
-                  instmanager.executeCommand(inst_id, cmd, function (error, output) {
-                     if(error) return taskcb(new Error("Failed to poll log "+ loglist[i]+ ", error: "+ error));
+                  // Get log content
+                  var content = output.stdout;
+                  var log_filename = loglist[i].split('\\').pop().split('/').pop();
 
-                     // Get log content
-                     var content = output.stdout;
-                     var log_filename = loglist[i].split('\\').pop().split('/').pop();
-
-                     // Add log
-                     logger.debug('['+MODULE_NAME+']['+exp_id+'] PollLogs: Updating log content - ' + log_filename);
-                     logs.push({name: log_filename, content: content});
-                     taskcb(null);
-                  });
+                  // Add log
+                  logger.debug('['+MODULE_NAME+']['+exp_id+'] PollLogs: Updating log content - ' + log_filename);
+                  logs.push({name: log_filename, content: content});
+                  taskcb(null);
                });
-            })(i);
-         }
+            });
+         })(i);
+      }
 
-         // Execute tasks
-         async.series(tasks, function(error){
-            _polling[exp_id] = false;
-            if(error) return pollCallback(error);
-            // Sort
-            logs.sort(function(a,b){return (a.name > b.name) ? 1 : ((b.name > a.name) ? -1 : 0);});
-            logger.debug('['+MODULE_NAME+']['+exp_id+'] PollLogs: Done.');
-            pollCallback(null, logs);
-         });
+      // Execute tasks
+      async.series(tasks, function(error){
+         if(error) return pollCallback(error);
+         // Sort
+         logs.sort(function(a,b){return (a.name > b.name) ? 1 : ((b.name > a.name) ? -1 : 0);});
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] PollLogs: Done.');
+         pollCallback(null, logs);
       });
-   }
+   });
 }
 
 /**
