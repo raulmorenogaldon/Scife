@@ -946,21 +946,23 @@ var _compileExperiment = function(task, exp_id, inst_id, compileCallback){
       },
    ],
    function(error){
-      if(error && error != true){ return compileCallback(error);}
+      if(error && error != true) return compileCallback(error);
       logger.info('['+MODULE_NAME+']['+exp_id+'] Compile: Compiling...');
 
       // Poll experiment status
       _pollExperiment(exp_id, inst_id, function(error, status){
-         if(error){return compileCallback(error);}
+         if(error) return compileCallback(error);
 
          // Wait for command completion
          logger.debug('['+MODULE_NAME+']['+exp_id+'] Compile: Waiting - ' + task.job_id);
          instmanager.waitJob(task.job_id, inst_id, function(error){
-            if(error){return compileCallback(error);}
+            if(error) return compileCallback(error);
 
             // Poll experiment status
             logger.debug('['+MODULE_NAME+']['+exp_id+'] Compile: Job done, polling...');
             _pollExperiment(exp_id, inst_id, function(error, status){
+               if(error) return compileCallback(error);
+
                // Update task and DB
                task.job_id = null;
                database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
@@ -1252,7 +1254,7 @@ var _pollExperiment = function(exp_id, inst_id, pollCallback){
    ],
    function(error, status){
       if(error) return pollCallback(error);
-      logger.info('['+MODULE_NAME+']['+exp_id+'] Poll: Done.');
+      logger.info('['+MODULE_NAME+']['+exp_id+'] Poll: Done - ' + status);
       pollCallback(null, status);
    });
 }
