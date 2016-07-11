@@ -373,7 +373,26 @@ var cleanJob = function(job_id, inst_id, cleanCallback){
 }
 
 var _configureInstance = function(inst_id, configureCallback){
+   var _inst = null;
+   var _size = null;
+
    async.waterfall([
+      // Get instance data
+      function(wfcb){
+         getInstances(inst_id, function(error, inst){
+            if(error) return wfcb(error);
+            _inst = inst;
+            wfcb(null);
+         });
+      },
+      // Get size
+      function(wfcb){
+         getSizes(_inst.size_id, function(error, size){
+            if(error) return wfcb(error);
+            _size = size;
+            wfcb(null);
+         });
+      },
       // Get hosts
       function(wfcb){
          _getInstanceHosts(inst_id, wfcb);
@@ -396,7 +415,7 @@ var _configureInstance = function(inst_id, configureCallback){
       function(hosts, wfcb){
          var hostfile = '';
          for(var i = 0; i < hosts.length; i++){
-            hostfile = hostfile + hosts[i] + '\n';
+            hostfile = hostfile + hosts[i] + ':' + _size.cpus + '\n';
          }
 
          // Copy to main host
@@ -423,10 +442,10 @@ var _setupNFS = function(inst_id, hosts, setupCallback){
             '#!/bin/sh\n'+
             'mkdir -p '+image.workpath+'\n'+
             'mkdir -p '+image.inputpath+'\n'+
-            'echo "'+image.workpath+' *(rw,async,udp,no_subtree_check,no_root_squash)" | sudo tee /etc/exports\n'+
-            'echo "'+image.inputpath+' *(rw,async,udp,no_subtree_check,no_root_squash)" | sudo tee --append /etc/exports\n'+
+            'echo "'+image.workpath+' *(rw,async,no_subtree_check,no_root_squash)" | sudo tee /etc/exports\n'+
+            'echo "'+image.inputpath+' *(rw,async,no_subtree_check,no_root_squash)" | sudo tee --append /etc/exports\n'+
             'sudo exportfs -a\n'+
-            'sudo systemctl restart rpcbind';
+            'sudo systemctl restart rpcbind\n'+
             'sudo systemctl restart nfs';
          _executeOpenStackInstanceScript(cmd, null, inst_id, 1, true, function(error, output){
             console.log(output);
