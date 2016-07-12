@@ -14,7 +14,7 @@ from pymongo import MongoClient
 class Storage(object):
     """Class to handle application storage in standard a FS."""
 
-    def __init__(self, apppath, inputpath, outputpath, public_url, username):
+    def __init__(self, apppath, inputpath, outputpath, public_url, username, mongo, db):
         print("Initializing storage...")
 
         # Set path for storage
@@ -32,8 +32,8 @@ class Storage(object):
         # db vars must be private to avoid zerorpc errors
         print("Connecting to DB...")
         try:
-            self._db_client = MongoClient()
-            self._db = self._db_client.test_db
+            self._db_client = MongoClient(mongo)
+            self._db = self._db_client[db]
         except Exception as e:
             print("Failed to get Storage database, reason: ", e)
             raise e
@@ -480,7 +480,9 @@ if __name__ == "__main__":
         inputpath=cfg['inputstorage'],
         outputpath=cfg['outputstorage'],
         public_url=cfg['public_url'],
-        username=cfg['username']
+        username=cfg['username'],
+        mongo=cfg['mongo'],
+        db=cfg['db']
     ), heartbeat=30)
     print "Listening in {0}".format(cfg['listen'])
     rpc.bind(cfg['listen'])
