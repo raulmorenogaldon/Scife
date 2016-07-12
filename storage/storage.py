@@ -482,5 +482,6 @@ if __name__ == "__main__":
         public_url=cfg['public_url'],
         username=cfg['username']
     ), heartbeat=30)
-    rpc.bind("tcp://0.0.0.0:8237")
+    print "Listening in {0}".format(cfg['listen'])
+    rpc.bind(cfg['listen'])
     rpc.run()
