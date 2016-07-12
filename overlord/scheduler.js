@@ -865,7 +865,7 @@ var _deployExperiment = function(task, exp_id, inst_id, deployCallback){
 
       // Poll experiment status
       logger.debug('['+MODULE_NAME+']['+exp_id+'] Deploy: Polling...');
-      _pollExperiment(exp_id, inst_id, function(error, status){
+      _pollExperiment(exp_id, inst_id, false, function(error, status){
          // Check status
          if(status != "deployed"){
             return deployCallback(new Error("Failed to deploy experiment, status: "+status));
@@ -950,7 +950,7 @@ var _compileExperiment = function(task, exp_id, inst_id, compileCallback){
       logger.info('['+MODULE_NAME+']['+exp_id+'] Compile: Compiling...');
 
       // Poll experiment status
-      _pollExperiment(exp_id, inst_id, function(error, status){
+      _pollExperiment(exp_id, inst_id, false, function(error, status){
          if(error) return compileCallback(error);
 
          // Wait for command completion
@@ -960,7 +960,7 @@ var _compileExperiment = function(task, exp_id, inst_id, compileCallback){
 
             // Poll experiment status
             logger.debug('['+MODULE_NAME+']['+exp_id+'] Compile: Job done, polling...');
-            _pollExperiment(exp_id, inst_id, function(error, status){
+            _pollExperiment(exp_id, inst_id, true, function(error, status){
                if(error) return compileCallback(error);
 
                // Update task and DB
@@ -1058,7 +1058,7 @@ var _executeExperiment = function(task, exp_id, inst_id, executionCallback){
       logger.info('['+MODULE_NAME+']['+exp_id+'] Execute: Executing...');
 
       // Poll experiment status
-      _pollExperiment(exp_id, inst_id, function(error, status){
+      _pollExperiment(exp_id, inst_id, false, function(error, status){
          if(error){return executionCallback(error);}
 
          // Wait for command completion
@@ -1068,7 +1068,7 @@ var _executeExperiment = function(task, exp_id, inst_id, executionCallback){
 
             // Poll experiment status
             logger.debug('['+MODULE_NAME+']['+exp_id+'] Execute: Job done, polling...');
-            _pollExperiment(exp_id, inst_id, function(error, status){
+            _pollExperiment(exp_id, inst_id, true, function(error, status){
                // Update task and DB
                task.job_id = null;
                database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
@@ -1196,7 +1196,7 @@ var _polling = {};
 /**
  * Get experiment status from target instance and update in DB.
  */
-var _pollExperiment = function(exp_id, inst_id, pollCallback){
+var _pollExperiment = function(exp_id, inst_id, force, pollCallback){
    logger.info('['+MODULE_NAME+']['+exp_id+'] Poll: Begin.');
 
    // Check instance param
@@ -1267,7 +1267,10 @@ var _pollExperiment = function(exp_id, inst_id, pollCallback){
          pollCallback(null, status);
       });
    } else {
-      return setTimeout(_waitPollFinish, 3000, exp_id, pollCallback);
+      // If force, full polling must be done
+      if(force) return setTimeout(_pollExperiment, 1000, exp_id, inst_id, true, pollCallback);
+      // If not, just wait current polling to end
+      else return setTimeout(_waitPollFinish, 3000, exp_id, pollCallback);
    }
 }
 
@@ -1418,7 +1421,7 @@ var _pollExecutingExperiments = function(){
    }).forEach(function(exp){
       // Poll experiment status
       logger.debug('['+MODULE_NAME+']['+exp.id+'] PollExecuting: Polling...');
-      _pollExperiment(exp.id, exp.inst_id, function(error, status){
+      _pollExperiment(exp.id, exp.inst_id, false, function(error, status){
          if(error) logger.error('['+MODULE_NAME+']['+exp.id+'] Failed to automatic poll: '+error);
       });
    });
