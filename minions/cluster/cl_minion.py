@@ -27,8 +27,8 @@ class ClusterMinion(minion.Minion):
         # db vars must be private to avoid zerorpc errors
         print("Connecting to DB...")
         try:
-            self._db_client = MongoClient()
-            self._db = self._db_client.test_db
+            self._db_client = MongoClient(cfg['mongo'])
+            self._db = self._db_client[cfg['db']]
         except Exception as e:
             print("Failed to get Storage database, reason: ", e)
             raise e
