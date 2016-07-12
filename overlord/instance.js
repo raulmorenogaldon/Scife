@@ -1,6 +1,5 @@
 var zerorpc = require('zerorpc');
 var async = require('async');
-var constants = require('./constants.json');
 var database = require('./database.js');
 var logger = require('./utils.js').logger;
 
@@ -15,6 +14,7 @@ var MODULE_NAME = "IM";
 var dMinionClients = {};
 var vMinionClients = [];
 var destroyInterval = 30000;
+var constants = {};
 
 /**
  * Retrieves available sizes
@@ -606,44 +606,56 @@ var _destroyEmptyInstances = function(destroyCallback){
 /**
  * Initialize minions
  */
-var tasks = [];
-for(var i = 0; i < constants.MINION_URL.length; i++){
-   // var i must be independent between tasks
-   (function(i){
-      tasks.push(function(taskcb){
-         var minion = new zerorpc.Client({
-            heartbeatInterval: 30000,
-            timeout: 3600
-         });
-         minion.minion_url = constants.MINION_URL[i];
-         minion.connect(minion.minion_url);
-         logger.info('['+MODULE_NAME+'] Connecting to minion in: ' + minion.minion_url);
-         minion.invoke('getMinionName', function (error, name) {
-            if(error){
-               logger.error('['+MODULE_NAME+'] Failed to connect to minion '+minion.minion_url+'.');
-               return taskcb(null);
-            }
-            logger.log('['+MODULE_NAME+'] Connected to minion '+name+'.');
-            dMinionClients[name] = minion;
-            vMinionClients.push(minion);
-            taskcb(null);
-         });
-      });
-   })(i);
-}
-async.parallel(tasks, function(error){
-   if(error) logger.error(error);
+var init = function(cfg, initCallback){
+   // Set constants
+   constants = cfg;
 
-   /**
-    * Task: Remove empty instances from the system
-    */
-   _destroyEmptyInstances(function(error){
-      if(error) console.error('['+MODULE_NAME+'] DestroyEmpty: Failed - ' + error);
+   var tasks = [];
+   for(var i = 0; i < constants.MINION_URL.length; i++){
+      // var i must be independent between tasks
+      (function(i){
+         tasks.push(function(taskcb){
+            var minion = new zerorpc.Client({
+               heartbeatInterval: 30000,
+               timeout: 3600
+            });
+
+            // Connect
+            minion.minion_url = constants.MINION_URL[i];
+            minion.connect(minion.minion_url);
+            logger.info('['+MODULE_NAME+'] Connecting to minion in: ' + minion.minion_url);
+            minion.invoke('getMinionName', function (error, name) {
+               if(error){
+                  logger.error('['+MODULE_NAME+'] Failed to connect to minion '+minion.minion_url+'.');
+                  return taskcb(null);
+               }
+
+               // Connected
+               logger.info('['+MODULE_NAME+'] Connected to minion '+name+'.');
+               dMinionClients[name] = minion;
+               vMinionClients.push(minion);
+               taskcb(null);
+            });
+         });
+      })(i);
+   }
+   async.parallel(tasks, function(error){
+      if(error) initCallback(error);
+      initCallback(null);
+
+      /**
+       * Task: Remove empty instances from the system
+       */
+      _destroyEmptyInstances(function(error){
+         if(error) console.error('['+MODULE_NAME+'] DestroyEmpty: Failed - ' + error);
+      });
+      setInterval(_destroyEmptyInstances, destroyInterval, function(error){
+         if(error) console.error('['+MODULE_NAME+'] DestroyEmpty: Failed - ' + error);
+      });
    });
-   setInterval(_destroyEmptyInstances, destroyInterval, function(error){
-      if(error) console.error('['+MODULE_NAME+'] DestroyEmpty: Failed - ' + error);
-   });
-});
+}
+
+module.exports.init = init;
 
 module.exports.getInstance = getInstance;
 module.exports.getImage = getImage;

@@ -1,7 +1,6 @@
 var zerorpc = require('zerorpc');
 var async = require('async');
 
-var constants = require('./constants.json');
 var utils = require('./utils.js');
 var apps = require('./application.js');
 var database = require('./database.js');

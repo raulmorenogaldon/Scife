@@ -1,7 +1,0 @@
-{
-   "OVERLORD_USERNAME":"devstack",
-   "OVERLORD_IP":"localhost",
-   "MONGO_URL":"mongodb://localhost/test_db",
-	"MINION_URL":["tcp://localhost:8239", "tcp://localhost:8238"],
-	"STORAGE_URL":"tcp://localhost:8237"
-}

@@ -1,5 +1,4 @@
 var async = require('async');
-var constants = require('./constants.json');
 var utils = require('./utils.js');
 var logger = utils.logger;
 var database = require('./database.js');

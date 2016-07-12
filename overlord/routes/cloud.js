@@ -2,8 +2,7 @@ var express = require('express'),
    multer = require('multer'),
    router = express.Router(),
    zerorpc = require('zerorpc'),
-   fs = require('fs'),
-   constants = require('../constants.json');
+   fs = require('fs');
 
 var codes = require('../error_codes.js');
 var utils = require('../utils.js');

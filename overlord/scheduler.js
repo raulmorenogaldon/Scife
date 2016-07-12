@@ -1,6 +1,6 @@
 var zerorpc = require('zerorpc');
 var async = require('async');
-var constants = require('./constants.json');
+var fs = require('fs');
 var codes = require('./error_codes.js');
 var logger = require('./utils.js').logger;
 
@@ -19,6 +19,8 @@ var taskmanager = require('./task.js');
  */
 var MODULE_NAME = "SC";
 var pollInterval = 30000;
+var cfg = process.argv[2];
+var constants = {};
 
 /***********************************************************
  * --------------------------------------------------------
@@ -1432,10 +1434,52 @@ var _pollExecutingExperiments = function(){
  * MODULE INITIALIZATION
  * --------------------------------------------------------
  ***********************************************************/
-// Remove non executing experiments from instances
-_cleanInstances();
-setInterval(_pollExecutingExperiments, pollInterval, function(error){
-   if(error) return console.error(error);
+// Get config file
+if(!cfg) throw new Error('No CFG file has been provided.');
+
+// Steps
+async.waterfall([
+   // Read config file
+   function(wfcb){
+      logger.info('['+MODULE_NAME+'] Reading config file: '+cfg);
+      fs.readFile(cfg, function(error, fcontent){
+         if(error) return wfcb(error);
+         wfcb(null, fcontent);
+      });
+   },
+   // Load cfg
+   function(fcontent, wfcb){
+      logger.info('['+MODULE_NAME+'] Loading config file...');
+
+      // Parse cfg
+      constants = JSON.parse(fcontent);
+      wfcb(null);
+   },
+   // Init database
+   function(wfcb){
+      logger.info('['+MODULE_NAME+'] Initializing DB...');
+      database.init(constants, wfcb);
+   },
+   // Init storage
+   function(wfcb){
+      logger.info('['+MODULE_NAME+'] Initializing storage...');
+      storage.init(constants, wfcb);
+   },
+   // Init instance manager
+   function(wfcb){
+      logger.info('['+MODULE_NAME+'] Initializing instance...');
+      instmanager.init(constants, wfcb);
+   }
+],
+function(error){
+   if(error) throw error;
+   logger.info('['+MODULE_NAME+'] Initialization completed.');
+
+   // Remove non executing experiments from instances
+   _cleanInstances();
+   setInterval(_pollExecutingExperiments, pollInterval, function(error){
+      if(error) return logger.error(error);
+   });
 });
 
 /***********************************************************

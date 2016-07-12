@@ -1,10 +1,11 @@
 var zerorpc = require('zerorpc');
-var constants = require('./constants.json');
+var logger = require('./utils.js').logger;
 
 /**
  * Module name
  */
 var MODULE_NAME = "SG";
+var constants = {};
 
 /**
  * RPC client
@@ -17,15 +18,20 @@ var client = new zerorpc.Client({
 /**
  * Connect to storage
  */
-console.log("["+MODULE_NAME+"] Connecting to storage RPC in: " + constants.STORAGE_URL);
-client.connect(constants.STORAGE_URL);
+var init = function(cfg, initCallback){
+   // Set constants
+   constants = cfg;
 
-/**
- * Handle error in connect step
- */
-client.on("error", function(error){
-   console.error("["+MODULE_NAME+"] Failed to connect to storage RPC, error: ", error);
-})
+   // Handle error in connect step
+   client.on("error", function(error){
+      console.error("["+MODULE_NAME+"] Failed to connect to storage RPC, error: ", error);
+   })
 
+   logger.info('['+MODULE_NAME+'] Connecting to storage RPC in: ' + constants.STORAGE_URL);
+   client.connect(constants.STORAGE_URL);
+   initCallback(null);
+}
+
+exports.init = init;
 exports.client = client;
 exports.MODULE_NAME = MODULE_NAME;
