@@ -625,5 +625,6 @@ if __name__ == "__main__":
 
     # Read configuration file
     rpc = zerorpc.Server(ClusterMinion(cfg), heartbeat=30)
-    rpc.bind("tcp://0.0.0.0:8238")
+    print "Listening in {0}".format(cfg['listen'])
+    rpc.bind(cfg['listen'])
     rpc.run()
