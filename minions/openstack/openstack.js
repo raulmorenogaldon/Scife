@@ -1353,8 +1353,11 @@ function(error){
 
    // Relogin (renew token) every quarter
    setInterval(login, 900000, function(error){
-      if(error) return console.error("Failed to relogin.");
-      console.log("["+MINION_NAME+"] New token: "+token);
+      if(error) {
+         logger.error('['+MINION_NAME+'] Failed to relogin.');
+         throw new Error('Failed to relogin.')
+      }
+      logger.info('['+MINION_NAME+'] New token: '+token);
    });
 
    //__test();
