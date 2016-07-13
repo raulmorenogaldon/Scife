@@ -645,7 +645,18 @@ router.post('/experiments/:exp_id', function (req, res, next) {
       } else {
          // Launch experiment
          scheduler.launchExperiment(req.params.exp_id, req.body.nodes, req.body.image_id, req.body.size_id, function(error){
-            if(error) return next(error);
+            if(error){
+               // Quota reached?
+               if(error.message.includes("quota")){
+                  return next({
+                     'http': codes.HTTPCODE.BAD_REQUEST,
+                     'json': codes.ERRCODE.LAUNCH_QUOTA_REACHED
+                  });
+               } else {
+                  // Unknown
+                  return next(error);
+               }
+            }
             res.json(null);
          });
       }

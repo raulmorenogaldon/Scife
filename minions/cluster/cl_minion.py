@@ -472,6 +472,27 @@ class ClusterMinion(minion.Minion):
 
         return status
 
+    def getQuotas(self):
+        quotas = {
+            'cores': {
+                'in_use': 0,
+                'limit': 1000,
+            },
+            'floating_ips': {
+                'in_use': 0,
+                'limit': 1000,
+            },
+            'instances': {
+                'in_use': 0,
+                'limit': 1000,
+            },
+            'ram': {
+                'in_use': 0,
+                'limit': 1000000,
+            }
+        }
+        return quotas
+
     """ Private functions """
     def _loadConfig(self, config):
         print("Loading config...")

@@ -36,22 +36,37 @@ var requestInstance = function(name, image_id, size_id, nodes, requestCallback){
    getImage(image_id, function(error, image){
       if(error) return requestCallback(error);
 
-      // Get minion
-      var minion = dMinionClients[image.minion];
-
-      // Connected to minion?
-      if(!minion) return requestCallback(new Error("Minion "+image.minion+" not found."));
-
-      // Instance
-      minion.invoke('createInstance', {
-         name: name,
-         image_id: image_id,
-         size_id: size_id,
-         nodes: nodes,
-         publicIP: true
-      }, function (error, instance_id) {
+      // Get size
+      getSize(size_id, function(error, size){
          if(error) return requestCallback(error);
-         requestCallback(null, instance_id);
+
+         // Get minion
+         var minion = dMinionClients[image.minion];
+
+         // Connected to minion?
+         if(!minion) return requestCallback(new Error("Minion "+image.minion+" not found."));
+
+         // Check quotas
+         getImageQuotas(image_id, function(error, quotas){
+            if(error) return requestCallback(error);
+
+            // Enough quotas?
+            if(quotas.instances.in_use + nodes > quotas.instances.limit) return requestCallback(new Error('Not enough instances quota.'));
+            if(quotas.cores.in_use + (nodes * size.cpus) > quotas.cores.limit) return requestCallback(new Error('Not enough cores quota.'));
+            if(quotas.ram.in_use + size.ram > quotas.ram.limit) return requestCallback(new Error('Not enough RAM quota.'));
+
+            // Instance
+            minion.invoke('createInstance', {
+               name: name,
+               image_id: image_id,
+               size_id: size_id,
+               nodes: nodes,
+               publicIP: true
+            }, function (error, instance_id) {
+               if(error) return requestCallback(error);
+               requestCallback(null, instance_id);
+            });
+         });
       });
    });
 }
@@ -216,6 +231,25 @@ var getInstancesList = function(getCallback){
    async.parallel(tasks, function(error){
       if(error) return getCallback(error);
       getCallback(null, list);
+   });
+}
+
+/**
+ * Get quotas for an image
+ */
+var getImageQuotas = function(image_id, getCallback){
+   getImage(image_id, function(error, image){
+      if(error) return getCallback(error);
+
+      // Get minion
+      var minion = dMinionClients[image.minion];
+      if(!minion) return getCallback(new Error("Minion "+image.minion+" is not loaded."))
+
+      // Get quotas
+      minion.invoke('getQuotas', function (error, quotas) {
+         if(error) return getCallback(error);
+         getCallback(null, quotas);
+      });
    });
 }
 
@@ -664,6 +698,8 @@ module.exports.getSize = getSize;
 module.exports.getImagesList = getImagesList;
 module.exports.getSizesList = getSizesList;
 module.exports.getInstancesList = getInstancesList;
+
+module.exports.getImageQuotas = getImageQuotas;
 
 module.exports.requestInstance = requestInstance;
 module.exports.destroyInstance = destroyInstance;

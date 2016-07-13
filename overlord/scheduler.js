@@ -154,36 +154,67 @@ var searchExperiments = function(name, searchCallback){
 var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback){
    logger.info('['+MODULE_NAME+']['+exp_id+'] Launch: Launching experiment...');
 
+   var _exp = null;
+   var _image = null;
+   var _size = null;
+
    // Check data
    async.waterfall([
       // Check experiment status
       function(wfcb){
          // Check image ID exists
          logger.debug('['+MODULE_NAME+']['+exp_id+'] Launch: Checking image existence - '+image_id);
-         instmanager.getImage(image_id, wfcb);
+         instmanager.getImage(image_id, function(error, image){
+            if(error) return wfcb(error);
+            _image = image;
+            wfcb(null);
+         });
       },
       // Check size ID exists
-      function(image, wfcb){
+      function(wfcb){
          logger.debug('['+MODULE_NAME+']['+exp_id+'] Launch: Checking size existence - '+size_id);
-         instmanager.getSize(size_id, wfcb);
+         instmanager.getSize(size_id, function(error, size){
+            if(error) return wfcb(error);
+            _size = size;
+            wfcb(null);
+         });
       },
       // Get experiment
-      function(size, wfcb){
-         getExperiment(exp_id, null, wfcb);
+      function(wfcb){
+         getExperiment(exp_id, null, function(error, exp){
+            if(error) return wfcb(error);
+            _exp = exp;
+            wfcb(null);
+         });
       },
       // Check if already launched
-      function(exp, wfcb){
-         if(exp.status && exp.status != "created"){
+      function(wfcb){
+         if(_exp.status && _exp.status != "created"){
             logger.debug('['+MODULE_NAME+']['+exp_id+'] Launch: Already launched.');
-            wfcb(new Error("Experiment " + exp.id + " is already launched!, status: " + exp.status));
+            wfcb(new Error("Experiment " + _exp.id + " is already launched!, status: " + _exp.status));
          } else {
-            wfcb(null, exp);
+            wfcb(null);
          }
       },
+      // Check quotas
+      function(wfcb){
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Launch: Getting quotas - '+image_id);
+         instmanager.getImageQuotas(image_id, function(error, quotas){
+            if(error) return wfcb(error);
+
+            // Enough quotas?
+            if(quotas.instances.in_use + nodes > quotas.instances.limit) return wfcb(new Error('Not enough instances quota.'));
+            if(quotas.cores.in_use + (nodes * _size.cpus) > quotas.cores.limit) return wfcb(new Error('Not enough cores quota.'));
+            if(quotas.ram.in_use + _size.ram > quotas.ram.limit) return wfcb(new Error('Not enough RAM quota.'));
+
+            // Continue
+            wfcb(null);
+         });
+      },
       // Setup instance configuration
-      function(exp, wfcb){
+      function(wfcb){
          var inst_cfg = {
-            name: exp.name,
+            name: _exp.name,
             image_id: image_id,
             size_id: size_id,
             nodes: nodes

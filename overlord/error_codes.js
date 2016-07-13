@@ -52,6 +52,10 @@ var ERRCODE = {
       'message': "You must pass 'nodes', 'image_id' and 'size_id'.",
       'code': 43
    },
+   LAUNCH_QUOTA_REACHED: {
+      'message': "Quota has been reached.",
+      'code': 60
+   },
    EXP_NO_OPERATION: {
       'message': "You must pass 'op' argument. Possible: launch, reset.",
       'code': 44
