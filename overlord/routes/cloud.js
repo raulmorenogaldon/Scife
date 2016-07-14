@@ -681,7 +681,12 @@ router.post('/experiments/:exp_id', function (req, res, next) {
 function errorGeneric(error, req, res, next){
    if(error.json){
       res.status(error.http);
-      res.json(error.json);
+      res.json({
+         'errors': [
+            error.json.code
+         ],
+         'details': error.json.message
+      });
    } else {
       res.status(codes.HTTPCODE.INTERNAL_ERROR); //What happened?
       res.json({
