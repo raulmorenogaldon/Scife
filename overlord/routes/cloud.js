@@ -181,18 +181,17 @@ router.get('/applications', function (req, res, next) {
  */
 router.post('/applications', function (req, res, next) {
    if (!req.body.name || !req.body.creation_script || !req.body.execution_script || !req.body.path) {
-      res.status(codes.HTTPCODE.BAD_REQUEST); //Bad request
-      res.json({
+      return next({
+         'http': codes.HTTPCODE.BAD_REQUEST,
          'errors': [codes.ERRCODE.APP_INCORRECT_PARAMS]
       });
    } else {
       // Create experiment
       scheduler.createApplication(req.body, function (error, result) {
          if (error) {
-            res.status(codes.HTTPCODE.INTERNAL_ERROR); //Internal server error
-            res.json({
-               'errors': [codes.ERRCODE.EXP_INCORRECT_PARAMS],
-               'details': error.message
+            return next({
+               'http': codes.HTTPCODE.INTERNAL_ERROR,
+               'errors': [codes.ERRCODE.EXP_INCORRECT_PARAMS]
             });
          } else {
             res.json(result);
@@ -212,7 +211,7 @@ router.param('app_id', function(req, res, next, app_id){
       if(error){
          return next({
             'http': codes.HTTPCODE.NOT_FOUND,
-            'json': codes.ERRCODE.APP_NOT_FOUND
+            'errors': [codes.ERRCODE.APP_NOT_FOUND]
          });
       } else {
          // Set parameter
@@ -230,13 +229,12 @@ router.param('app_id', function(req, res, next, app_id){
 router.get('/applications/:app_id', function (req, res, next) {
    scheduler.getApplication(req.params.app_id, function (error, result, more) {
       if (error) {
-         res.status(codes.HTTPCODE.NOT_FOUND); //Not Found
-         res.json({
+         return next({
+            'http': codes.HTTPCODE.NOT_FOUND,
             'errors': [
                codes.ERRCODE.ID_NOT_FOUND,
                codes.ERRCODE.APP_NOT_FOUND
-            ],
-            'details': error.message
+            ]
          });
       }
       res.json(result);
@@ -248,8 +246,8 @@ router.get('/applications/:app_id', function (req, res, next) {
  * @param {String} - The application id.
  */
 router.put('/applications/:app_id', function (req, res, next) {
-   res.status(codes.HTTPCODE.NOT_IMPLEMENTED); //Not Implemented
-   res.json({
+   return next({
+      'http': codes.HTTPCODE.NOT_IMPLEMENTED,
       'errors': [codes.ERRCODE.NOT_IMPLEMENTED]
    });
 });
@@ -259,8 +257,8 @@ router.put('/applications/:app_id', function (req, res, next) {
  * @param {String} - The application id.
  */
 router.delete('/applications/:app_id', function (req, res, next) {
-   res.status(codes.HTTPCODE.NOT_IMPLEMENTED); //Not Implemented
-   res.json({
+   return next({
+      'http': codes.HTTPCODE.NOT_IMPLEMENTED,
       'errors': [codes.ERRCODE.NOT_IMPLEMENTED]
    });
 });
@@ -288,19 +286,15 @@ router.get('/experiments', function (req, res, next) {
  */
 router.post('/experiments', function (req, res, next) {
    if (!req.body.name || !req.body.app_id) {
-      res.status(codes.HTTPCODE.BAD_REQUEST); //Bad request
-      res.json({
+      return next({
+         'http': codes.HTTPCODE.BAD_REQUEST,
          'errors': [codes.ERRCODE.EXP_INCORRECT_PARAMS]
       });
    } else {
       // Create experiment
       scheduler.createExperiment(req.body, function (error, result) {
          if (error) {
-            res.status(codes.HTTPCODE.INTERNAL_ERROR); //Internal server error
-            res.json({
-               'errors': [codes.ERRCODE.EXP_INCORRECT_PARAMS],
-               'details': error.message
-            });
+            return next(error);
          } else {
             res.json(result);
          }
@@ -319,7 +313,7 @@ router.param('exp_id', function(req, res, next, exp_id){
       if(error){
          return next({
             'http': codes.HTTPCODE.NOT_FOUND,
-            'json': codes.ERRCODE.EXP_NOT_FOUND
+            'errors': [codes.ERRCODE.EXP_NOT_FOUND]
          });
       } else {
          // Set parameter
@@ -402,7 +396,7 @@ router.get('/experiments/:exp_id/srctree', function (req, res, next) {
       if(!result){
          return next({
             'http': codes.HTTPCODE.NOT_FOUND,
-            'json': codes.ERRCODE.EXP_CODE_FILE_NOT_FOUND
+            'errors': [codes.ERRCODE.EXP_CODE_FILE_NOT_FOUND]
          });
       }
 
@@ -426,7 +420,7 @@ router.get('/experiments/:exp_id/inputtree', function (req, res, next) {
       if(!result){
          return next({
             'http': codes.HTTPCODE.NOT_FOUND,
-            'json': codes.ERRCODE.EXP_INPUT_FILE_NOT_FOUND
+            'errors': [codes.ERRCODE.EXP_INPUT_FILE_NOT_FOUND]
          });
       }
 
@@ -446,7 +440,7 @@ router.get('/experiments/:exp_id/code', function (req, res, next) {
    if(!fpath){
       return next({
          'http': codes.HTTPCODE.BAD_REQUEST,
-         'json': codes.ERRCODE.EXP_CODE_FILE_PATH_MISSING
+         'errors': [codes.ERRCODE.EXP_CODE_FILE_PATH_MISSING]
       });
    }
 
@@ -455,7 +449,7 @@ router.get('/experiments/:exp_id/code', function (req, res, next) {
       if (error) {
          return next({
             'http': codes.HTTPCODE.BAD_REQUEST,
-            'json': codes.ERRCODE.EXP_CODE_FILE_NOT_FOUND
+            'errors': [codes.ERRCODE.EXP_CODE_FILE_NOT_FOUND]
          });
       } else {
          res.set('Content-Type', 'text/plain');
@@ -489,7 +483,7 @@ router.post('/experiments/:exp_id/code', function (req, res, next) {
    if(!fpath){
       return next({
          'http': codes.HTTPCODE.BAD_REQUEST,
-         'json': codes.ERRCODE.EXP_CODE_FILE_PATH_MISSING
+         'errors': [codes.ERRCODE.EXP_CODE_FILE_PATH_MISSING]
       });
    }
 
@@ -500,7 +494,7 @@ router.post('/experiments/:exp_id/code', function (req, res, next) {
       if(!req.text){
          return next({
             'http': codes.HTTPCODE.BAD_REQUEST,
-            'json': codes.ERRCODE.REQ_CONTENT_TYPE_TEXT_PLAIN
+            'errors': [codes.ERRCODE.REQ_CONTENT_TYPE_TEXT_PLAIN]
          });
       }
 
@@ -513,7 +507,7 @@ router.post('/experiments/:exp_id/code', function (req, res, next) {
       if (error) {
          return next({
             'http': codes.HTTPCODE.BAD_REQUEST,
-            'json': codes.ERRCODE.EXP_CODE_FILE_NOT_FOUND
+            'errors': [codes.ERRCODE.EXP_CODE_FILE_NOT_FOUND]
          });
       }
 
@@ -539,7 +533,7 @@ router.post('/experiments/:exp_id/input', upload.array('inputFile'), function (r
    if(!fpath){
       return next({
          'http': codes.HTTPCODE.BAD_REQUEST,
-         'json': codes.ERRCODE.EXP_INPUT_FILE_PATH_MISSING
+         'errors': [codes.ERRCODE.EXP_INPUT_FILE_PATH_MISSING]
       });
    }
 
@@ -584,7 +578,7 @@ router.get('/experiments/:exp_id/download', function (req, res, next) {
       if (error) {
          return next({
             'http': codes.HTTPCODE.NOT_FOUND,
-            'json': codes.ERRCODE.EXP_NO_OUTPUT_DATA
+            'errors': [codes.ERRCODE.EXP_NO_OUTPUT_DATA]
          });
       } else {
          // Create header with file info
@@ -634,13 +628,13 @@ router.post('/experiments/:exp_id', function (req, res, next) {
       // No operation requested
       return next({
          'http': codes.HTTPCODE.BAD_REQUEST,
-         'json': codes.ERRCODE.EXP_NO_OPERATION
+         'errors': [codes.ERRCODE.EXP_NO_OPERATION]
       });
    } else if (req.body.op == "launch"){
       if (!req.body.nodes || !req.body.image_id || !req.body.size_id) {
          return next({
             'http': codes.HTTPCODE.BAD_REQUEST,
-            'json': codes.ERRCODE.LAUNCH_INCORRECT_PARAMS
+            'errors': [codes.ERRCODE.LAUNCH_INCORRECT_PARAMS]
          });
       } else {
          // Launch experiment
@@ -650,7 +644,7 @@ router.post('/experiments/:exp_id', function (req, res, next) {
                if(error.message.includes("quota")){
                   return next({
                      'http': codes.HTTPCODE.BAD_REQUEST,
-                     'json': codes.ERRCODE.LAUNCH_QUOTA_REACHED
+                     'errors': [codes.ERRCODE.LAUNCH_QUOTA_REACHED]
                   });
                } else {
                   // Unknown
@@ -670,7 +664,7 @@ router.post('/experiments/:exp_id', function (req, res, next) {
       // Unknown operation
       return next({
          'http': codes.HTTPCODE.BAD_REQUEST,
-         'json': codes.ERRCODE.EXP_UNKNOWN_OPERATION
+         'errors': [codes.ERRCODE.EXP_UNKNOWN_OPERATION]
       });
    }
 });
@@ -679,13 +673,9 @@ router.post('/experiments/:exp_id', function (req, res, next) {
  * Generic error handler
  */
 function errorGeneric(error, req, res, next){
-   if(error.json){
+   if(error.errors){
       res.status(error.http);
-      res.json({
-         'errors': [
-            error.json
-         ]
-      });
+      res.json({'errors': error.errors});
    } else {
       res.status(codes.HTTPCODE.INTERNAL_ERROR); //What happened?
       res.json({
