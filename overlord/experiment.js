@@ -116,6 +116,7 @@ var createExperiment = function(exp_cfg, createCallback){
             if(error){
                wfcb(error);
             } else {
+               exp_cfg.app = app;
                wfcb(null);
             }
          });
@@ -132,6 +133,13 @@ var createExperiment = function(exp_cfg, createCallback){
                wfcb(null);
             }
          });
+      },
+      // Set default labels
+      function(wfcb){
+         if(!exp_cfg.labels && exp_cfg.app.labels_default){
+            exp_cfg.labels = exp_cfg.app.labels_default;
+         }
+         wfcb(null);
       },
       // Obtain experiment input data tree
       function(wfcb){

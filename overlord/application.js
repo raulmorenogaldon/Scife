@@ -125,7 +125,8 @@ var createApplication = function(app_cfg, createCallback){
             desc: ('desc' in app_cfg) ? app_cfg.desc : "Description...",
             creation_script: app_cfg.creation_script,
             execution_script: app_cfg.execution_script,
-            labels: app_cfg.labels
+            labels: app_cfg.labels,
+            labels_default: app_cfg.labels_default
          }
 
          // Add application to DB

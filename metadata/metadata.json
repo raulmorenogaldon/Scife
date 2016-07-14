@@ -5,7 +5,13 @@
 		'desc': "Description"
 		'creation_script': "./creation.sh",
 		'execution_script': "./exec.sh",
-		'labels': ["LABEL", "PATH", "ARG1", "..."]
+		'labels': ["LABEL", "PATH", "ARG1", "..."],
+      'labels_default': {
+			'LABEL': "cmd",
+			'PATH': "$PATH",
+			'ARG1': "-n 128",
+			'...': "..."
+		},
 	},
 
 	Experiment: {
