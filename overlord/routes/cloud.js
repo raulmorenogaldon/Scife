@@ -683,17 +683,16 @@ function errorGeneric(error, req, res, next){
       res.status(error.http);
       res.json({
          'errors': [
-            error.json.code
-         ],
-         'details': error.json.message
+            error.json
+         ]
       });
    } else {
       res.status(codes.HTTPCODE.INTERNAL_ERROR); //What happened?
       res.json({
-         'errors': [
-            codes.ERRCODE.UNKNOWN
-         ],
-         'details': error.message
+         'errors': [{
+            code: codes.ERRCODE.UNKNOWN.code,
+            message: error.message
+         }]
       });
    }
 }
