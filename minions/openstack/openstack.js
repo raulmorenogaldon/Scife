@@ -1312,14 +1312,15 @@ var _requestOpenStack = function(req, requestCallback){
          // Relogin
          console.log('['+MINION_NAME+'] Trying relogin...');
          return login(function(error){
-            if(error) return requestCallback(error);
-
-            // Again
-            setTimeout(_requestOpenStack, 3000, req, requestCallback);
+            if(error){
+               // Again
+               return setTimeout(_requestOpenStack, 3000, req, requestCallback);
+            }
+            return requestCallback(null, res, body);
          });
       }
 
-      requestCallback(null, res, body);
+      return requestCallback(null, res, body);
    });
 
 }
