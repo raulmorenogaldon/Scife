@@ -63,7 +63,7 @@ var login = function(loginCallback){
    };
 
    // Send request
-   request(req, function(error, res, body){
+   _requestOpenStack(req, function(error, res, body){
       if(error) return loginCallback(error);
       if(!res.headers['x-subject-token']) return loginCallback(new Error(
          'No X-Subject-Token when login'
@@ -79,7 +79,7 @@ var login = function(loginCallback){
          // Iterate endpoints
          for(var i = 0; i < service.endpoints.length; i++){
             if(service.endpoints[i].interface == 'public'){
-               console.log("--------------------------\nService: " + service.name + "\nURL: " + service.endpoints[i].url);
+               //console.log("--------------------------\nService: " + service.name + "\nURL: " + service.endpoints[i].url);
                // Save compute endpoint
                if(service.type == 'compute') compute_url = service.endpoints[i].url;
             }
@@ -337,7 +337,6 @@ var getQuotas = function(getCallback){
       if(error) return getCallback(error);
 
       // Convert data
-      console.log(os_quotas);
       var aux = os_quotas.limits.absolute;
       var quotas = {
          cores: {
@@ -596,7 +595,7 @@ var _getOpenStackImages = function(getCallback){
    };
 
    // Send request
-   request(req, function(error, res, body){
+   _requestOpenStack(req, function(error, res, body){
       if(error) return getCallback(error);
       getCallback(null, JSON.parse(body));
    });
@@ -615,7 +614,7 @@ var _getOpenStackSizes = function(getCallback){
    };
 
    // Send request
-   request(req, function(error, res, body){
+   _requestOpenStack(req, function(error, res, body){
       if(error) return getCallback(error);
       getCallback(null, JSON.parse(body));
    });
@@ -634,7 +633,7 @@ var _getOpenStackInstances = function(getCallback){
    };
 
    // Send request
-   request(req, function(error, res, body){
+   _requestOpenStack(req, function(error, res, body){
       if(error) return getCallback(error);
       getCallback(null, JSON.parse(body));
    });
@@ -689,7 +688,7 @@ var _createOpenStackInstance = function(inst_cfg, createCallback){
          };
 
          // Send request
-         request(req, function(error, res, body){
+         _requestOpenStack(req, function(error, res, body){
             if(error) return wfcb(error);
             if(!body.server) return wfcb(new Error(JSON.stringify(body, null, 2)));
             inst_cfg.server = body.server;
@@ -785,7 +784,7 @@ var _destroyOpenStackInstance = function(inst_id, destroyCallback){
    };
 
    // Send request
-   request(req, function(error, res, body){
+   _requestOpenStack(req, function(error, res, body){
       if(error) return destroyCallback(error);
       console.log('['+MINION_NAME+'] Deleted OpenStack instance "' + inst_id + '"');
       destroyCallback(null);
@@ -895,7 +894,7 @@ var _getOpenStackInstance = function(inst_id, getCallback){
    };
 
    // Send request
-   request(req, function(error, res, body){
+   _requestOpenStack(req, function(error, res, body){
       if(error) return getCallback(error);
 
       // Success??
@@ -918,7 +917,7 @@ var _getOpenStackQuotas = function(getCallback){
    };
 
    // Send request
-   request(req, function(error, res, body){
+   _requestOpenStack(req, function(error, res, body){
       if(error) return getCallback(error);
 
       // Success??
@@ -941,7 +940,7 @@ var _getOpenStackInstanceIPs = function(inst_id, getCallback){
    };
 
    // Send request
-   request(req, function(error, res, body){
+   _requestOpenStack(req, function(error, res, body){
       if(error) return getCallback(error);
       getCallback(null, JSON.parse(body)[network_label]);
    });
@@ -987,7 +986,7 @@ var _getOpenStackFreeFloatIP = function(getCallback){
    };
 
    // Send request
-   request(req, function(error, res, body){
+   _requestOpenStack(req, function(error, res, body){
       if(error) return getCallback(error);
 
       // Get floating IPs
@@ -1026,7 +1025,7 @@ var _allocateOpenStackFloatIP = function(allocateCallback){
    }
 
    // Send request
-   request(req, function(error, res, body){
+   _requestOpenStack(req, function(error, res, body){
       if(error) return allocateCallback(error);
       if(!body.floating_ip) return allocateCallback(new Error("Error getting field in float IP response: "+JSON.stringify(body)));
       allocateCallback(null, body.floating_ip);
@@ -1047,7 +1046,7 @@ var _deallocateOpenStackFloatingIP = function(ip_id, deallocateCallback){
    };
 
    // Send request
-   request(req, function(error, res, body){
+   _requestOpenStack(req, function(error, res, body){
       if(error) return deallocateCallback(error);
       deallocateCallback(null);
    });
@@ -1078,7 +1077,7 @@ var _assignOpenStackFloatIPInstance = function(inst_id, assignCallback){
       };
 
       // Send request
-      request(req, function(error, res, body){
+      _requestOpenStack(req, function(error, res, body){
          if(error) return assignCallback(error);
          assignCallback(null, ip);
       });
@@ -1302,6 +1301,29 @@ var _cleanOpenStackMissingInstances = function(cleanCallback){
    });
 }
 
+var _requestOpenStack = function(req, requestCallback){
+
+   // Send request
+   request(req, function(error, res, body){
+      if(error) return requestCallback(error);
+
+      // Check authentication
+      if(typeof body == 'string' && body.includes('Authentication required')){
+         // Relogin
+         console.log('['+MINION_NAME+'] Trying relogin...');
+         return login(function(error){
+            if(error) return requestCallback(error);
+
+            // Again
+            setTimeout(_requestOpenStack, 3000, req, requestCallback);
+         });
+      }
+
+      requestCallback(null, res, body);
+   });
+
+}
+
 /***********************************************************
  * --------------------------------------------------------
  * INITIALIZATION
@@ -1351,11 +1373,11 @@ function(error){
    if(error) throw error;
    console.info('['+MINION_NAME+'] Initialization completed.');
 
-   // Relogin (renew token) every quarter
-   setInterval(login, 900000, function(error){
+   // Login
+   login(function(error){
       if(error) {
-         console.error('['+MINION_NAME+'] Failed to relogin.');
-         throw new Error('Failed to relogin.')
+         console.error('['+MINION_NAME+'] Failed to login.');
+         throw new Error('Failed to login.')
       }
       console.info('['+MINION_NAME+'] New token: '+token);
    });
