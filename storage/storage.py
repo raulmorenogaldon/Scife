@@ -309,7 +309,6 @@ class Storage(object):
 
         # Copy file
         if src_path is not None:
-            print "hola"
             gevent.subprocess.call(["scp", src_path, fpath], cwd=exp_path)
 
         self.lock = False
