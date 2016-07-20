@@ -63,7 +63,7 @@ var login = function(loginCallback){
    };
 
    // Send request
-   _requestOpenStack(req, function(error, res, body){
+   request(req, function(error, res, body){
       if(error) return loginCallback(error);
       if(!res.headers['x-subject-token']) return loginCallback(new Error(
          'No X-Subject-Token when login'
@@ -71,6 +71,7 @@ var login = function(loginCallback){
 
       // Save token
       token = res.headers['x-subject-token'];
+      console.info('['+MINION_NAME+'] New token: '+token);
 
       // Log services
       for(var c = 0; c < body.token.catalog.length; c++){
@@ -1312,11 +1313,7 @@ var _requestOpenStack = function(req, requestCallback){
          // Relogin
          console.log('['+MINION_NAME+'] Trying relogin...');
          return login(function(error){
-            if(error){
-               // Again
-               return setTimeout(_requestOpenStack, 3000, req, requestCallback);
-            }
-            return requestCallback(null, res, body);
+            setTimeout(_requestOpenStack, 3000, req, requestCallback);
          });
       }
 

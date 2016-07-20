@@ -825,7 +825,7 @@ var _deployExperiment = function(task, exp_id, inst_id, deployCallback){
          // Check task abort
          if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
-         var cmd = "mkdir -p "+inst.image.inputpath+"/"+exp.id+"; sshpass -p 'devstack' rsync -Lr "+exp.input_url+"/* "+inst.image.inputpath+"/"+exp.id;
+         var cmd = "mkdir -p "+inst.image.inputpath+"/"+exp.id+"; sshpass -p '"+constants.STORAGE_PASSWORD+"' rsync -Lr "+exp.input_url+"/* "+inst.image.inputpath+"/"+exp.id;
          var work_dir = inst.image.workpath + "/" + exp.id;
 
          // Execute command
@@ -1158,7 +1158,7 @@ var _retrieveExperimentOutput = function(task, exp_id, inst_id, retrieveCallback
          var output_file = inst.image.workpath+"/"+exp.id+"/output.tar.gz";
 
          // Execute command
-         var cmd = "sshpass -p 'devstack' scp -o StrictHostKeyChecking=no "+output_file+" "+url+"/";
+         var cmd = "sshpass -p '"+constants.STORAGE_PASSWORD+"' scp -o StrictHostKeyChecking=no "+output_file+" "+url+"/";
          logger.debug('['+MODULE_NAME+']['+exp_id+'] Retrieve: Copying output files to storage...');
          instmanager.executeCommand(inst.id, cmd, function (error, output) {
             if(error) return wfcb(error);
