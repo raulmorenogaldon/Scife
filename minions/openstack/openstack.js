@@ -109,8 +109,19 @@ var getImages = function(filter, getCallback){
       function(images){
          // Callback
          if(filter && images.length == 0) return getCallback(new Error("Image '"+filter+"' not found."));
-         if(filter && images.length == 1) return getCallback(null, images[0]);
-         getCallback(null, images);
+
+         // Update quotas
+         getQuotas(function(error, quotas){
+            if(error) return getCallback(error);
+
+            // Set quotas
+            for(var i = 0; i < images.length; i++){
+               images[i].quotas = quotas;
+            }
+
+            if(filter && images.length == 1) return getCallback(null, images[0]);
+            getCallback(null, images);
+         });
       }
    );
 }

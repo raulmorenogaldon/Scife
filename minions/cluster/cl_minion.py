@@ -226,6 +226,28 @@ class ClusterMinion(minion.Minion):
         self._instance_lock.pop(instance_id, None)
         ####################
 
+    def getQuotas(self):
+        quotas = {
+            'cores': {
+                'in_use': 0,
+                'limit': 1000,
+            },
+            'floating_ips': {
+                'in_use': 0,
+                'limit': 1000,
+            },
+            'instances': {
+                'in_use': 0,
+                'limit': 1000,
+            },
+            'ram': {
+                'in_use': 0,
+                'limit': 1000000,
+            }
+        }
+        return quotas
+
+
     def getImages(self, filter=None):
         """Get image list using an optional filter."""
         if filter is None:
@@ -238,11 +260,15 @@ class ClusterMinion(minion.Minion):
                 'id': filter
             })
             if image is None:
-                return list(self._db.images.find({
+                images = list(self._db.images.find({
                     'minion': self.__class__.__name__,
                     'name': {'$regex': '.*' + filter + '.*'}
                 }))
+                for i in images:
+                    i['quotas'] = getQuotas()
+                return images
             else:
+                image['quotas'] = getQuotas()
                 return image
 
     def getSizes(self, filter=None):
@@ -471,27 +497,6 @@ class ClusterMinion(minion.Minion):
         ####################
 
         return status
-
-    def getQuotas(self):
-        quotas = {
-            'cores': {
-                'in_use': 0,
-                'limit': 1000,
-            },
-            'floating_ips': {
-                'in_use': 0,
-                'limit': 1000,
-            },
-            'instances': {
-                'in_use': 0,
-                'limit': 1000,
-            },
-            'ram': {
-                'in_use': 0,
-                'limit': 1000000,
-            }
-        }
-        return quotas
 
     """ Private functions """
     def _loadConfig(self, config):

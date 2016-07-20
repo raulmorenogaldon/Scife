@@ -72,8 +72,22 @@
       'workpath': "/home/image/workspace",
       'inputpath': "/home/image/inputdata",
       'libpath': "/home/image/libs",
-      'tmppath': "/tmp"
-	},
+      'tmppath': "/tmp",
+      'quotas':{
+         'cores': {
+            'in_use': 4,
+            'limit': 20
+         },
+         'instances': {
+            'in_use': 2,
+            'limit': 10
+         },
+         'ram': {
+            'in_use': 2048,
+            'limit': 16368
+         }
+      }
+   },
 
 	Size: {
 		'id': "f745c536-d55a-11e5-90c8-5254003eece4",
