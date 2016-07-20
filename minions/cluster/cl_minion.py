@@ -247,13 +247,15 @@ class ClusterMinion(minion.Minion):
         }
         return quotas
 
-
     def getImages(self, filter=None):
         """Get image list using an optional filter."""
         if filter is None:
-            return list(
+            images = list(
                 self._db.images.find({'minion': self.__class__.__name__})
             )
+            for i in images:
+                i['quotas'] = self.getQuotas()
+            return images
         else:
             image = self._db.images.find_one({
                 'minion': self.__class__.__name__,
@@ -265,10 +267,10 @@ class ClusterMinion(minion.Minion):
                     'name': {'$regex': '.*' + filter + '.*'}
                 }))
                 for i in images:
-                    i['quotas'] = getQuotas()
+                    i['quotas'] = self.getQuotas()
                 return images
             else:
-                image['quotas'] = getQuotas()
+                image['quotas'] = self.getQuotas()
                 return image
 
     def getSizes(self, filter=None):
