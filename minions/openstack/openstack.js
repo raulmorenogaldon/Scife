@@ -1315,6 +1315,9 @@ var _cleanOpenStackMissingInstances = function(cleanCallback){
 
 var _requestOpenStack = function(req, requestCallback){
 
+   // Set correct token
+   req.headers['X-Auth-Token'] = token;
+
    // Send request
    request(req, function(error, res, body){
       if(error) return requestCallback(error);
