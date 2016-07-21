@@ -1194,9 +1194,9 @@ var _loadConfig = function(config, loadCallback){
                if(!found){
                   image._id = utils.generateUUID();
                   image.id = image._id;
-                  console.log('['+MINION_NAME+'] Added image "'+image.id+'" to database.')
                   image.minion = MINION_NAME;
                   database.collection('images').insert(image);
+                  console.log('['+MINION_NAME+'] Added image "'+image.id+'" to database.')
                }
             }
 
@@ -1225,11 +1225,11 @@ var _loadConfig = function(config, loadCallback){
 
                // Add to DB
                if(!found){
-                  console.log('['+MINION_NAME+'] Added size "'+size.id+'" to database.')
                   size._id = utils.generateUUID();
                   size.id = size._id;
                   size.minion = MINION_NAME;
                   database.collection('sizes').insert(size);
+                  console.log('['+MINION_NAME+'] Added size "'+size.id+'" to database.')
                }
             }
 
