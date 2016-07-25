@@ -1331,46 +1331,86 @@ var _pollExperimentLogs = function(exp_id, inst_id, image, log_files, pollCallba
    var work_dir = image.workpath+"/"+exp_id;
    var logs = [];
 
-   // Get log files list
-   logger.debug('['+MODULE_NAME+']['+exp_id+'] PollLogs: Finding logs - ' + log_files);
-   _findExperimentLogs(exp_id, inst_id, image, log_files, function(error, loglist){
-      if(error){
-         _polling[exp_id] = false;
-         logger.error('['+MODULE_NAME+']['+exp_id+'] PollLogs: Error finding logs.');
-         return pollCallback(error);
-      }
+   // Experiment data
+   logger.debug('['+MODULE_NAME+']['+exp_id+'] PollLogs: Getting experiment data...');
+   getExperiment(exp_id, {logs:1}, function(error, exp){
+      if(error) return pollCallback(error);
 
-      // Iterate logs
-      var tasks = [];
-      for(var i = 0; i < loglist.length; i++){
-         // var i must be independent between tasks
-         (function(i){
-            tasks.push(function(taskcb){
-               var cmd = 'zcat -f '+loglist[i];
-               instmanager.executeCommand(inst_id, cmd, function (error, output) {
-                  if(error) return taskcb(new Error("Failed to poll log "+ loglist[i]+ ", error: "+ error));
+      // Get previous logs
+      var prev_logs = exp.logs;
 
-                  // Get log content
-                  var content = output.stdout;
+      // Get log files list
+      logger.debug('['+MODULE_NAME+']['+exp_id+'] PollLogs: Finding logs - ' + log_files);
+      _findExperimentLogs(exp_id, inst_id, image, log_files, function(error, loglist){
+         if(error){
+            _polling[exp_id] = false;
+            logger.error('['+MODULE_NAME+']['+exp_id+'] PollLogs: Error finding logs.');
+            return pollCallback(error);
+         }
+
+         // Iterate logs
+         var tasks = [];
+         for(var i = 0; i < loglist.length; i++){
+            // var i must be independent between tasks
+            (function(i){
+               tasks.push(function(taskcb){
+                  var prev_log = null;
                   var log_filename = loglist[i].split('\\').pop().split('/').pop();
 
-                  // Add log
-                  logger.debug('['+MODULE_NAME+']['+exp_id+'] PollLogs: Updating log content - ' + log_filename);
-                  logs.push({name: log_filename, content: content});
-                  taskcb(null);
-               });
-            });
-         })(i);
-      }
+                  // Check if previous log exists
+                  for(var j = 0; j < prev_logs.length; j++){
+                     prev_log = prev_logs[j];
+                     if(prev_log.name == log_filename){
+                        // Coincidence
+                        break;
+                     }
+                     prev_log = null;
+                  }
 
-      // Execute tasks
-      async.series(tasks, function(error){
-         if(error) return pollCallback(error);
-         // Sort
-         logs.sort(function(a,b){return (a.name > b.name) ? 1 : ((b.name > a.name) ? -1 : 0);});
-         logger.debug('['+MODULE_NAME+']['+exp_id+'] PollLogs: Done.');
-         pollCallback(null, logs);
+                  // Check modified date
+                  var cmd = 'echo -n "$(stat -c %y '+loglist[i]+')"';
+                  instmanager.executeCommand(inst_id, cmd, function (error, output) {
+                     if(error) return taskcb(new Error("Failed to get modified date of "+ loglist[i]+ ", error: "+ error));
+
+                     // Get date
+                     var log_date = output.stdout;
+
+                     // Get date from previous data
+                     if(prev_log && prev_log.last_modified && prev_log.last_modified == log_date){
+                        // Do not update, its the same log
+                        logger.debug('['+MODULE_NAME+']['+exp_id+'] PollLogs: No changes in log content - ' + log_filename);
+                        logs.push({name: log_filename, content: prev_log.content, last_modified: log_date});
+                        taskcb(null);
+                     } else {
+                        // Update log
+                        var cmd = 'zcat -f '+loglist[i];
+                        instmanager.executeCommand(inst_id, cmd, function (error, output) {
+                           if(error) return taskcb(new Error("Failed to poll log "+ loglist[i]+ ", error: "+ error));
+
+                           // Get log content
+                           var content = output.stdout;
+
+                           // Add log
+                           logger.debug('['+MODULE_NAME+']['+exp_id+'] PollLogs: Updating log content - ' + log_filename + ' : ' + log_date);
+                           logs.push({name: log_filename, content: content, last_modified: log_date});
+                           taskcb(null);
+                        });
+                     }
+                  });
+               });
+            })(i);
+         }
+
+         // Execute tasks
+         async.series(tasks, function(error){
+            if(error) return pollCallback(error);
+            // Sort
+            logs.sort(function(a,b){return (a.name > b.name) ? 1 : ((b.name > a.name) ? -1 : 0);});
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] PollLogs: Done.');
+            pollCallback(null, logs);
+         });
       });
+
    });
 }
 
