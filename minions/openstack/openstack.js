@@ -595,8 +595,8 @@ var _checkHostsConnectivity = function(inst_id, hosts, checkCallback){
 }
 
 var _getOpenStackImages = function(getCallback){
-   if(!token) getCallback(new Error('Minion is not connected to OpenStack cloud.'));
-   if(!compute_url) getCallback(new Error('Compute service URL is not defined.'));
+   if(!token) return getCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) return getCallback(new Error('Compute service URL is not defined.'));
 
    var req = {
       url: compute_url + '/images',
@@ -614,8 +614,8 @@ var _getOpenStackImages = function(getCallback){
 }
 
 var _getOpenStackSizes = function(getCallback){
-   if(!token) getCallback(new Error('Minion is not connected to OpenStack cloud.'));
-   if(!compute_url) getCallback(new Error('Compute service URL is not defined.'));
+   if(!token) return getCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) return getCallback(new Error('Compute service URL is not defined.'));
 
    var req = {
       url: compute_url + '/flavors',
@@ -633,8 +633,8 @@ var _getOpenStackSizes = function(getCallback){
 }
 
 var _getOpenStackInstances = function(getCallback){
-   if(!token) getCallback(new Error('Minion is not connected to OpenStack cloud.'));
-   if(!compute_url) getCallback(new Error('Compute service URL is not defined.'));
+   if(!token) return getCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) return getCallback(new Error('Compute service URL is not defined.'));
 
    var req = {
       url: compute_url + '/servers',
@@ -652,8 +652,8 @@ var _getOpenStackInstances = function(getCallback){
 }
 
 var _createOpenStackInstance = function(inst_cfg, createCallback){
-   if(!token) createCallback(new Error('Minion is not connected to OpenStack cloud.'));
-   if(!compute_url) createCallback(new Error('Compute service URL is not defined.'));
+   if(!token) return createCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) return createCallback(new Error('Compute service URL is not defined.'));
 
    // Get image and size
    console.log('['+MINION_NAME+'] Creating OpenStack instance "'+inst_cfg.name+'"...');
@@ -783,8 +783,8 @@ var _waitOpenStackInstanceActive = function(inst_id, waitCallback){
 }
 
 var _destroyOpenStackInstance = function(inst_id, destroyCallback){
-   if(!token) destroyCallback(new Error('Minion is not connected to OpenStack cloud.'));
-   if(!compute_url) destroyCallback(new Error('Compute service URL is not defined.'));
+   if(!token) return destroyCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) return destroyCallback(new Error('Compute service URL is not defined.'));
 
    // Request type
    var req = {
@@ -804,8 +804,8 @@ var _destroyOpenStackInstance = function(inst_id, destroyCallback){
 }
 
 var _executeOpenStackInstanceScript = function(script, work_dir, inst_id, nodes, blocking, executeCallback){
-   if(!token) executeCallback(new Error('Minion is not connected to OpenStack cloud.'));
-   if(!compute_url) executeCallback(new Error('Compute service URL is not defined.'));
+   if(!token) return executeCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) return executeCallback(new Error('Compute service URL is not defined.'));
 
    console.log('['+MINION_NAME+']['+inst_id+'] Executing script (blck: ' + blocking + '): ' + script);
 
@@ -846,8 +846,8 @@ var _executeOpenStackInstanceScript = function(script, work_dir, inst_id, nodes,
 }
 
 var _getOpenStackInstanceJobStatus = function(job_id, inst_id, getCallback){
-   if(!token) getCallback(new Error('Minion is not connected to OpenStack cloud.'));
-   if(!compute_url) getCallback(new Error('Compute service URL is not defined.'));
+   if(!token) return getCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) return getCallback(new Error('Compute service URL is not defined.'));
 
    // Get instance data
    getInstances(inst_id, function(error, inst){
@@ -894,8 +894,8 @@ var _getOpenStackInstanceJobStatus = function(job_id, inst_id, getCallback){
 }
 
 var _getOpenStackInstance = function(inst_id, getCallback){
-   if(!token) getCallback(new Error('Minion is not connected to OpenStack cloud.'));
-   if(!compute_url) getCallback(new Error('Compute service URL is not defined.'));
+   if(!token) return getCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) return getCallback(new Error('Compute service URL is not defined.'));
 
    var req = {
       url: compute_url + '/servers/' + inst_id,
@@ -917,8 +917,8 @@ var _getOpenStackInstance = function(inst_id, getCallback){
 }
 
 var _getOpenStackQuotas = function(getCallback){
-   if(!token) getCallback(new Error('Minion is not connected to OpenStack cloud.'));
-   if(!compute_url) getCallback(new Error('Compute service URL is not defined.'));
+   if(!token) return getCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) return getCallback(new Error('Compute service URL is not defined.'));
 
    var req = {
       url: compute_url + '/limits',
@@ -940,8 +940,8 @@ var _getOpenStackQuotas = function(getCallback){
 }
 
 var _getOpenStackInstanceIPs = function(inst_id, getCallback){
-   if(!token) getCallback(new Error('Minion is not connected to OpenStack cloud.'));
-   if(!compute_url) getCallback(new Error('Compute service URL is not defined.'));
+   if(!token) return getCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) return getCallback(new Error('Compute service URL is not defined.'));
 
    var req = {
       url: compute_url + '/servers/' + inst_id + '/ips/' + network_label,
@@ -959,8 +959,8 @@ var _getOpenStackInstanceIPs = function(inst_id, getCallback){
 }
 
 var _getOpenStackInstanceFloatingIP = function(inst_id, getCallback){
-   if(!token) getCallback(new Error('Minion is not connected to OpenStack cloud.'));
-   if(!compute_url) getCallback(new Error('Compute service URL is not defined.'));
+   if(!token) return getCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) return getCallback(new Error('Compute service URL is not defined.'));
 
    // Get OpenStack instance data
    _getOpenStackInstance(inst_id, function(error, os_inst){
@@ -979,8 +979,8 @@ var _getOpenStackInstanceFloatingIP = function(inst_id, getCallback){
 }
 
 var _getOpenStackFreeFloatIP = function(getCallback){
-   if(!token) getCallback(new Error('Minion is not connected to OpenStack cloud.'));
-   if(!compute_url) getCallback(new Error('Compute service URL is not defined.'));
+   if(!token) return getCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) return getCallback(new Error('Compute service URL is not defined.'));
 
    // TODO: No way to know by now if an IP has been selected for other instance
    // No IP found, allocate
@@ -1019,8 +1019,8 @@ var _getOpenStackFreeFloatIP = function(getCallback){
 }
 
 var _allocateOpenStackFloatIP = function(allocateCallback){
-   if(!token) assignCallback(new Error('Minion is not connected to OpenStack cloud.'));
-   if(!compute_url) assignCallback(new Error('Compute service URL is not defined.'));
+   if(!token) return assignCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) return assignCallback(new Error('Compute service URL is not defined.'));
 
    var req = {
       url: compute_url + '/os-floating-ips',
@@ -1045,8 +1045,8 @@ var _allocateOpenStackFloatIP = function(allocateCallback){
 }
 
 var _deallocateOpenStackFloatingIP = function(ip_id, deallocateCallback){
-   if(!token) deallocateCallback(new Error('Minion is not connected to OpenStack cloud.'));
-   if(!compute_url) deallocateCallback(new Error('Compute service URL is not defined.'));
+   if(!token) return deallocateCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) return deallocateCallback(new Error('Compute service URL is not defined.'));
 
    // Request type
    var req = {
@@ -1065,8 +1065,8 @@ var _deallocateOpenStackFloatingIP = function(ip_id, deallocateCallback){
 }
 
 var _assignOpenStackFloatIPInstance = function(inst_id, assignCallback){
-   if(!token) assignCallback(new Error('Minion is not connected to OpenStack cloud.'));
-   if(!compute_url) assignCallback(new Error('Compute service URL is not defined.'));
+   if(!token) return assignCallback(new Error('Minion is not connected to OpenStack cloud.'));
+   if(!compute_url) return assignCallback(new Error('Compute service URL is not defined.'));
 
    // Allocate an IP
    _getOpenStackFreeFloatIP(function(error, ip){
