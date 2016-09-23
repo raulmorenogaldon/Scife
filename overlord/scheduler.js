@@ -1426,7 +1426,7 @@ var _findExperimentLogs = function(exp_id, inst_id, image, log_files, findCallba
    var logs = [];
 
    // Prepare command to find logs
-   var cmd = 'find '+work_dir+ ' -name "'+log_files[0]+'"';
+   var cmd = 'find -L '+work_dir+ ' -name "'+log_files[0]+'"';
    for(var i = 1; i < log_files.length; i++){
       // Add option to find
       cmd = cmd + ' -o -name "'+log_files[i]+'"';
