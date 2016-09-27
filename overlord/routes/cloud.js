@@ -459,6 +459,33 @@ router.get('/experiments/:exp_id/code', function (req, res, next) {
 });
 
 /**
+ * Delete source file
+ * @param {String} - The experiment id.
+ */
+router.delete('/experiments/:exp_id/code', function (req, res, next) {
+   // Get file path if provided
+   var fpath = req.query.file;
+   if(!fpath){
+      return next({
+         'http': codes.HTTPCODE.BAD_REQUEST,
+         'errors': [codes.ERRCODE.EXP_CODE_FILE_PATH_MISSING]
+      });
+   }
+
+   // Save to experiment data
+   scheduler.deleteExperimentCode(req.params.exp_id, fpath, function(error){
+      // Error deleting file?
+      if(error) return next(error);
+
+      // Reload trees
+      scheduler.reloadExperimentTree(req.params.exp_id, function(error){
+         if (error) return next(error);
+         res.json(null);
+      });
+   });
+});
+
+/**
  * Add field text when text/plain
  */
 router.use(function(req, res, next){
@@ -513,6 +540,33 @@ router.post('/experiments/:exp_id/code', function (req, res, next) {
 
       // TODO: Reload labels
       // ...
+
+      // Reload trees
+      scheduler.reloadExperimentTree(req.params.exp_id, function(error){
+         if (error) return next(error);
+         res.json(null);
+      });
+   });
+});
+
+/**
+ * Delete input file
+ * @param {String} - The experiment id.
+ */
+router.delete('/experiments/:exp_id/input', function (req, res, next) {
+   // Get file path if provided
+   var fpath = req.query.file;
+   if(!fpath){
+      return next({
+         'http': codes.HTTPCODE.BAD_REQUEST,
+         'errors': [codes.ERRCODE.EXP_INPUT_FILE_PATH_MISSING]
+      });
+   }
+
+   // Save to experiment data
+   scheduler.deleteExperimentInput(req.params.exp_id, fpath, function(error){
+      // Error deleting file?
+      if(error) return next(error);
 
       // Reload trees
       scheduler.reloadExperimentTree(req.params.exp_id, function(error){

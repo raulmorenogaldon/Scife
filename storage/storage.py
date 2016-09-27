@@ -248,6 +248,13 @@ class Storage(object):
         # Get input storage path
         app_path = self.apppath + "/" + app_id
 
+        # Avoid absolute paths
+        # i.e. /root
+        if os.path.isabs(fpath):
+            raise IOError("Delete is not supported for absolute paths: '{0}'".format(
+                fpath
+            ))
+
         ########################
         # Wait for the lock
         while self.lock:
@@ -294,9 +301,56 @@ class Storage(object):
         ########################
         return
 
+    def deleteExperimentCode(self, exp_id, app_id, fpath):
+        # Get input storage path
+        app_path = self.apppath + "/" + app_id
+
+        # Avoid absolute paths
+        # i.e. /root
+        if os.path.isabs(fpath):
+            raise IOError("Delete is not supported for absolute paths: '{0}'".format(
+                fpath
+            ))
+
+        ########################
+        # Wait for the lock
+        while self.lock:
+            gevent.sleep(0)
+        self.lock = True
+
+        # Check out experiment
+        gevent.subprocess.call(["git", "checkout", exp_id], cwd=app_path)
+
+        # Check if path exists
+        if not os.path.isdir(app_path):
+            # Release lock
+            self.lock = False
+            raise IOError("Path '{0}' not found".format(
+                fpath
+            ))
+
+        if fpath is not None:
+            gevent.subprocess.call(["rm", "-rf", fpath], cwd=app_path)
+            gevent.subprocess.call(["git", "rm", "-r", fpath], cwd=app_path)
+            gevent.subprocess.call(["git", "commit", "-m", "Commit..."], cwd=app_path)
+
+        # Checkout master
+        gevent.subprocess.call(["git", "checkout", "master"], cwd=app_path)
+
+        self.lock = False
+        ########################
+        return
+
     def putExperimentInput(self, exp_id, app_id, fpath, src_path):
         # Get input storage path
         exp_path = self.inputpath + "/" + exp_id
+
+        # Avoid absolute paths
+        # i.e. /root
+        if os.path.isabs(fpath):
+            raise IOError("Delete is not supported for absolute paths: '{0}'".format(
+                fpath
+            ))
 
         ########################
         # Wait for the lock
@@ -310,6 +364,31 @@ class Storage(object):
         # Copy file
         if src_path is not None:
             gevent.subprocess.call(["scp", src_path, fpath], cwd=exp_path)
+
+        self.lock = False
+        ########################
+        return
+
+    def deleteExperimentInput(self, exp_id, app_id, fpath):
+        # Get input storage path
+        exp_path = self.inputpath + "/" + exp_id
+
+        # Avoid absolute paths
+        # i.e. /root
+        if os.path.isabs(fpath):
+            raise IOError("Delete is not supported for absolute paths: '{0}'".format(
+                fpath
+            ))
+
+        ########################
+        # Wait for the lock
+        while self.lock:
+            gevent.sleep(0)
+        self.lock = True
+
+        # Remove file
+        if fpath is not None:
+            gevent.subprocess.call(["rm", "-rf", fpath], cwd=exp_path)
 
         self.lock = False
         ########################

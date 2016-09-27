@@ -96,6 +96,20 @@ var putExperimentCode = function(exp_id, fpath, fcontent, putCallback){
 }
 
 /**
+ * Delete experiment source file
+ */
+var deleteExperimentCode = function(exp_id, fpath, deleteCallback){
+   getExperiment(exp_id, null, function(error, exp){
+      if(error) return deleteCallback(error);
+
+      // Save file contents
+      storage.client.invoke('deleteExperimentCode', exp_id, exp.app_id, fpath, function(error){
+         return deleteCallback(error);
+      });
+   })
+}
+
+/**
  * Save experiment input file
  */
 var putExperimentInput = function(exp_id, fpath, src_file, putCallback){
@@ -110,6 +124,20 @@ var putExperimentInput = function(exp_id, fpath, src_file, putCallback){
       storage.client.invoke('putExperimentInput', exp_id, exp.app_id, fpath, src_path, function(error){
          if(error) return putCallback(error);
          putCallback(null);
+      });
+   })
+}
+
+/**
+ * Delete experiment input file
+ */
+var deleteExperimentInput = function(exp_id, fpath, deleteCallback){
+   getExperiment(exp_id, null, function(error, exp){
+      if(error) return deleteCallback(error);
+
+      // Save file contents
+      storage.client.invoke('deleteExperimentInput', exp_id, exp.app_id, fpath, function(error){
+         return deleteCallback(error);
       });
    })
 }
@@ -1573,6 +1601,8 @@ exports.launchExperiment = launchExperiment;
 
 exports.getExperimentCode = getExperimentCode;
 exports.putExperimentCode = putExperimentCode;
+exports.deleteExperimentCode = deleteExperimentCode;
 exports.putExperimentInput = putExperimentInput;
+exports.deleteExperimentInput = deleteExperimentInput;
 exports.getExperimentOutputFile = getExperimentOutputFile;
 exports.reloadExperimentTree = reloadExperimentTree;
