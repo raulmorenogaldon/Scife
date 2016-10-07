@@ -744,7 +744,7 @@ var _createOpenStackInstance = function(inst_cfg, createCallback){
       function(wfcb){
          if(inst_cfg.ip){
             var private_key = fs.readFileSync(private_key_path);
-            utils.connectSSH(inst_cfg.image.username, inst_cfg.ip, private_key, 300000, function(error, conn){
+            utils.connectSSH(inst_cfg.image.username, inst_cfg.ip, private_key, 600000, function(error, conn){
                if(error) wfcb(error);
                // Connected, close connection
                utils.closeSSH(conn);
