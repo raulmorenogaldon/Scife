@@ -691,8 +691,11 @@ router.post('/experiments/:exp_id', function (req, res, next) {
             'errors': [codes.ERRCODE.LAUNCH_INCORRECT_PARAMS]
          });
       } else {
+         // Set default debug
+         if(req.body.debug == null) req.body.debug = true;
+
          // Launch experiment
-         scheduler.launchExperiment(req.params.exp_id, req.body.nodes, req.body.image_id, req.body.size_id, function(error){
+         scheduler.launchExperiment(req.params.exp_id, req.body.nodes, req.body.image_id, req.body.size_id, req.body.debug, function(error){
             if(error){
                // Quota reached?
                if(error.message.includes("quota")){

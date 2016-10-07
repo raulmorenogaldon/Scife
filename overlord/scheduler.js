@@ -179,7 +179,7 @@ var searchExperiments = function(name, searchCallback){
 /**
  * Entry point for experiment execution
  */
-var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback){
+var launchExperiment = function(exp_id, nodes, image_id, size_id, debug, launchCallback){
    logger.info('['+MODULE_NAME+']['+exp_id+'] Launch: Launching experiment...');
 
    var _exp = null;
@@ -245,7 +245,8 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launchCallback
             name: _exp.name,
             image_id: image_id,
             size_id: size_id,
-            nodes: nodes
+            nodes: nodes,
+            debug: debug
          };
          wfcb(null, inst_cfg);
       }
@@ -437,7 +438,8 @@ taskmanager.setTaskHandler("instanceExperiment", function(task){
       var next_task = {
          type: "prepareExperiment",
          exp_id: exp_id,
-         inst_id: inst_id
+         inst_id: inst_id,
+         debug: inst_cfg.debug
       };
 
       // Set task to done and setup next task
@@ -467,7 +469,8 @@ taskmanager.setTaskHandler("prepareExperiment", function(task){
       var next_task = {
          type: "deployExperiment",
          exp_id: exp_id,
-         inst_id: inst_id
+         inst_id: inst_id,
+         debug: task.debug
       };
 
       // Set task to done and setup next task
@@ -491,9 +494,13 @@ taskmanager.setTaskHandler("deployExperiment", function(task){
          taskmanager.setTaskFailed(task_id, error);
 
          // Clean instance
-         instmanager.cleanExperiment(exp_id, inst_id, true, true, true, true, function(error){
-            database.db.collection('experiments').updateOne({id: exp_id},{$set:{inst_id: null, status: "failed_deploy"}});
-         });
+         if(task.debug){
+            database.db.collection('experiments').updateOne({id: exp_id},{$set:{status: "failed_deploy"}});
+         } else {
+            instmanager.cleanExperiment(exp_id, inst_id, true, true, true, true, function(error){
+               database.db.collection('experiments').updateOne({id: exp_id},{$set:{inst_id: null, status: "failed_deploy"}});
+            });
+         }
          return;
       }
 
@@ -501,7 +508,8 @@ taskmanager.setTaskHandler("deployExperiment", function(task){
       var next_task = {
          type: "compileExperiment",
          exp_id: exp_id,
-         inst_id: inst_id
+         inst_id: inst_id,
+         debug: task.debug
       };
 
       // Set task to done and setup next task
@@ -525,9 +533,13 @@ taskmanager.setTaskHandler("compileExperiment", function(task){
          taskmanager.setTaskFailed(task_id, error);
 
          // Clean instance
-         instmanager.cleanExperiment(exp_id, inst_id, true, true, true, true, function(error){
-            database.db.collection('experiments').updateOne({id: exp_id},{$set:{inst_id: null, status: "failed_compilation"}});
-         });
+         if(task.debug){
+            database.db.collection('experiments').updateOne({id: exp_id},{$set:{status: "failed_compilation"}});
+         } else {
+            instmanager.cleanExperiment(exp_id, inst_id, true, true, true, true, function(error){
+               database.db.collection('experiments').updateOne({id: exp_id},{$set:{inst_id: null, status: "failed_compilation"}});
+            });
+         }
          return;
       }
 
@@ -535,7 +547,8 @@ taskmanager.setTaskHandler("compileExperiment", function(task){
       var next_task = {
          type: "executeExperiment",
          exp_id: exp_id,
-         inst_id: inst_id
+         inst_id: inst_id,
+         debug: task.debug
       };
 
       // Set task to done and setup next task
@@ -559,9 +572,13 @@ taskmanager.setTaskHandler("executeExperiment", function(task){
          taskmanager.setTaskFailed(task_id, error);
 
          // Clean instance
-         instmanager.cleanExperiment(exp_id, inst_id, true, true, true, true, function(error){
-            database.db.collection('experiments').updateOne({id: exp_id},{$set:{inst_id: null, status: "failed_execution"}});
-         });
+         if(task.debug){
+            database.db.collection('experiments').updateOne({id: exp_id},{$set:{status: "failed_execution"}});
+         } else {
+            instmanager.cleanExperiment(exp_id, inst_id, true, true, true, true, function(error){
+               database.db.collection('experiments').updateOne({id: exp_id},{$set:{inst_id: null, status: "failed_execution"}});
+            });
+         }
          return;
       }
 
@@ -569,7 +586,8 @@ taskmanager.setTaskHandler("executeExperiment", function(task){
       var next_task = {
          type: "retrieveExperimentOutput",
          exp_id: exp_id,
-         inst_id: inst_id
+         inst_id: inst_id,
+         debug: task.debug
       };
 
       // Set task to done and setup next task
@@ -598,9 +616,11 @@ taskmanager.setTaskHandler("retrieveExperimentOutput", function(task){
       taskmanager.setTaskDone(task_id, null, null);
 
       // Clean instance
-      instmanager.cleanExperiment(exp_id, inst_id, true, true, true, true, function(error){
-         database.db.collection('experiments').updateOne({id: exp_id},{$set:{inst_id: null}});
-      });
+      if(!task.debug){
+         instmanager.cleanExperiment(exp_id, inst_id, true, true, true, true, function(error){
+            database.db.collection('experiments').updateOne({id: exp_id},{$set:{inst_id: null}});
+         });
+      }
 
       // Set experiment to done status
       database.db.collection('experiments').updateOne({id: exp_id},{$set:{status: "done"}});
