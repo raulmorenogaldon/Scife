@@ -1386,6 +1386,7 @@ var _pollExperimentLogs = function(exp_id, inst_id, image, log_files, pollCallba
 
       // Get previous logs
       var prev_logs = exp.logs;
+      if(!prev_logs) prev_logs = [];
 
       // Get log files list
       logger.debug('['+MODULE_NAME+']['+exp_id+'] PollLogs: Finding logs - ' + log_files);
