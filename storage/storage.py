@@ -394,17 +394,28 @@ class Storage(object):
         ########################
         return
 
-    def getExperimentOutputFile(self, exp_id):
+    def getExperimentOutputFile(self, exp_id, fpath):
+        # Check if none fpath
+        if fpath is None:
+            fpath = "output.tar.gz"
+
         # Get output storage path
-        file = self.outputpath + "/" + exp_id + "/output.tar.gz"
+        file = self.outputpath + "/" + exp_id + "/" + fpath
 
         # Check existence
         if not os.path.isfile(file):
-            raise IOError("Output data does not exist for experiment: {0}".format(
-                exp_id
+            raise IOError("Output data '{0}' does not exist for experiment: {1}".format(
+                fpath, exp_id
             ))
 
         return file
+
+    def getOutputFolderTree(self, id):
+        # Get input storage path
+        path = self.outputpath + "/" + id
+
+        # Create tree
+        return self._fillFolderTree(path, "")
 
     def getInputFolderTree(self, id):
         # Get input storage path

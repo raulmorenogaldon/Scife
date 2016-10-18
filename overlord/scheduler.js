@@ -145,8 +145,8 @@ var deleteExperimentInput = function(exp_id, fpath, deleteCallback){
 /**
  * Get experiment output data file path
  */
-var getExperimentOutputFile = function(exp_id, getCallback){
-   storage.client.invoke("getExperimentOutputFile", exp_id, function(error, file){
+var getExperimentOutputFile = function(exp_id, fpath, getCallback){
+   storage.client.invoke("getExperimentOutputFile", exp_id, fpath, function(error, file){
       if (error) {
          getCallback(new Error("Failed to get experiment "+exp_id+" output data, error: "+error));
       } else {
@@ -388,6 +388,16 @@ var reloadExperimentTree = function(exp_id, reloadCallback){
             wfcb(null, exp);
          });
       },
+      // Obtain experiment output data tree
+      function(exp, wfcb){
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] ReloadTree: Getting output folder tree...');
+         storage.client.invoke('getOutputFolderTree', exp_id, function (error, tree) {
+            if(error) return wfcb(error);
+
+            database.db.collection('experiments').updateOne({id: exp_id},{$set: {output_tree: tree}});
+            wfcb(null, exp);
+         });
+      },
       // Obtain experiment source code tree
       function(exp, wfcb){
          logger.debug('['+MODULE_NAME+']['+exp_id+'] ReloadTree: Getting sources folder tree...');
@@ -604,7 +614,7 @@ taskmanager.setTaskHandler("retrieveExperimentOutput", function(task){
    var inst_id = task.inst_id;
    var task_id = task.id;
 
-   // Prepare experiment
+   // Retrieve experiment output data to storage
    _retrieveExperimentOutput(task, exp_id, inst_id, function(error){
       if(error){
          // Set task failed
@@ -740,6 +750,7 @@ var _prepareExperiment = function(task, exp_id, inst_id, prepareCallback){
          cfg.exp.labels['#APPLICATION_ID'] = cfg.app.id;
          cfg.exp.labels['#APPLICATION_NAME'] = cfg.exp.name.replace(/ /g, "_");
          cfg.exp.labels['#INPUTPATH'] = cfg.inst.image.inputpath + "/" + cfg.exp.id;
+         cfg.exp.labels['#OUTPUTPATH'] = cfg.inst.image.outputpath + "/" + cfg.exp.id;
          cfg.exp.labels['#LIBPATH'] = cfg.inst.image.libpath;
          cfg.exp.labels['#TMPPATH'] = cfg.inst.image.tmppath;
          cfg.exp.labels['#CPUS'] = cpus;
@@ -878,6 +889,42 @@ var _deployExperiment = function(task, exp_id, inst_id, deployCallback){
 
          // Execute command
          logger.debug('['+MODULE_NAME+']['+exp_id+'] Deploy: Making inputdata directory...');
+         instmanager.executeJob(inst.id, cmd, work_dir, 1, function (error, job_id) {
+            if (error) {return wfcb(error);}
+
+            // Update task and DB
+            task.job_id = job_id;
+            database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: job_id}});
+
+            // Check task abort
+            if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+
+            // Wait for command completion
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Deploy: Waiting - ' + job_id);
+            instmanager.waitJob(job_id, inst.id, function(error){
+               if(error){return wfcb(error);}
+
+               // Update task and DB
+               task.job_id = null;
+               database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
+
+               // Check task abort
+               if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+
+               wfcb(null, app, exp, inst);
+            });
+         });
+      },
+      // Create outputdata in FS
+      function(app, exp, inst, wfcb){
+         // Check task abort
+         if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+
+         var cmd = "mkdir -p "+inst.image.outputpath+"/"+exp.id;
+         var work_dir = inst.image.workpath + "/" + exp.id;
+
+         // Execute command
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Deploy: Creating outputdata directory...');
          instmanager.executeJob(inst.id, cmd, work_dir, 1, function (error, job_id) {
             if (error) {return wfcb(error);}
 
@@ -1203,16 +1250,18 @@ var _retrieveExperimentOutput = function(task, exp_id, inst_id, retrieveCallback
          if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
          logger.debug("["+exp_id+"] Getting experiment output data path");
-         var output_file = inst.image.workpath+"/"+exp.id+"/output.tar.gz";
+         var output_files = inst.image.outputpath+"/"+exp.id+"/*";
 
          // Execute command
-         var cmd = "sshpass -p '"+constants.STORAGE_PASSWORD+"' scp -o StrictHostKeyChecking=no "+output_file+" "+url+"/";
+         var cmd = "sshpass -p '"+constants.STORAGE_PASSWORD+"' rsync -re 'ssh -o StrictHostKeyChecking=no' "+output_files+" "+url+"/";
          logger.debug('['+MODULE_NAME+']['+exp_id+'] Retrieve: Copying output files to storage...');
          instmanager.executeCommand(inst.id, cmd, function (error, output) {
             if(error) return wfcb(error);
             // Check task abort
             if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
-            wfcb(null);
+
+            // Reload output tree
+            reloadExperimentTree(exp_id, wfcb);
          });
       }
    ],

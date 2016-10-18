@@ -2,7 +2,8 @@ var express = require('express'),
    multer = require('multer'),
    router = express.Router(),
    zerorpc = require('zerorpc'),
-   fs = require('fs');
+   fs = require('fs'),
+   mpath = require('path');
 
 var codes = require('../error_codes.js');
 var utils = require('../utils.js');
@@ -337,6 +338,7 @@ router.get('/experiments/:exp_id', function (req, res, next) {
       'status': req.exp.status,
       'labels': req.exp.labels,
       'input_tree': req.exp.input_tree,
+      'output_tree': req.exp.output_tree,
       'src_tree': req.exp.src_tree
    });
 });
@@ -421,6 +423,30 @@ router.get('/experiments/:exp_id/inputtree', function (req, res, next) {
          return next({
             'http': codes.HTTPCODE.NOT_FOUND,
             'errors': [codes.ERRCODE.EXP_INPUT_FILE_NOT_FOUND]
+         });
+      }
+
+      res.json(result);
+   });
+});
+
+/**
+ * Get experiment output files tree
+ * @param {String} - The experiment id.
+ * @return {[Object]} - A json Object with experiment output files tree
+ */
+router.get('/experiments/:exp_id/outputtree', function (req, res, next) {
+   scheduler.getExperiment(req.params.exp_id, {id: 1, output_tree: 1}, function (error, result) {
+      if (error) return next(error);
+
+      // Get folder path and depth if provided
+      var fpath = req.query.folder;
+      var depth = req.query.depth;
+      result.output_tree = utils.cutTree(result.output_tree, fpath, depth);
+      if(!result){
+         return next({
+            'http': codes.HTTPCODE.NOT_FOUND,
+            'errors': [codes.ERRCODE.EXP_OUTPUT_FILE_NOT_FOUND]
          });
       }
 
@@ -628,7 +654,11 @@ router.post('/experiments/:exp_id/input', upload.array('inputFile'), function (r
  * @return {[Object]} - A json Object with output data
  */
 router.get('/experiments/:exp_id/download', function (req, res, next) {
-   scheduler.getExperimentOutputFile(req.params.exp_id, function (error, file) {
+   // Get file path if provided
+   var fpath = req.query.file;
+
+   // Get file
+   scheduler.getExperimentOutputFile(req.params.exp_id, fpath, function (error, file) {
       if (error) {
          return next({
             'http': codes.HTTPCODE.NOT_FOUND,
@@ -637,10 +667,12 @@ router.get('/experiments/:exp_id/download', function (req, res, next) {
       } else {
          // Create header with file info
          var stat = fs.statSync(file);
+         var filename = req.exp.name+'.tar.gz';
+         if(fpath) filename = mpath.basename(file);
          res.writeHead(200, {
             'Content-Type': 'application/octet-stream',
             'Content-Length': stat.size,
-            'Content-Disposition': 'inline; filename="'+req.exp.name+'.tar.gz"'
+            'Content-Disposition': 'inline; filename="'+filename+'"'
          });
 
          // Send file

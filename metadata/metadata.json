@@ -71,6 +71,7 @@
       'sizes_compatible': ["745c536-d55a-11e5-90c8-5254003eece4"],
       'workpath': "/home/image/workspace",
       'inputpath': "/home/image/inputdata",
+      'outputpath': "/home/image/outputdata",
       'libpath': "/home/image/libs",
       'tmppath': "/tmp",
       'quotas':{

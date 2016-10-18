@@ -6,6 +6,7 @@
          "cl_sizes_compatible": ["1","2","3","4"],
          "workpath": "/home/rmoreno2/workspace",
          "inputpath": "/home/rmoreno2/inputdata",
+         "outputpath": "/home/rmoreno2/outputdata",
          "libpath": "/home/rmoreno/local",
          "tmppath": "/home/rmoreno2/tmp"
       }

@@ -88,6 +88,10 @@ var ERRCODE = {
       'message': "Requested log does not exits.",
       'code': 51
    },
+   EXP_OUTPUT_FILE_NOT_FOUND: {
+      'message': "Output file does not exits.",
+      'code': 52
+   },
    // Content-Type
    REQ_CONTENT_TYPE_TEXT_PLAIN: {
       'message': "Required Content-Type text/plain.",

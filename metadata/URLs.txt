@@ -64,7 +64,7 @@
 /cloud/experiments/:experimentId/logs (GET) "Return experiment logs, ID is passed by parameter"
 /cloud/experiments/:experimentId/logs?log=COMPILATION_LOG (GET) "Return experiment log as plain text if exists"
 
-/cloud/experiments/:experimentId/download (GET) "Download experiment output data, ID is passed by parameter"
+/cloud/experiments/:experimentId/download?file=archive/rest/exp.nc (GET) "Download experiment output data, ID is passed by parameter"
 
 /cloud/experiments/:experimentId/code?file=src/code.c (GET) "Return code file content as plain text"
 /cloud/experiments/:experimentId/code?file=src/code.c (DELETE) "Remove code file from experiment"
@@ -75,3 +75,4 @@
 
 /cloud/experiments/:experimentId/srctree?folder=models/atm/src&depth=1 (GET) "Return filesystem tree from sources folder. Depth of the filesystem can be provided."
 /cloud/experiments/:experimentId/inputtree?folder=models/atm/src&depth=1 (GET) "Return filesystem tree from input folder. Depth of the filesystem can be provided."
+/cloud/experiments/:experimentId/outputtree?folder=models/atm/src&depth=1 (GET) "Return filesystem tree from output folder. Depth of the filesystem can be provided."

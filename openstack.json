@@ -13,6 +13,7 @@
          "desc": "Description...",
          "workpath": "/home/fedora/workspace",
          "inputpath": "/home/fedora/inputdata",
+         "outputpath": "/home/fedora/outputdata",
          "libpath": "/usr",
          "tmppath": "/tmp"
       }
