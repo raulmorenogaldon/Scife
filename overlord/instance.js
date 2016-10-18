@@ -276,11 +276,13 @@ var destroyInstance = function(inst_id, destroyCallback){
 /**
  * Remove experiment from instance
  */
-var cleanExperiment = function(exp_id, inst_id, b_job, b_code, b_input, b_remove, cleanCallback){
+var cleanExperiment = function(exp_id, inst_id, b_flags, cleanCallback){
+   if(!b_flags) b_flags = {};
+
    async.waterfall([
       // Get instance
       function(wfcb){
-         getInstance(inst_id, false, false, wfcb);
+         getInstance(inst_id, true, true, wfcb);
       },
       // Get minion for this instance
       function(inst, wfcb){
@@ -297,7 +299,7 @@ var cleanExperiment = function(exp_id, inst_id, b_job, b_code, b_input, b_remove
       },
       // Clean code
       function(inst, minion, wfcb){
-         if(b_remove || b_code){
+         if(b_flags.b_remove || b_flags.b_code){
             logger.debug('['+MODULE_NAME+']['+inst.id+'] Clean: Cleaning code...');
             _cleanExperimentCode(minion, exp_id, inst, function(error){
                if(error) return wfcb(error);
@@ -309,9 +311,21 @@ var cleanExperiment = function(exp_id, inst_id, b_job, b_code, b_input, b_remove
       },
       // Clean input
       function(inst, minion, wfcb){
-         if(b_remove || b_input){
+         if(b_flags.b_remove || b_flags.b_input){
             logger.debug('['+MODULE_NAME+']['+inst.id+'] Clean: Cleaning input...');
             _cleanExperimentInput(minion, exp_id, inst, function(error){
+               if(error) return wfcb(error);
+               wfcb(null, inst, minion);
+            });
+         } else {
+            wfcb(null, inst, minion);
+         }
+      },
+      // Clean output
+      function(inst, minion, wfcb){
+         if(b_flags.b_remove || b_flags.b_output){
+            logger.debug('['+MODULE_NAME+']['+inst.id+'] Clean: Cleaning output...');
+            _cleanExperimentOutput(minion, exp_id, inst, function(error){
                if(error) return wfcb(error);
                wfcb(null);
             });
@@ -321,9 +335,10 @@ var cleanExperiment = function(exp_id, inst_id, b_job, b_code, b_input, b_remove
       }
    ],
    function(error){
-      if(error) return cleanCallback(error);
+      // If error and not force
+      if(error && !b_flags.b_force) return cleanCallback(error);
 
-      if(b_remove){
+      if(b_flags.b_remove){
          // Remove from database
          logger.debug('['+MODULE_NAME+']['+inst_id+'] Clean: Removing experiment from instance...');
          database.db.collection('instances').updateOne({id: inst_id},{
@@ -333,7 +348,7 @@ var cleanExperiment = function(exp_id, inst_id, b_job, b_code, b_input, b_remove
             $set: {in_use: false}
          });
       }
-      cleanCallback(null);
+      cleanCallback(error);
    });
 }
 
@@ -470,26 +485,26 @@ var waitJob = function(job_id, inst_id, waitCallback){
 /**
  * Clean experiment Job in instance
  */
-var abortJob = function(job_id, inst_id, cleanCallback){
+var abortJob = function(job_id, inst_id, abortCallback){
    if(job_id && inst_id){
       // Get instance
       getInstance(inst_id, false, false, function(error, inst){
-         if(error) return cleanCallback(error);
+         if(error) return abortCallback(error);
 
          // Get minion
          var minion = dMinionClients[inst.minion];
-         if(!minion) return cleanCallback(new Error("Minion "+inst.minion+" is not loaded."))
+         if(!minion) return abortCallback(new Error("Minion "+inst.minion+" is not loaded."))
 
          // Abort job
          logger.debug('['+MODULE_NAME+']['+inst_id+'] Aborting job - ' + job_id);
          minion.invoke('cleanJob', job_id, inst_id, function (error, result) {
             if (error) {
-               return cleanCallback(error);
+               return abortCallback(error);
             }
 
             // Callback
             logger.debug('['+MODULE_NAME+']['+inst_id+'] Aborted job - ' + job_id);
-            cleanCallback(null);
+            abortCallback(null);
          });
       });
    }
@@ -499,15 +514,11 @@ var abortJob = function(job_id, inst_id, cleanCallback){
  * Clean experiment code in instance
  */
 var _cleanExperimentCode = function(minion, exp_id, inst, cleanCallback){
-   var work_dir = inst.workpath+"/"+exp_id;
+   var work_dir = inst.image.workpath+"/"+exp_id;
    var cmd = 'rm -rf '+work_dir;
    // Execute command
    minion.invoke('executeCommand', cmd, inst.id, function (error, output) {
-      if (error) {
-         cleanCallback(error);
-      } else {
-         cleanCallback(null);
-      }
+      return cleanCallback(error);
    });
 }
 
@@ -516,15 +527,27 @@ var _cleanExperimentCode = function(minion, exp_id, inst, cleanCallback){
  */
 var _cleanExperimentInput = function(minion, exp_id, inst, cleanCallback){
    // Remove experiment code folder
-   var input_dir = inst.inputpath+"/"+exp_id;
+   var input_dir = inst.image.inputpath+"/"+exp_id;
    var cmd = 'rm -rf '+input_dir;
    // Execute command
    minion.invoke('executeCommand', cmd, inst.id, function (error, output) {
-      if (error) {
-         cleanCallback(error);
-      } else {
-         cleanCallback(null);
-      }
+      return cleanCallback(error);
+   });
+}
+
+/**
+ * Clean experiment output data in instance
+ */
+var _cleanExperimentOutput = function(minion, exp_id, inst, cleanCallback){
+   // [RETRO] Previous version instance compatibility
+   if(!inst.image.outputpath) return cleanCallback(null);
+
+   // Remove experiment code folder
+   var output_dir = inst.image.outputpath+"/"+exp_id;
+   var cmd = 'rm -rf '+output_dir;
+   // Execute command
+   minion.invoke('executeCommand', cmd, inst.id, function (error, output) {
+      return cleanCallback(error);
    });
 }
 

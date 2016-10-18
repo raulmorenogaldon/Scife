@@ -195,7 +195,16 @@ class Storage(object):
         ########################
         return exp_id
 
-    def removeExperimentData(self, exp_id):
+    def removeExperiment(self, app_id, exp_id):
+        # Get application storage path
+        app_path = self.apppath + "/" + app_id + "/"
+
+        ########################
+        # Wait for the lock
+        while self.lock:
+            gevent.sleep(0)
+        self.lock = True
+
         # Remove output storage path
         output_path = self.outputpath + "/" + exp_id
         gevent.subprocess.call(["rm", "-rf", output_path])
@@ -203,6 +212,14 @@ class Storage(object):
         # Remove input storage path
         input_path = self.inputpath + "/" + exp_id
         gevent.subprocess.call(["rm", "-rf", input_path])
+
+        # Remove experiment branch
+        print('Removing experiment branch...')
+        gevent.subprocess.call(["git", "branch", "-D", exp_id + "-L"], cwd=app_path)
+        gevent.subprocess.call(["git", "branch", "-D", exp_id], cwd=app_path)
+
+        self.lock = False
+        ########################
 
     def getApplicationURL(self, app_id):
         # Get application storage path

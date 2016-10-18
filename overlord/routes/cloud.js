@@ -504,7 +504,7 @@ router.delete('/experiments/:exp_id/code', function (req, res, next) {
       if(error) return next(error);
 
       // Reload trees
-      scheduler.reloadExperimentTree(req.params.exp_id, function(error){
+      scheduler.reloadExperimentTree(req.params.exp_id, true, true, true, function(error){
          if (error) return next(error);
          res.json(null);
       });
@@ -568,7 +568,7 @@ router.post('/experiments/:exp_id/code', function (req, res, next) {
       // ...
 
       // Reload trees
-      scheduler.reloadExperimentTree(req.params.exp_id, function(error){
+      scheduler.reloadExperimentTree(req.params.exp_id, false, false, true, function(error){
          if (error) return next(error);
          res.json(null);
       });
@@ -595,7 +595,7 @@ router.delete('/experiments/:exp_id/input', function (req, res, next) {
       if(error) return next(error);
 
       // Reload trees
-      scheduler.reloadExperimentTree(req.params.exp_id, function(error){
+      scheduler.reloadExperimentTree(req.params.exp_id, true, false, false, function(error){
          if (error) return next(error);
          res.json(null);
       });
@@ -641,7 +641,7 @@ router.post('/experiments/:exp_id/input', upload.array('inputFile'), function (r
       if(error) return next(error);
 
       // Reload trees
-      scheduler.reloadExperimentTree(req.params.exp_id, function(error){
+      scheduler.reloadExperimentTree(req.params.exp_id, true, false, false, function(error){
          if (error) return next(error);
          res.json(null);
       });
