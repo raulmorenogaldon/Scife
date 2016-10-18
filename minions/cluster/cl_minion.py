@@ -179,8 +179,6 @@ class ClusterMinion(minion.Minion):
             'size_id': size_id,
             'exps': [],
             'nodes': nodes,
-            'workpath': image['workpath'],
-            'inputpath': image['inputpath'],
             'minion': self.__class__.__name__,
             'ready': True
         }
