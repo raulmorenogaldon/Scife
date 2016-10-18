@@ -1259,7 +1259,7 @@ var _retrieveExperimentOutput = function(task, exp_id, inst_id, retrieveCallback
       // Execute excution script
       function(exp, inst, url, wfcb){
          // Check task abort
-         if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+         if(task && taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
          logger.debug("["+exp_id+"] Getting experiment output data path");
          var output_files = inst.image.outputpath+"/"+exp.id+"/*";
@@ -1270,7 +1270,7 @@ var _retrieveExperimentOutput = function(task, exp_id, inst_id, retrieveCallback
          instmanager.executeCommand(inst.id, cmd, function (error, output) {
             if(error) return wfcb(error);
             // Check task abort
-            if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+            if(task && taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
             // Reload output tree
             reloadExperimentTree(exp_id, false, true, false, wfcb);
@@ -1378,6 +1378,16 @@ var _pollExperiment = function(exp_id, inst_id, force, pollCallback){
                database.db.collection('experiments').updateOne({id: exp.id},{$set:{logs:logs}});
 
                // Callback status
+               wfcb(null, exp, inst);
+            });
+         },
+         // Retrieve experiment output data
+         function(exp, inst, wfcb){
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Poll: Polling output data...');
+            _retrieveExperimentOutput(null, exp.id, inst.id, function (error) {
+               if(error) return wfcb(error);
+
+               // Callback
                wfcb(null, exp, inst);
             });
          },
