@@ -259,7 +259,7 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, debug, launchC
       }
 
       // Update status
-      database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"launched"}});
+      database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"launched", debug:debug}});
 
       // Add instancing task
       var task = {
@@ -335,7 +335,7 @@ var destroyExperiment = function(exp_id, destroyCallback){
       function(exp, wfcb){
          if(exp.inst_id){
             logger.debug('['+MODULE_NAME+']['+exp_id+'] Destroy: Cleaning instance...');
-            instmanager.cleanExperiment(exp_id, exp.inst_id, true, true, true, true, function(error){
+            instmanager.cleanExperiment(exp_id, exp.inst_id, {b_input: true, b_output: true, b_sources: true, b_remove: true}, function(error){
                return wfcb(error);
             });
          } else {
@@ -345,7 +345,7 @@ var destroyExperiment = function(exp_id, destroyCallback){
       // Remove experiment data from storage
       function(wfcb){
          logger.debug('['+MODULE_NAME+']['+exp_id+'] Destroy: Removing experiment data from storage...');
-         storage.client.invoke('removeExperimentData', exp_id, function (error) {
+         storage.client.invoke('removeExperiment', exp.app_id, exp_id, function (error) {
             if(error) return wfcb(error);
             wfcb(null);
          });
@@ -371,7 +371,7 @@ var destroyExperiment = function(exp_id, destroyCallback){
 /**
  * Reload experiments' file tree.
  */
-var reloadExperimentTree = function(exp_id, reloadCallback){
+var reloadExperimentTree = function(exp_id, b_input, b_output, b_sources, reloadCallback){
    logger.info('['+MODULE_NAME+']['+exp_id+'] ReloadTree: Reloading experiment trees...');
    async.waterfall([
       // Get experiment
@@ -380,33 +380,45 @@ var reloadExperimentTree = function(exp_id, reloadCallback){
       },
       // Obtain experiment input data tree
       function(exp, wfcb){
-         logger.debug('['+MODULE_NAME+']['+exp_id+'] ReloadTree: Getting input folder tree...');
-         storage.client.invoke('getInputFolderTree', exp_id, function (error, tree) {
-            if(error) return wfcb(error);
+         if(b_input){
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] ReloadTree: Getting input folder tree...');
+            storage.client.invoke('getInputFolderTree', exp_id, function (error, tree) {
+               if(error) return wfcb(error);
 
-            database.db.collection('experiments').updateOne({id: exp_id},{$set: {input_tree: tree}});
+               database.db.collection('experiments').updateOne({id: exp_id},{$set: {input_tree: tree}});
+               wfcb(null, exp);
+            });
+         } else {
             wfcb(null, exp);
-         });
+         }
       },
       // Obtain experiment output data tree
       function(exp, wfcb){
-         logger.debug('['+MODULE_NAME+']['+exp_id+'] ReloadTree: Getting output folder tree...');
-         storage.client.invoke('getOutputFolderTree', exp_id, function (error, tree) {
-            if(error) return wfcb(error);
+         if(b_output){
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] ReloadTree: Getting output folder tree...');
+            storage.client.invoke('getOutputFolderTree', exp_id, function (error, tree) {
+               if(error) return wfcb(error);
 
-            database.db.collection('experiments').updateOne({id: exp_id},{$set: {output_tree: tree}});
+               database.db.collection('experiments').updateOne({id: exp_id},{$set: {output_tree: tree}});
+               wfcb(null, exp);
+            });
+         } else {
             wfcb(null, exp);
-         });
+         }
       },
       // Obtain experiment source code tree
       function(exp, wfcb){
-         logger.debug('['+MODULE_NAME+']['+exp_id+'] ReloadTree: Getting sources folder tree...');
-         storage.client.invoke('getExperimentSrcFolderTree', exp_id, exp.app_id, function (error, tree) {
-            if(error) return wfcb(error);
+         if(b_sources){
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] ReloadTree: Getting sources folder tree...');
+            storage.client.invoke('getExperimentSrcFolderTree', exp_id, exp.app_id, function (error, tree) {
+               if(error) return wfcb(error);
 
-            database.db.collection('experiments').updateOne({id: exp_id},{$set: {src_tree: tree}});
-            wfcb(null);
-         });
+               database.db.collection('experiments').updateOne({id: exp_id},{$set: {src_tree: tree}});
+               wfcb(null);
+            });
+         } else {
+            wfcb(null, exp);
+         }
       }
    ],
    function(error){
@@ -507,7 +519,7 @@ taskmanager.setTaskHandler("deployExperiment", function(task){
          if(task.debug){
             database.db.collection('experiments').updateOne({id: exp_id},{$set:{status: "failed_deploy"}});
          } else {
-            instmanager.cleanExperiment(exp_id, inst_id, true, true, true, true, function(error){
+            instmanager.cleanExperiment(exp_id, inst_id, {b_input: true, b_output: true, b_sources: true, b_remove: true}, function(error){
                database.db.collection('experiments').updateOne({id: exp_id},{$set:{inst_id: null, status: "failed_deploy"}});
             });
          }
@@ -546,7 +558,7 @@ taskmanager.setTaskHandler("compileExperiment", function(task){
          if(task.debug){
             database.db.collection('experiments').updateOne({id: exp_id},{$set:{status: "failed_compilation"}});
          } else {
-            instmanager.cleanExperiment(exp_id, inst_id, true, true, true, true, function(error){
+            instmanager.cleanExperiment(exp_id, inst_id, {b_input: true, b_output: true, b_sources: true, b_remove: true}, function(error){
                database.db.collection('experiments').updateOne({id: exp_id},{$set:{inst_id: null, status: "failed_compilation"}});
             });
          }
@@ -585,7 +597,7 @@ taskmanager.setTaskHandler("executeExperiment", function(task){
          if(task.debug){
             database.db.collection('experiments').updateOne({id: exp_id},{$set:{status: "failed_execution"}});
          } else {
-            instmanager.cleanExperiment(exp_id, inst_id, true, true, true, true, function(error){
+            instmanager.cleanExperiment(exp_id, inst_id, {b_input: true, b_output: true, b_sources: true, b_remove: true}, function(error){
                database.db.collection('experiments').updateOne({id: exp_id},{$set:{inst_id: null, status: "failed_execution"}});
             });
          }
@@ -627,7 +639,7 @@ taskmanager.setTaskHandler("retrieveExperimentOutput", function(task){
 
       // Clean instance
       if(!task.debug){
-         instmanager.cleanExperiment(exp_id, inst_id, true, true, true, true, function(error){
+         instmanager.cleanExperiment(exp_id, inst_id, {b_input: true, b_output: true, b_sources: true, b_remove: true}, function(error){
             database.db.collection('experiments').updateOne({id: exp_id},{$set:{inst_id: null}});
          });
       }
@@ -1261,7 +1273,7 @@ var _retrieveExperimentOutput = function(task, exp_id, inst_id, retrieveCallback
             if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
             // Reload output tree
-            reloadExperimentTree(exp_id, wfcb);
+            reloadExperimentTree(exp_id, false, true, false, wfcb);
          });
       }
    ],
@@ -1284,7 +1296,7 @@ var _resetExperiment = function(exp_id, task, resetCallback){
       },
       // Update database
       function(exp, wfcb){
-         database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"resetting"}});
+         database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"resetting", debug:false}});
          wfcb(null, exp);
       },
       // Clean job
@@ -1294,7 +1306,7 @@ var _resetExperiment = function(exp_id, task, resetCallback){
             if(task) job_id = task.job_id;
             // Experiment will be removed completely from the instance
             logger.debug('['+MODULE_NAME+']['+exp_id+'] Reset: Cleaning experiment...');
-            instmanager.cleanExperiment(exp_id, exp.inst_id, true, true, true, true, function(error){
+            instmanager.cleanExperiment(exp_id, exp.inst_id, {b_input: true, b_output: true, b_sources: true, b_remove: true}, function(error){
                if (error) logger.error('['+MODULE_NAME+']['+exp_id+'] Reset: Failed to clean experiment, error: ' + error);
                wfcb(null, exp);
             });
@@ -1564,11 +1576,14 @@ var _cleanInstances = function(){
             (function(exp_id){
                getExperiment(exp_id, null, function(error, exp){
                   if(!exp || exp.status == "created" || exp.status == "done" || exp.status == "failed_compilation" || exp.status == "failed_execution"){
-                     // Remove experiment from this instance
-                     instmanager.cleanExperiment(exp_id, inst.id, true, true, true, true, function(error){
-                        if(error) logger.error('['+MODULE_NAME+']['+exp_id+'] CleanInstances: Failed to clean experiment from instance - ' + inst.id);
-                        logger.info('['+MODULE_NAME+']['+exp_id+'] CleanInstances: Cleaned experiment from instance - ' + inst.id);
-                     });
+                     // Do not remove from instance in debug mode
+                     if(!exp.debug){
+                        // Remove experiment from this instance
+                        instmanager.cleanExperiment(exp_id, inst.id, {b_input: true, b_output: true, b_sources: true, b_remove: true, b_force: true}, function(error){
+                           if(error) logger.error('['+MODULE_NAME+']['+exp_id+'] CleanInstances: Failed to clean experiment from instance - ' + inst.id + ' : ' + error);
+                           logger.info('['+MODULE_NAME+']['+exp_id+'] CleanInstances: Cleaned experiment from instance - ' + inst.id);
+                        });
+                     }
                   }
                });
             })(exp_id);
