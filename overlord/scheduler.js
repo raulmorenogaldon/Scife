@@ -327,7 +327,7 @@ var destroyExperiment = function(exp_id, destroyCallback){
       function(exp, wfcb){
          _resetExperiment(exp_id, null, wfcb);
       },
-      // Get experiment
+      // Get experiment again
       function(wfcb){
          getExperiment(exp_id, null, wfcb);
       },
@@ -339,19 +339,19 @@ var destroyExperiment = function(exp_id, destroyCallback){
                return wfcb(error);
             });
          } else {
-            wfcb(null);
+            wfcb(null, exp);
          }
       },
       // Remove experiment data from storage
-      function(wfcb){
+      function(exp, wfcb){
          logger.debug('['+MODULE_NAME+']['+exp_id+'] Destroy: Removing experiment data from storage...');
          storage.client.invoke('removeExperiment', exp.app_id, exp_id, function (error) {
             if(error) return wfcb(error);
-            wfcb(null);
+            wfcb(null, exp);
          });
       },
       // Remove from DB
-      function(wfcb){
+      function(exp, wfcb){
          logger.debug('['+MODULE_NAME+']['+exp_id+'] Destroy: Removing experiment from DB...');
          database.db.collection('experiments').remove({id: exp_id});
          wfcb(null);
