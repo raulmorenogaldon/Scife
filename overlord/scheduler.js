@@ -1587,7 +1587,7 @@ var _cleanInstances = function(){
                getExperiment(exp_id, null, function(error, exp){
                   if(!exp || exp.status == "created" || exp.status == "done" || exp.status == "failed_compilation" || exp.status == "failed_execution"){
                      // Do not remove from instance in debug mode
-                     if(!exp.debug){
+                     if(!exp || !exp.debug){
                         // Remove experiment from this instance
                         instmanager.cleanExperiment(exp_id, inst.id, {b_input: true, b_output: true, b_sources: true, b_remove: true, b_force: true}, function(error){
                            if(error) logger.error('['+MODULE_NAME+']['+exp_id+'] CleanInstances: Failed to clean experiment from instance - ' + inst.id + ' : ' + error);
