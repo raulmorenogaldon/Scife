@@ -8,6 +8,7 @@ var http = require('http');
 var fs = require('fs');
 
 var codes = require('./error_codes.js');
+var logger = require('./utils.js').logger;
 
 var routerLogin = require('./routes/login'),
   routerCloud = require('./routes/cloud');
@@ -32,6 +33,21 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
+
+/**
+ * Add field text when text/plain
+ */
+app.use(function(req, res, next){
+   if (req.is('text/*')) {
+      req.text = '';
+      req.setEncoding('utf8');
+      req.on('data', function(chunk){ req.text += chunk  });
+      req.on('end', next);
+   } else {
+      next();
+   }
+});
+
 // Handle login
 app.use('/login', routerLogin);
 
@@ -50,6 +66,25 @@ app.use(function (req, res, next) {
       }]
    });
 });
+
+/**
+ * Generic error handler
+ */
+function errorGeneric(error, req, res, next){
+   if(error.errors){
+      res.status(error.http);
+      res.json({'errors': error.errors});
+   } else {
+      res.status(codes.HTTPCODE.INTERNAL_ERROR); //What happened?
+      res.json({
+         'errors': [{
+            code: codes.ERRCODE.UNKNOWN.code,
+            message: error.message
+         }]
+      });
+   }
+}
+app.use(errorGeneric);
 
 /**
  * REST SERVER
@@ -76,11 +111,11 @@ function onError(error) {
   var bind = typeof port === 'string' ? 'Pipe ' + port : 'Port ' + port;
   switch (error.code) {
     case 'EACCES':
-      console.error(bind + ' requires elevated privileges');
+      logger.error(bind + ' requires elevated privileges');
       process.exit(1);
       break;
     case 'EADDRINUSE':
-      console.error(bind + ' is already in use');
+      logger.error(bind + ' is already in use');
       process.exit(1);
       break;
     default:
@@ -95,7 +130,7 @@ function onError(error) {
 function onListening() {
   var addr = server.address();
   var bind = typeof addr === 'string' ? 'pipe ' + addr : 'port ' + addr.port;
-  console.log("Listenting on port "+port);
+  logger.info("Listening on port "+port);
 }
 
 module.exports = app;

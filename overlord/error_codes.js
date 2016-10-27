@@ -25,6 +25,10 @@ var ERRCODE = {
       'message': "Failed to authenticate token.",
       'code': 4
    },
+   AUTH_REQ_MALFORMED: {
+      'message': "Authorization request is malformed.",
+      'code': 5
+   },
 
    // Development
    NOT_IMPLEMENTED: {

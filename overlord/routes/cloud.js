@@ -17,6 +17,7 @@ var instmanager = require('../instance.js');
  */
 var upload = multer({dest: '/tmp/'});
 
+
 /***********************************************************
  * --------------------------------------------------------
  * AUTHENTICATION
@@ -38,7 +39,7 @@ router.use('/', function(req, res, next){
             });
          } else {
             // Save decoded token
-            req.token_decoded = token_decoded;
+            req.auth = token_decoded;
             next();
          }
       });
@@ -548,20 +549,6 @@ router.delete('/experiments/:exp_id/code', function (req, res, next) {
 });
 
 /**
- * Add field text when text/plain
- */
-router.use(function(req, res, next){
-   if (req.is('text/*')) {
-      req.text = '';
-      req.setEncoding('utf8');
-      req.on('data', function(chunk){ req.text += chunk  });
-      req.on('end', next);
-   } else {
-      next();
-   }
-});
-
-/**
  * Save file changes
  * @param {String} - The experiment id.
  * @return {[Object]} - File contents
@@ -793,24 +780,5 @@ router.post('/experiments/:exp_id', function (req, res, next) {
       });
    }
 });
-
-/**
- * Generic error handler
- */
-function errorGeneric(error, req, res, next){
-   if(error.errors){
-      res.status(error.http);
-      res.json({'errors': error.errors});
-   } else {
-      res.status(codes.HTTPCODE.INTERNAL_ERROR); //What happened?
-      res.json({
-         'errors': [{
-            code: codes.ERRCODE.UNKNOWN.code,
-            message: error.message
-         }]
-      });
-   }
-}
-router.use(errorGeneric);
 
 module.exports = router;
