@@ -1,6 +1,7 @@
 var HTTPCODE = {
    OK: 200,
    BAD_REQUEST: 400,
+   UNAUTHORIZED: 401,
    NOT_FOUND: 404,
    INTERNAL_ERROR: 500,
    NOT_IMPLEMENTED: 501
@@ -11,6 +12,18 @@ var ERRCODE = {
    UNKNOWN: {
       'message': "Internal error",
       'code': 1
+   },
+   INEXISTENT_METHOD: {
+      'message': "The requested method does not exists in current API.",
+      'code': 2
+   },
+   AUTH_REQUIRED: {
+      'message': "Authorization is needed for the requested route.",
+      'code': 3
+   },
+   AUTH_FAILED: {
+      'message': "Failed to authenticate token.",
+      'code': 4
    },
 
    // Development

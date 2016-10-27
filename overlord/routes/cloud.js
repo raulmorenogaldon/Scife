@@ -5,6 +5,8 @@ var express = require('express'),
    fs = require('fs'),
    mpath = require('path');
 
+var jwt = require('jsonwebtoken');
+
 var codes = require('../error_codes.js');
 var utils = require('../utils.js');
 var scheduler = require('../scheduler.js');
@@ -14,6 +16,40 @@ var instmanager = require('../instance.js');
  * Multer tmp uploads
  */
 var upload = multer({dest: '/tmp/'});
+
+/***********************************************************
+ * --------------------------------------------------------
+ * AUTHENTICATION
+ * --------------------------------------------------------
+ ***********************************************************/
+router.use('/', function(req, res, next){
+   // Check token in header
+   if(req.headers && req.headers['x-access-token']){
+      // Get token
+      var token = req.headers['x-access-token'];
+
+      // Verify token
+      jwt.verify(token, app.get('constants').SECRET, function(error, token_decoded) {
+         if(error){
+            // Token is not valid
+            return next({
+               'http': codes.HTTPCODE.UNAUTHORIZED,
+               'errors': [codes.ERRCODE.AUTH_FAILED]
+            });
+         } else {
+            // Save decoded token
+            req.token_decoded = token_decoded;
+            next();
+         }
+      });
+   } else {
+      // Token is needed
+      return next({
+         'http': codes.HTTPCODE.UNAUTHORIZED,
+         'errors': [codes.ERRCODE.AUTH_REQUIRED]
+      });
+   }
+});
 
 /***********************************************************
  * --------------------------------------------------------
