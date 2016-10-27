@@ -1265,7 +1265,7 @@ var _retrieveExperimentOutput = function(task, exp_id, inst_id, retrieveCallback
          var output_files = inst.image.outputpath+"/"+exp.id+"/*";
 
          // Execute command
-         var cmd = "sshpass -p '"+constants.STORAGE_PASSWORD+"' rsync -re 'ssh -o StrictHostKeyChecking=no' "+output_files+" "+url+"/";
+         var cmd = "sshpass -p '"+constants.STORAGE_PASSWORD+"' rsync -Lre 'ssh -o StrictHostKeyChecking=no' "+output_files+" "+url+"/";
          logger.debug('['+MODULE_NAME+']['+exp_id+'] Retrieve: Copying output files to storage...');
          instmanager.executeCommand(inst.id, cmd, function (error, output) {
             if(error) return wfcb(error);
