@@ -1,34 +1,3 @@
-****** PUBLIC SERVER ******
-/cloud/sizes/ (GET)
-/cloud/sizes/details/:sizeId (GET)
-/cloud/sizes/create (GET/POST)
-/cloud/sizes/delete/:sizeId (GET/POST)
-/cloud/sizes/update/:sizeId (GET/POST)
-
-/cloud/instances/ (GET)
-/cloud/instances/details/:instanceId (GET)
-/cloud/instances/create (GET/POST)
-/cloud/instances/delete/:instanceId (GET/POST)
-/cloud/instances/update/:instanceId (GET/POST)
-
-/cloud/images/ (GET)
-/cloud/images/details/:imageId (GET)
-/cloud/images/create (GET/POST)
-/cloud/images/delete/:imageId (GET/POST)
-/cloud/images/update/:imageId (GET/POST)
-
-/cloud/applications/ (GET)
-/cloud/applications/details/:applicationId (GET)
-/cloud/applications/create (GET/POST)
-/cloud/applications/delete/:applicationId (GET/POST)
-/cloud/applications/update/:applicationId (GET/POST)
-
-/cloud/experiments/ (GET)
-/cloud/experiments/details/:experimentId (GET)
-/cloud/experiments/create (GET/POST)
-/cloud/experiments/delete/:experimentId (GET/POST)
-/cloud/experiments/update/:experimentId (GET/POST)
-
 ****** PRIVATE SERVER ******
 /cloud/sizes/ (GET) "Return a list with all the sizes in ther server"
 /cloud/sizes/details/:sizeId (GET) "Return a size whose ID is passed by parameter"
