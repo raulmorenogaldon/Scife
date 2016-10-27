@@ -4,10 +4,26 @@ var express = require('express'),
   cookieParser = require('cookie-parser'),
   bodyParser = require('body-parser');
 
-var routerIndex = require('./routes/index'),
+var http = require('http');
+var fs = require('fs');
+
+var codes = require('./error_codes.js');
+
+var routerLogin = require('./routes/login'),
   routerCloud = require('./routes/cloud');
 
-var app = express();
+// Global express var
+app = express();
+
+/**
+ * Config file
+ */
+var cfg = process.argv[2];
+if(!cfg) throw new Error('No CFG file has been provided.');
+var constants = JSON.parse(fs.readFileSync(cfg));
+
+// Set constants
+app.set('constants', constants);
 
 // uncomment after placing your favicon in /public
 // app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')))
@@ -16,39 +32,70 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.use('/', routerIndex);
-app.use('/cloud', routerCloud);
+// Handle login
+app.use('/login', routerLogin);
 
-// catch 404 and forward to error handler
+// Protected routes
+app.use('/', routerCloud);
+
+/**
+ * No route error handling
+ */
 app.use(function (req, res, next) {
-  var err = new Error('Not Found');
-  err.status = 404;
-  next(err);
+   res.status(codes.HTTPCODE.NOT_FOUND); //The route do not exists
+   res.json({
+      'errors': [{
+         code: codes.ERRCODE.INEXISTENT_METHOD.code,
+         message: codes.ERRCODE.INEXISTENT_METHOD.message + " Requested: " + req.method + " " + req.url
+      }]
+   });
 });
 
-// error handlers
+/**
+ * REST SERVER
+ */
+var server = http.createServer(app);
+var port = constants.OVERLORD_LISTEN_PORT;
 
-// development error handler
-// will print stacktrace
-if (app.get('env') === 'development') {
-  app.use(morgan('dev'));
-  app.use(function (err, req, res, next) {
-    res.status(err.status || 500);
-    res.render('error', {
-      message: err.message,
-      error: err
-    });
-  });
+// Listen
+server.listen(port);
+
+// Event handling
+server.on('error', onError);
+server.on('listening', onListening);
+
+/**
+ * Event listener for HTTP server "error" event.
+ */
+function onError(error) {
+  if (error.syscall !== 'listen') {
+    throw error;
+  }
+
+  // handle specific listen errors with friendly messages
+  var bind = typeof port === 'string' ? 'Pipe ' + port : 'Port ' + port;
+  switch (error.code) {
+    case 'EACCES':
+      console.error(bind + ' requires elevated privileges');
+      process.exit(1);
+      break;
+    case 'EADDRINUSE':
+      console.error(bind + ' is already in use');
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
 }
 
-// production error handler
-// no stacktraces leaked to user
-app.use(function (err, req, res, next) {
-  res.status(err.status || 500);
-  res.render('error', {
-    message: err.message,
-    error: {}
-  });
-});
+/**
+ * Event listener for HTTP server "listening" event.
+ */
+
+function onListening() {
+  var addr = server.address();
+  var bind = typeof addr === 'string' ? 'pipe ' + addr : 'port ' + addr.port;
+  console.log("Listenting on port "+port);
+}
 
 module.exports = app;
