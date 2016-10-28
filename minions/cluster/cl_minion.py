@@ -174,7 +174,7 @@ class ClusterMinion(minion.Minion):
             '_id': id,
             'id': id,
             'name': name,
-            'hostname': "rmoreno2@galgo.i3a.info",
+            'hostname': self._config['username'] + '@' + self._config['url'],
             'image_id': image_id,
             'size_id': size_id,
             'exps': [],
@@ -331,7 +331,7 @@ class ClusterMinion(minion.Minion):
         self._instance_lock[instance_id] = False
         ####################
 
-        return "rmoreno2@galgo.i3a.info"
+        return self._config['username'] + '@' + self._config['url']
 
     def executeCommand(self, cmd, instance_id):
         # TODO: Check instance minion
