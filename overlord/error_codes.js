@@ -29,6 +29,10 @@ var ERRCODE = {
       'message': "Authorization request is malformed.",
       'code': 5
    },
+   LOGIN_FAILED: {
+      'message': "Incorrect username or password.",
+      'code': 8
+   },
 
    // Development
    NOT_IMPLEMENTED: {

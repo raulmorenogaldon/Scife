@@ -2,6 +2,12 @@ var express = require('express');
 var router = express.Router();
 var jwt = require('jsonwebtoken');
 var codes = require('../error_codes.js');
+var utils = require('../utils.js');
+
+/**
+ * Module vars
+ */
+var MODULE_NAME = "RT";
 
 /**
  * Login
@@ -18,8 +24,16 @@ router.post('/', function (req, res, next) {
       });
    }
 
+   utils.logger.debug('['+MODULE_NAME+'] Login attempt: ' + login_info.username + '.' + login_info.password);
+
    //TODO: Check credentials in DB
    //...
+   if(login_info.username != "scife"){
+      return next({
+         'http': codes.HTTPCODE.UNAUTHORIZED,
+         'errors': [codes.ERRCODE.LOGIN_FAILED]
+      });
+   }
 
    // Authorized, create token (expires in 24 hours)
    var token = jwt.sign({user_id: login_info.username, admin: true}, app.get('constants').SECRET, {

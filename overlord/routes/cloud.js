@@ -17,6 +17,11 @@ var instmanager = require('../instance.js');
  */
 var upload = multer({dest: '/tmp/'});
 
+/**
+ * Module vars
+ */
+var MODULE_NAME = "RT";
+
 
 /***********************************************************
  * --------------------------------------------------------
@@ -33,6 +38,7 @@ router.use('/', function(req, res, next){
       jwt.verify(token, app.get('constants').SECRET, function(error, token_decoded) {
          if(error){
             // Token is not valid
+            utils.logger.debug('['+MODULE_NAME+'] Invalid token');
             return next({
                'http': codes.HTTPCODE.UNAUTHORIZED,
                'errors': [codes.ERRCODE.AUTH_FAILED]
@@ -40,11 +46,13 @@ router.use('/', function(req, res, next){
          } else {
             // Save decoded token
             req.auth = token_decoded;
+            utils.logger.debug('['+MODULE_NAME+'] Authenticated user '+token_decoded.user_id);
             next();
          }
       });
    } else {
       // Token is needed
+      utils.logger.debug('['+MODULE_NAME+'] No token provided');
       return next({
          'http': codes.HTTPCODE.UNAUTHORIZED,
          'errors': [codes.ERRCODE.AUTH_REQUIRED]
