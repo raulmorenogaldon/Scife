@@ -1,31 +1,35 @@
 {
-	'Application': {
-		'id': "f745c536-d55a-11e5-90c8-5254003eece4",
-		'name': "App",
-		'desc': "Description"
-		'creation_script': "./creation.sh",
-		'execution_script': "./exec.sh",
-		'labels': ["LABEL", "PATH", "ARG1", "..."],
+   'Application': {
+      'id': "f745c536-d55a-11e5-90c8-5254003eece4",
+      'name': "App",
+      'desc': "Description"
+      'creation_script': "./creation.sh",
+      'execution_script': "./exec.sh",
+      'labels': ["LABEL", "PATH", "ARG1", "..."],
       'labels_default': {
-			'LABEL': "cmd",
-			'PATH': "$PATH",
-			'ARG1': "-n 128",
-			'...': "..."
-		},
-	},
+         'LABEL': "cmd",
+         'PATH': "$PATH",
+         'ARG1': "-n 128",
+         '...': "..."
+      }
+   },
 
-	Experiment: {
-		'id': "f745c536-d55a-11e5-90c8-5254003eece4",
-		'name': "Experiment dummy",
-		'desc': "Description",
+   Experiment: {
+      'id': "f745c536-d55a-11e5-90c8-5254003eece4",
+      'name': "Experiment dummy",
+      'desc': "Description",
       'status': "created|launched|deployed|compiling|compiled|failed_compilation|executing|faile_execution|done",
-		'app_id': "f745c536-8888-8888-8888-5254003eece4",
-		'labels': {
-			'LABEL': "cmd",
-			'PATH': "$PATH",
-			'ARG1': "-n 128",
-			'...': "..."
-		},
+      'app_id': "f745c536-8888-8888-8888-5254003eece4",
+      'owner': "f745c536-8888-8888-8888-5254003eece4",
+      'permissions':{
+         'read': ["f745c536-d55a-11e5-90c8-5254003eece4"]
+      },
+      'labels': {
+         'LABEL': "cmd",
+         'PATH': "$PATH",
+         'ARG1': "-n 128",
+         '...': "..."
+      },
       'input_tree': [{
          'label': "atm",
          'id': "f745c536-8888-8888-8888-5254003eece4",
@@ -44,30 +48,30 @@
       }]
    },
 
-	System: {
-		'id': "f745c536-d55a-11e5-90c8-5254003eece4",
-		'name': "System name",
-		'desc': "Description",
-		'master': "f745c536-8888-8888-8888-5254003eece4",
-		'instances': ["f745c536-8888-8888-8888-5254003eece4", "f745c536-0000-0000-0000-5254003eece4"]
-	},
+   System: {
+      'id': "f745c536-d55a-11e5-90c8-5254003eece4",
+      'name': "System name",
+      'desc': "Description",
+      'master': "f745c536-8888-8888-8888-5254003eece4",
+      'instances': ["f745c536-8888-8888-8888-5254003eece4", "f745c536-0000-0000-0000-5254003eece4"]
+   },
 
-	Instance: {
-		'id': "f745c536-d55a-11e5-90c8-5254003eece4",
-		'name': "Instance name",
-		'desc': "Description",
-		'image_id': "f745c536-8888-8888-8888-5254003eece4",
-		'size_id': "f745c536-8888-8888-8888-5254003eece4",
+   Instance: {
+      'id': "f745c536-d55a-11e5-90c8-5254003eece4",
+      'name': "Instance name",
+      'desc': "Description",
+      'image_id': "f745c536-8888-8888-8888-5254003eece4",
+      'size_id': "f745c536-8888-8888-8888-5254003eece4",
       'exps': [
          {'exp_id': "...", 'jobs': ["2385", "832378.manager"]}
       ],
       'system': true|false
-	},
+   },
 
-	Image: {
-		'id': "f745c536-d55a-11e5-90c8-5254003eece4",
-		'name': "Image name",
-		'desc': "Description",
+   Image: {
+      'id': "f745c536-d55a-11e5-90c8-5254003eece4",
+      'name': "Image name",
+      'desc': "Description",
       'sizes_compatible': ["745c536-d55a-11e5-90c8-5254003eece4"],
       'workpath': "/home/image/workspace",
       'inputpath': "/home/image/inputdata",
@@ -90,11 +94,22 @@
       }
    },
 
-	Size: {
-		'id': "f745c536-d55a-11e5-90c8-5254003eece4",
-		'name': "Image name",
-		'desc': "Description",
-		'cpus': 4,
-		'ram': 1024
-	}
+   Size: {
+      'id': "f745c536-d55a-11e5-90c8-5254003eece4",
+      'name': "Image name",
+      'desc': "Description",
+      'cpus': 4,
+      'ram': 1024
+   },
+
+   User: {
+      'id': "f745c536-d55a-11e5-90c8-5254003eece4",
+      'username': "unknown_user",
+      'password': "hashed_password",
+      'admin': false,
+      'permissions': {
+         'applications': ["f745c536-d55a-11e5-90c8-5254003eece4"],
+         'images': ["f745c536-d55a-11e5-90c8-5254003eece4"]
+      }
+   }
 }
