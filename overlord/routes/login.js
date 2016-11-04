@@ -3,6 +3,7 @@ var router = express.Router();
 var jwt = require('jsonwebtoken');
 var codes = require('../error_codes.js');
 var utils = require('../utils.js');
+var usermanager = require('../users.js');
 
 /**
  * Module vars
@@ -26,22 +27,22 @@ router.post('/', function (req, res, next) {
 
    utils.logger.debug('['+MODULE_NAME+'] Login attempt: ' + login_info.username + '.' + login_info.password);
 
-   //TODO: Check credentials in DB
-   //...
-   if(login_info.username != "scife"){
-      return next({
+   //Check credentials in DB
+   usermanager.getUser(login_info.username, function(error, user){
+      // Check password too
+      if(error || login_info.password != user.password) return next({
          'http': codes.HTTPCODE.UNAUTHORIZED,
          'errors': [codes.ERRCODE.LOGIN_FAILED]
       });
-   }
 
-   // Authorized, create token (expires in 24 hours)
-   var token = jwt.sign({user_id: login_info.username, admin: true}, app.get('constants').SECRET, {
-      expiresIn: 86400
+      // Authorized, create token (expires in 24 hours)
+      var token = jwt.sign({id: user.id, username: user.username, admin: user.admin}, app.get('constants').SECRET, {
+         expiresIn: 86400
+      });
+
+      // Return authorization token
+      return res.json({token: token});
    });
-
-   // Return authorization token
-   return res.json({token: token});
 });
 
 module.exports = router;

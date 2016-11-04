@@ -11,6 +11,7 @@ var codes = require('../error_codes.js');
 var utils = require('../utils.js');
 var scheduler = require('../scheduler.js');
 var instmanager = require('../instance.js');
+var usermanager = require('../users.js');
 
 /**
  * Multer tmp uploads
@@ -46,8 +47,8 @@ router.use('/', function(req, res, next){
          } else {
             // Save decoded token
             req.auth = token_decoded;
-            utils.logger.debug('['+MODULE_NAME+'] Authenticated user '+token_decoded.user_id);
-            next();
+            utils.logger.debug('['+MODULE_NAME+'] Authenticated user '+token_decoded.username+ ' - '+token_decoded.id);
+            return next();
          }
       });
    } else {
@@ -77,6 +78,7 @@ router.get('/sizes', function (req, res, next) {
       res.json(result);
    });
 });
+
 /**
  * Check size id parameter
  * @param {String} - Size ID.
@@ -88,7 +90,7 @@ router.param('size_id', function(req, res, next, size_id){
       if(error){
          return next({
             'http': codes.HTTPCODE.NOT_FOUND,
-            'json': codes.ERRCODE.ID_NOT_FOUND
+            'errors': [codes.ERRCODE.ID_NOT_FOUND]
          });
       } else {
          // Set parameter
@@ -136,7 +138,7 @@ router.param('instance_id', function(req, res, next, instance_id){
       if(error){
          return next({
             'http': codes.HTTPCODE.NOT_FOUND,
-            'json': codes.ERRCODE.ID_NOT_FOUND
+            'errors': [codes.ERRCODE.ID_NOT_FOUND]
          });
       } else {
          // Set parameter
@@ -184,7 +186,7 @@ router.param('image_id', function(req, res, next, image_id){
       if(error){
          return next({
             'http': codes.HTTPCODE.NOT_FOUND,
-            'json': codes.ERRCODE.ID_NOT_FOUND
+            'errors': [codes.ERRCODE.ID_NOT_FOUND]
          });
       } else {
          // Set parameter
@@ -413,7 +415,7 @@ router.get('/experiments/:exp_id/logs', function (req, res, next) {
          if(!fcontent){
             return next({
                'http': codes.HTTPCODE.NOT_FOUND,
-               'json': codes.ERRCODE.EXP_LOG_NOT_FOUND
+               'errors': [codes.ERRCODE.EXP_LOG_NOT_FOUND]
             });
          }
 
@@ -787,6 +789,135 @@ router.post('/experiments/:exp_id', function (req, res, next) {
          'errors': [codes.ERRCODE.EXP_UNKNOWN_OPERATION]
       });
    }
+});
+
+/***********************************************************
+ * --------------------------------------------------------
+ * USERS METHODS
+ * --------------------------------------------------------
+ ***********************************************************/
+
+/**
+ * Get users
+ * @return {[Object]} - A json Object with users metadata
+ */
+router.get('/users', function (req, res, next) {
+   // Check permissions
+   if(!req.auth.admin){
+      return next({
+         'http': codes.HTTPCODE.UNAUTHORIZED,
+         'errors': [codes.ERRCODE.AUTH_PERMISSION_DENIED]
+      });
+   }
+
+   // List all users
+   usermanager.searchUsers(null, function (error, result) {
+      if(error) return next(error);
+      res.json(result);
+   });
+});
+
+/**
+ * Create user metadata
+ * @return {[Object]} - A json Object with the new user metadata
+ */
+router.post('/users', function (req, res, next) {
+   // Check permissions
+   if(!req.auth.admin){
+      return next({
+         'http': codes.HTTPCODE.UNAUTHORIZED,
+         'errors': [codes.ERRCODE.AUTH_PERMISSION_DENIED]
+      });
+   }
+
+   // Check params
+   if (!req.body.username || !req.body.password) {
+      return next({
+         'http': codes.HTTPCODE.BAD_REQUEST,
+         'errors': [codes.ERRCODE.USER_CREATE_INCORRECT_PARAMS]
+      });
+   }
+
+   // Create user
+   usermanager.createUser(req.body.username, req.body.password, req.body.admin, function (error, result) {
+      if (error){
+         return next({
+            'http': codes.HTTPCODE.CONFLICT,
+            'errors': [codes.ERRCODE.USER_CREATE_USERNAME_UNAVAILABLE]
+         });
+      }
+      return res.json(result);
+   });
+});
+
+/**
+ * Check user id parameter
+ * @param {String} - User ID.
+ */
+router.param('user_id', function(req, res, next, user_id){
+   // Get size
+   usermanager.getUser(user_id, function (error, user) {
+      // Error retrieving this user
+      if(error){
+         return next({
+            'http': codes.HTTPCODE.NOT_FOUND,
+            'errors': [codes.ERRCODE.ID_NOT_FOUND]
+         });
+      } else {
+         // Set parameter
+         req.user = user;
+         return next();
+      }
+   });
+});
+
+/**
+ * Get user metadata
+ * @param {String} - The user ID.
+ * @return {[Object]} - A json Object with user metadata
+ */
+router.get('/users/:user_id', function (req, res, next) {
+   // Check permissions
+   if(!req.auth.admin && req.auth.username != req.user.username){
+      return next({
+         'http': codes.HTTPCODE.UNAUTHORIZED,
+         'errors': [codes.ERRCODE.AUTH_PERMISSION_DENIED]
+      });
+   }
+
+   // Return data
+   res.json({
+      'id': req.user.id,
+      'username': req.user.username,
+      'admin': req.user.admin
+   });
+});
+
+/**
+ * Update user permissions
+ * @param {String} - The user ID.
+ */
+router.put('/users/:user_id/permissions', function (req, res, next) {
+   // Check permissions
+   if(!req.auth.admin){
+      return next({
+         'http': codes.HTTPCODE.UNAUTHORIZED,
+         'errors': [codes.ERRCODE.AUTH_PERMISSION_DENIED]
+      });
+   }
+
+   if(!typeof req.body.permission === 'string' || !typeof req.body.value === 'string'){
+      return next({
+         'http': codes.HTTPCODE.BAD_REQUEST,
+         'errors': [codes.ERRCODE.USER_PERMISSIONS_INCORRECT_PARAMS]
+      });
+   }
+
+   // Set permissions
+   usermanager.setUserPermissions(req.params.user_id, req.body.permission, req.body.value, req.body.allow, function (error, result) {
+      if (error) return next(error);
+      res.json(null);
+   });
 });
 
 module.exports = router;

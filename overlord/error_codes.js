@@ -3,6 +3,7 @@ var HTTPCODE = {
    BAD_REQUEST: 400,
    UNAUTHORIZED: 401,
    NOT_FOUND: 404,
+   CONFLICT: 409,
    INTERNAL_ERROR: 500,
    NOT_IMPLEMENTED: 501
 }
@@ -28,6 +29,10 @@ var ERRCODE = {
    AUTH_REQ_MALFORMED: {
       'message': "Authorization request is malformed.",
       'code': 5
+   },
+   AUTH_PERMISSION_DENIED: {
+      'message': "Admin privileges required.",
+      'code': 6
    },
    LOGIN_FAILED: {
       'message': "Incorrect username or password.",
@@ -113,6 +118,21 @@ var ERRCODE = {
       'message': "Output file does not exits.",
       'code': 52
    },
+
+   // Users
+   USER_CREATE_INCORRECT_PARAMS: {
+      'message': "You must pass 'username' and 'password'.",
+      'code': 70
+   },
+   USER_CREATE_USERNAME_UNAVAILABLE: {
+      'message': "Requested username is not available.",
+      'code': 71
+   },
+   USER_PERMISSIONS_INCORRECT_PARAMS: {
+      'message': "You must pass 'permission', 'value' and 'allow'.",
+      'code': 75
+   },
+
    // Content-Type
    REQ_CONTENT_TYPE_TEXT_PLAIN: {
       'message': "Required Content-Type text/plain.",
