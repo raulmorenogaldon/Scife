@@ -47,3 +47,8 @@
 /experiments/:experimentId/srctree?folder=models/atm/src&depth=1 (GET) "Return filesystem tree from sources folder. Depth of the filesystem can be provided."
 /experiments/:experimentId/inputtree?folder=models/atm/src&depth=1 (GET) "Return filesystem tree from input folder. Depth of the filesystem can be provided."
 /experiments/:experimentId/outputtree?folder=models/atm/src&depth=1 (GET) "Return filesystem tree from output folder. Depth of the filesystem can be provided."
+
+/users/ (GET) "Return a list with all the users in ther server (ADMIN)"
+/users/ (POST) "Create a user (ADMIN)"
+/users/:userId (GET) "Return user metadata (ADMIN for other users)"
+/users/:userId/permissions (PUT) "Setup user permissions (ADMIN)"
