@@ -172,8 +172,8 @@ var updateExperiment = function(exp_id, exp_cfg, updateCallback){
 /**
  * Search experiments
  */
-var searchExperiments = function(name, searchCallback){
-   exps.searchExperiments(name, searchCallback);
+var searchExperiments = function(fields, searchCallback){
+   exps.searchExperiments(fields, searchCallback);
 }
 
 /**

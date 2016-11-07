@@ -2,6 +2,7 @@ var HTTPCODE = {
    OK: 200,
    BAD_REQUEST: 400,
    UNAUTHORIZED: 401,
+   FORBIDDEN: 403,
    NOT_FOUND: 404,
    CONFLICT: 409,
    INTERNAL_ERROR: 500,
@@ -131,6 +132,10 @@ var ERRCODE = {
    USER_CREATE_USERNAME_UNAVAILABLE: {
       'message': "Requested username is not available.",
       'code': 71
+   },
+   USER_NOT_FOUND: {
+      'message': "Requested user has not been found!",
+      'code': 72
    },
    USER_PERMISSIONS_INCORRECT_PARAMS: {
       'message': "You must pass 'permission', 'value' and 'allow'.",

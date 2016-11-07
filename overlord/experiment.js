@@ -5,6 +5,7 @@ var utils = require('./utils.js');
 var apps = require('./application.js');
 var database = require('./database.js');
 var storage = require('./storage.js');
+var usermanager = require('./users.js');
 
 
 /**
@@ -60,23 +61,28 @@ var getExperiment = function(exp_id, fields, getCallback){
 /**
  * Search for an experiment
  */
-var searchExperiments = function(name, searchCallback){
+var searchExperiments = function(fields, searchCallback){
    // Connected to DB?
    if(database.db == null){
       searchCallback(new Error("Not connected to DB"));
       return;
    }
 
-   // Set query
-   var query;
-   if(!name){
-      query = ".*";
-   } else {
-      query = ".*"+name+".*";
+   // General query
+   var query = {};
+
+   // Filter name
+   if(fields.name){
+      query['name'] = {$regex: ".*"+name+".*"};
+   }
+
+   // Filter owner
+   if(fields.owner){
+      query['owner'] = fields.owner;
    }
 
    // Projection
-   var fields = {
+   var projection = {
          input_tree: 0,
          src_tree: 0,
          output_tree: 0,
@@ -84,7 +90,7 @@ var searchExperiments = function(name, searchCallback){
    };
 
    // Retrieve experiment metadata
-   database.db.collection('experiments').find({name: {$regex: query}}, fields).toArray(function(error, exps){
+   database.db.collection('experiments').find(query, projection).toArray(function(error, exps){
       if(error) return searchCallback(new Error("Query for experiments with name: " + name + " failed"));
       searchCallback(null, exps);
    });
@@ -101,6 +107,10 @@ var createExperiment = function(exp_cfg, createCallback){
    }
    if(!'app_id' in exp_cfg){
       createCallback(new Error("Error creating experiment, 'app_id' not set."));
+      return;
+   }
+   if(!'owner' in exp_cfg){
+      createCallback(new Error("Error creating experiment, 'owner' not set."));
       return;
    }
 
@@ -125,6 +135,17 @@ var createExperiment = function(exp_cfg, createCallback){
                wfcb(error);
             } else {
                exp_cfg.app = app;
+               wfcb(null);
+            }
+         });
+      },
+      // Check if owner exists
+      function(wfcb){
+         usermanager.getUser(exp_cfg.owner, function(error, user){
+            if(error){
+               wfcb(error);
+            } else {
+               exp_cfg.owner = user.id;
                wfcb(null);
             }
          });
@@ -177,6 +198,7 @@ var createExperiment = function(exp_cfg, createCallback){
             _id: exp_cfg.id,
             id: exp_cfg.id,
             name: exp_cfg.name,
+            owner: exp_cfg.owner,
             desc: ('desc' in exp_cfg) ? exp_cfg.desc : "Description...",
             status: "created",
             app_id: exp_cfg.app_id,

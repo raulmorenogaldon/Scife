@@ -349,9 +349,38 @@ router.delete('/applications/:app_id', function (req, res, next) {
  * @return {[Object]} - A json Object with experiments metadata
  */
 router.get('/experiments', function (req, res, next) {
-   scheduler.searchExperiments(null, function (error, result) {
-      if(error) return next(error);
-      res.json(result);
+   // Get selected user
+   var selected_user = req.query.user ? req.query.user : req.auth.id;
+
+   // User exists?
+   usermanager.getUser(selected_user, function(error, user){
+      if(error) return next({
+         'http': codes.HTTPCODE.NOT_FOUND,
+         'errors': [codes.ERRCODE.USER_NOT_FOUND]
+      });
+
+      // Get ID
+      var user_id = user.id;
+      if(user_id != req.auth.id){
+         // Check admin
+         if(!req.auth.admin){
+            return next({
+               'http': codes.HTTPCODE.FORBIDDEN,
+               'errors': [codes.ERRCODE.AUTH_PERMISSION_DENIED]
+            });
+         }
+      }
+
+      // Search fields
+      var fields = {
+         owner: user_id
+      }
+
+      // Search
+      scheduler.searchExperiments(fields, function (error, result) {
+         if(error) return next(error);
+         res.json(result);
+      });
    });
 });
 
@@ -366,6 +395,9 @@ router.post('/experiments', function (req, res, next) {
          'errors': [codes.ERRCODE.EXP_INCORRECT_PARAMS]
       });
    } else {
+      // Set owner
+      req.body.owner = req.auth.id;
+
       // Create experiment
       scheduler.createExperiment(req.body, function (error, result) {
          if (error) {
@@ -391,6 +423,13 @@ router.param('exp_id', function(req, res, next, exp_id){
             'errors': [codes.ERRCODE.EXP_NOT_FOUND]
          });
       } else {
+         // Check permissions
+         if(exp.owner != req.auth.id && !req.auth.admin){
+            return next({
+               'http': codes.HTTPCODE.FORBIDDEN,
+               'errors': [codes.ERRCODE.AUTH_PERMISSION_DENIED]
+            });
+         }
          // Set parameter
          req.exp = exp;
          return next();
@@ -832,7 +871,7 @@ router.get('/users', function (req, res, next) {
    // Check permissions
    if(!req.auth.admin){
       return next({
-         'http': codes.HTTPCODE.UNAUTHORIZED,
+         'http': codes.HTTPCODE.FORBIDDEN,
          'errors': [codes.ERRCODE.AUTH_PERMISSION_DENIED]
       });
    }
@@ -852,7 +891,7 @@ router.post('/users', function (req, res, next) {
    // Check permissions
    if(!req.auth.admin){
       return next({
-         'http': codes.HTTPCODE.UNAUTHORIZED,
+         'http': codes.HTTPCODE.FORBIDDEN,
          'errors': [codes.ERRCODE.AUTH_PERMISSION_DENIED]
       });
    }
@@ -907,7 +946,7 @@ router.get('/users/:user_id', function (req, res, next) {
    // Check permissions
    if(!req.auth.admin && req.auth.username != req.user.username){
       return next({
-         'http': codes.HTTPCODE.UNAUTHORIZED,
+         'http': codes.HTTPCODE.FORBIDDEN,
          'errors': [codes.ERRCODE.AUTH_PERMISSION_DENIED]
       });
    }
@@ -928,7 +967,7 @@ router.put('/users/:user_id/permissions', function (req, res, next) {
    // Check permissions
    if(!req.auth.admin){
       return next({
-         'http': codes.HTTPCODE.UNAUTHORIZED,
+         'http': codes.HTTPCODE.FORBIDDEN,
          'errors': [codes.ERRCODE.AUTH_PERMISSION_DENIED]
       });
    }
