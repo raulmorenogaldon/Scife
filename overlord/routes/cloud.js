@@ -468,13 +468,13 @@ router.get('/experiments/:exp_id/srctree', function (req, res, next) {
       // Get folder path and depth if provided
       var fpath = req.query.folder;
       var depth = req.query.depth;
-      result.src_tree = utils.cutTree(result.src_tree, fpath, depth);
       if(!result){
          return next({
             'http': codes.HTTPCODE.NOT_FOUND,
             'errors': [codes.ERRCODE.EXP_CODE_FILE_NOT_FOUND]
          });
       }
+      result.src_tree = utils.cutTree(result.src_tree, fpath, depth);
 
       res.json(result);
    });
@@ -492,13 +492,13 @@ router.get('/experiments/:exp_id/inputtree', function (req, res, next) {
       // Get folder path and depth if provided
       var fpath = req.query.folder;
       var depth = req.query.depth;
-      result.input_tree = utils.cutTree(result.input_tree, fpath, depth);
       if(!result){
          return next({
             'http': codes.HTTPCODE.NOT_FOUND,
             'errors': [codes.ERRCODE.EXP_INPUT_FILE_NOT_FOUND]
          });
       }
+      result.input_tree = utils.cutTree(result.input_tree, fpath, depth);
 
       res.json(result);
    });
@@ -516,13 +516,13 @@ router.get('/experiments/:exp_id/outputtree', function (req, res, next) {
       // Get folder path and depth if provided
       var fpath = req.query.folder;
       var depth = req.query.depth;
-      result.output_tree = utils.cutTree(result.output_tree, fpath, depth);
       if(!result){
          return next({
             'http': codes.HTTPCODE.NOT_FOUND,
             'errors': [codes.ERRCODE.EXP_OUTPUT_FILE_NOT_FOUND]
          });
       }
+      result.output_tree = utils.cutTree(result.output_tree, fpath, depth);
 
       res.json(result);
    });

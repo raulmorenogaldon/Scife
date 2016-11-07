@@ -46,6 +46,12 @@ var getExperiment = function(exp_id, fields, getCallback){
       } else if (!exp){
          getCallback(new Error("Experiment " + exp_id + " not found"));
       } else {
+         // Fill missing fields (backward compatibility)
+         if(fields.input_tree && !exp.input_tree) exp.input_tree = [];
+         if(fields.src_tree && !exp.src_tree) exp.src_tree = [];
+         if(fields.output_tree && !exp.output_tree) exp.output_tree = [];
+
+         // Return
          getCallback(null, exp);
       }
    });
