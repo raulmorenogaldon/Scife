@@ -784,7 +784,7 @@ router.post('/experiments/:exp_id', function (req, res, next) {
          });
       } else {
          // Set default debug
-         if(req.body.debug == null) req.body.debug = true;
+         if(req.body.debug == null) req.body.debug = false;
 
          // Launch experiment
          scheduler.launchExperiment(req.params.exp_id, req.body.nodes, req.body.image_id, req.body.size_id, req.body.debug, function(error){
