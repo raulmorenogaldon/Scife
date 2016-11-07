@@ -23,6 +23,7 @@
 /applications/ (POST) "Create an application in the server"
 /applications/:applicationId (GET) "Return an application data, ID is passed by parameter"
 /applications/:applicationId (PUT) "Update an existing application whose ID is passed by parameter"
+/applications/:applicationId (POST) "Execute an operation on an existing application whose ID is passed by parameter"
 /applications/:applicationId (DELETE) "Delete an existing application whose ID is passed by parameter""
 
 /experiments/ (GET) "Return a list with all the experiments in ther server"

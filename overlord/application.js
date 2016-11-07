@@ -2,8 +2,14 @@ var zerorpc = require('zerorpc');
 var async = require('async');
 
 var utils = require('./utils.js');
+var logger = utils.logger;
 var database = require('./database.js');
 var storage = require('./storage.js');
+
+/**
+ * Module vars
+ */
+var MODULE_NAME = "AP";
 
 /**
  * Get application data
@@ -152,6 +158,47 @@ var createApplication = function(app_cfg, createCallback){
    });
 }
 
+/**
+ * Execute an operation over an application
+ */
+var maintainApplication = function(app_id, operation, maintainCallback){
+   // Check parameters
+   if(!app_id) return maintainCallback(new Error("Application ID not set."));
+
+   // Do tasks
+   async.waterfall([
+      // Get application
+      function(wfcb){
+         getApplication(app_id, wfcb);
+      },
+      // Apply operation
+      function(app, wfcb){
+         if(operation == 'discoverLabels'){
+            // Get labels list
+            storage.client.invoke('discoverLabels', app_id, function(error, labels){
+               if(error) return wfcb(error);
+               // Update labels in DB
+               database.db.collection('applications').update({id: app_id}, {$set: {labels: labels}}, function(error){
+                  if(error) return wfcb(error);
+                  // Success updating labels
+                  return wfcb(null, app);
+               });
+            });
+         } else {
+            return wfcb(new Error("Unknown operation: "+operation));
+         }
+      }
+   ],
+   function(error, app){
+      if(error) return maintainCallback(error);
+
+      // Success
+      logger.info('['+MODULE_NAME+']['+app_id+'] Operation "'+operation+'" success.');
+      return maintainCallback(null);
+   });
+}
+
 exports.getApplication = getApplication;
 exports.searchApplications = searchApplications;
 exports.createApplication = createApplication;
+exports.maintainApplication = maintainApplication;

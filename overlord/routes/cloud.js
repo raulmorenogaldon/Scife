@@ -12,6 +12,7 @@ var utils = require('../utils.js');
 var scheduler = require('../scheduler.js');
 var instmanager = require('../instance.js');
 var usermanager = require('../users.js');
+var appmanager = require('../application.js');
 
 /**
  * Multer tmp uploads
@@ -297,6 +298,32 @@ router.put('/applications/:app_id', function (req, res, next) {
    return next({
       'http': codes.HTTPCODE.NOT_IMPLEMENTED,
       'errors': [codes.ERRCODE.NOT_IMPLEMENTED]
+   });
+});
+
+/**
+ * Perform an operation over an application
+ * @param {String} - The application id.
+ */
+router.post('/applications/:app_id', function (req, res, next) {
+   // Check if operation has been requested
+   if (!req.body.op){
+      // No operation requested
+      return next({
+         'http': codes.HTTPCODE.BAD_REQUEST,
+         'errors': [codes.ERRCODE.APP_NO_OPERATION]
+      });
+   }
+
+   // Execute operation
+   appmanager.maintainApplication(req.params.app_id, req.body.op, function (error) {
+      if (error) {
+         return next({
+            'http': codes.HTTPCODE.BAD_REQUEST,
+            'errors': [error.message]
+         });
+      }
+      res.json(null);
    });
 });
 

@@ -60,6 +60,10 @@ var ERRCODE = {
       'message': "You must pass 'name', 'creation_script', 'execution_script' and 'path'.",
       'code': 31
    },
+   APP_NO_OPERATION: {
+      'message': "You must pass 'op' argument. Possible: discoverLabels.",
+      'code': 32
+   },
 
    // Experiment
    EXP_NOT_FOUND: {
