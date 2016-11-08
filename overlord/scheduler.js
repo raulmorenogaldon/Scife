@@ -671,7 +671,6 @@ taskmanager.setTaskHandler("resetExperiment", function(task){
    });
 });
 
-
 /***********************************************************
  * --------------------------------------------------------
  * PRIVATE METHODS
@@ -1256,7 +1255,7 @@ var _retrieveExperimentOutput = function(task, exp_id, inst_id, retrieveCallback
             wfcb(null, exp, inst, url);
          });
       },
-      // Execute excution script
+      // Update output files in storage
       function(exp, inst, url, wfcb){
          // Check task abort
          if(task && taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
@@ -1273,6 +1272,7 @@ var _retrieveExperimentOutput = function(task, exp_id, inst_id, retrieveCallback
             if(task && taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
             // Reload output tree
+            logger.debug('['+MODULE_NAME+']['+exp_id+'] Retrieve: Copy completed.');
             reloadExperimentTree(exp_id, false, true, false, wfcb);
          });
       }
@@ -1335,6 +1335,9 @@ var _resetExperiment = function(exp_id, task, resetCallback){
  * Cache to avoid polling again
  */
 var _polling = {};
+var _last_checkpoint = {};
+var _checkpoint_interval = 3600; // Seconds
+
 /**
  * Get experiment status from target instance and update in DB.
  */
@@ -1368,6 +1371,34 @@ var _pollExperiment = function(exp_id, inst_id, force, pollCallback){
                if(error) return wfcb(error);
                wfcb(null, exp, inst);
             });
+         },
+         // Checkpoint if activated
+         function(exp, inst, wfcb){
+            if(exp.checkpoint){
+               // Get current epoch
+               var curr_date = Math.floor(new Date() / 1000.0);
+
+               // Initialize in case
+               if(!_last_checkpoint[exp_id]) _last_checkpoint[exp_id] = curr_date;
+
+               // Check last checkpoint time
+               logger.debug('['+MODULE_NAME+']['+exp_id+'] Poll: Last checkpoint: '+_last_checkpoint[exp_id]+ ' - Curr: '+curr_date);
+               if(_last_checkpoint[exp_id] + _checkpoint_interval < curr_date){
+                  logger.debug('['+MODULE_NAME+']['+exp_id+'] Poll: Beginning checkpointing...');
+                  // Checkpoint
+                  _checkpointExperiment(exp_id, function(error){
+                     // Update checkpoint time
+                     _last_checkpoint[exp_id] = curr_date;
+                     wfcb(error, exp, inst);
+                  });
+               } else {
+                  // No checkpoint needed
+                  wfcb(null, exp, inst);
+               }
+            } else {
+               // No checkpoint activated
+               wfcb(null, exp, inst);
+            }
          },
          // Poll experiment logs
          function(exp, inst, wfcb){
@@ -1622,6 +1653,68 @@ var _pollExecutingExperiments = function(){
       });
    });
 }
+
+
+/***********************************************************
+ * --------------------------------------------------------
+ * CHECKPOINTING
+ * --------------------------------------------------------
+ ***********************************************************/
+var _checkpointExperiment = function(exp_id, cb){
+   logger.info('['+MODULE_NAME+']['+exp_id+'] Checkpoint: Begin.');
+   async.waterfall([
+      // Get experiment
+      function(wfcb){
+         getExperiment(exp_id, null, wfcb);
+      },
+      // Get instance
+      function(exp, wfcb){
+         if(exp.inst_id){
+            instmanager.getInstance(exp.inst_id, true, false, function(error, inst){
+               if(error) return wfcb(error);
+               wfcb(null, exp, inst);
+            });
+         } else {
+            logger.warning('['+MODULE_NAME+']['+exp_id+'] Checkpoint: No instance for this experiment.');
+            // Skip to end
+            wfcb(0, exp, inst);
+         }
+      },
+      // Compress working directory
+      function(exp, inst, wfcb){
+         // Checkpointing command (tar.gz)
+         var work_dir = inst.image.workpath+"/"+exp.id;
+         var cmd = "cd "+work_dir+" && tar czvf checkpoint.tar.gz *";
+         logger.info('['+MODULE_NAME+']['+exp_id+'] Checkpoint: Compressing data...');
+         instmanager.executeCommand(inst.id, cmd, function (error, output) {
+            if(error) return wfcb(error);
+            wfcb(null, exp, inst);
+         });
+      },
+      // Save checkpoint to output
+      function(exp, inst, wfcb){
+         var work_dir = inst.image.workpath+"/"+exp.id;
+         var cmd = "cd "+work_dir+" && mv checkpoint.tar.gz "+inst.image.outputpath+"/"+exp.id+"/checkpoint.tar.gz";
+         logger.info('['+MODULE_NAME+']['+exp_id+'] Checkpoint: Moving to output path...');
+         instmanager.executeCommand(inst.id, cmd, function (error, output) {
+            if(error) return wfcb(error);
+            wfcb(null);
+         });
+      }
+   ],
+   function(error){
+      if(error){
+         // Error trying to checkpoint experiment
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Checkpoint: Error.');
+         cb(error);
+      } else {
+         // Callback
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] Checkpoint: Done, saved into output folder.');
+         cb(null);
+      }
+   });
+}
+
 
 /***********************************************************
  * --------------------------------------------------------

@@ -21,6 +21,7 @@
       'status': "created|launched|deployed|compiling|compiled|failed_compilation|executing|faile_execution|done",
       'app_id': "f745c536-8888-8888-8888-5254003eece4",
       'owner': "f745c536-8888-8888-8888-5254003eece4",
+      'checkpoint': true,
       'permissions':{
          'read': ["f745c536-d55a-11e5-90c8-5254003eece4"]
       },
