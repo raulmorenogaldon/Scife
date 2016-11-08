@@ -358,6 +358,9 @@ class ClusterMinion(minion.Minion):
             self._instance_lock[instance_id] = False
             raise Exception("Instance without SSH")
 
+        self._instance_lock[instance_id] = False
+        ####################
+
         # Execute task
         cmd = """{0}; {1}""".format(self._cmd_env, cmd)
         task = gevent.spawn(self._executeSSH, ssh, cmd)
@@ -367,9 +370,6 @@ class ClusterMinion(minion.Minion):
 
         # Close connection
         ssh.close()
-
-        self._instance_lock[instance_id] = False
-        ####################
 
         return {
             'stdout': ret_val,
