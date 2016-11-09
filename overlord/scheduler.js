@@ -179,12 +179,16 @@ var searchExperiments = function(fields, searchCallback){
 /**
  * Entry point for experiment execution
  */
-var launchExperiment = function(exp_id, nodes, image_id, size_id, debug, launchCallback){
+var launchExperiment = function(exp_id, nodes, image_id, size_id, opts, launchCallback){
    logger.info('['+MODULE_NAME+']['+exp_id+'] Launch: Launching experiment...');
 
    var _exp = null;
    var _image = null;
    var _size = null;
+
+   var _debug = opts.debug;
+   var _load_checkpoint = opts.load_checkpoint;
+   var _activate_checkpoint = opts.activate_checkpoint;
 
    // Check data
    async.waterfall([
@@ -246,7 +250,8 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, debug, launchC
             image_id: image_id,
             size_id: size_id,
             nodes: nodes,
-            debug: debug
+            load_checkpoint: _load_checkpoint,
+            debug: _debug
          };
          wfcb(null, inst_cfg);
       }
@@ -259,7 +264,7 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, debug, launchC
       }
 
       // Update status
-      database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"launched", debug:debug}});
+      database.db.collection('experiments').updateOne({id: exp_id},{$set:{status:"launched", debug:_debug, activate_checkpoint:_activate_checkpoint}});
 
       // Add instancing task
       var task = {
@@ -462,6 +467,7 @@ taskmanager.setTaskHandler("instanceExperiment", function(task){
          type: "prepareExperiment",
          exp_id: exp_id,
          inst_id: inst_id,
+         load_checkpoint: inst_cfg.load_checkpoint,
          debug: inst_cfg.debug
       };
 
@@ -493,6 +499,7 @@ taskmanager.setTaskHandler("prepareExperiment", function(task){
          type: "deployExperiment",
          exp_id: exp_id,
          inst_id: inst_id,
+         load_checkpoint: task.load_checkpoint,
          debug: task.debug
       };
 
@@ -532,6 +539,7 @@ taskmanager.setTaskHandler("deployExperiment", function(task){
          type: "compileExperiment",
          exp_id: exp_id,
          inst_id: inst_id,
+         load_checkpoint: task.load_checkpoint,
          debug: task.debug
       };
 
@@ -541,7 +549,7 @@ taskmanager.setTaskHandler("deployExperiment", function(task){
 });
 
 /**
- * Deploy experiment handler
+ * Compile experiment handler
  */
 taskmanager.setTaskHandler("compileExperiment", function(task){
    // Get vars
@@ -572,6 +580,7 @@ taskmanager.setTaskHandler("compileExperiment", function(task){
          exp_id: exp_id,
          inst_id: inst_id,
          retries: 1,
+         load_checkpoint: task.checkpoint,
          debug: task.debug
       };
 
@@ -1153,6 +1162,25 @@ var _executeExperiment = function(task, exp_id, inst_id, executionCallback){
             wfcb(null, app, exp, inst);
          });
       },
+      // Load checkpoint
+      function(app, exp, inst, wfcb){
+         // Check task abort
+         if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+
+         if(task.load_checkpoint){
+            logger.info('['+MODULE_NAME+']['+exp_id+'] Execute: Loading checkpoint...');
+            _loadCheckpointExperiment(exp_id, inst_id, function(error){
+               if(error) return wfcb(error);
+               // Checkpoint load success
+               task.load_checkpoint = false;
+               database.db.collection('tasks').updateOne({id: task.id},{$set:{load_checkpoint: false}});
+               wfcb(null, app, exp, inst);
+            });
+         } else {
+            // Skip
+            wfcb(null, app, exp, inst);
+         }
+      },
       // Execute execution script
       function(app, exp, inst, wfcb){
          // Check task abort
@@ -1238,6 +1266,59 @@ var _executeExperiment = function(task, exp_id, inst_id, executionCallback){
             });
          });
       });
+   });
+}
+
+/**
+ * Load experiment's checkpoint in an instance
+ */
+var _loadCheckpointExperiment = function(exp_id, inst_id, loadCallback){
+   async.waterfall([
+      // Get experiment
+      function(wfcb){
+         getExperiment(exp_id, null, wfcb);
+      },
+      // Get instance
+      function(exp, wfcb){
+         instmanager.getInstance(inst_id, true, false, function(error, inst){
+            if(error) return wfcb(error);
+            wfcb(null, exp, inst);
+         });
+      },
+      // Get storage URL
+      function(exp, inst, wfcb){
+         storage.client.invoke('getExperimentOutputURL', exp_id, function(error, url){
+            if(error) return wfcb(error);
+            wfcb(null, exp, inst, url);
+         });
+      },
+      // Download checkpoint file
+      function(exp, inst, url, wfcb){
+         var checkpoint_file = url+"/checkpoint.tar.gz";
+
+         // Execute command
+         var cmd = "sshpass -p '"+constants.STORAGE_PASSWORD+"' rsync -e 'ssh -o StrictHostKeyChecking=no' "+url+" "+inst.image.workpath+"/checkpoint.tar.gz";
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] LoadCheckpoint: Copying checkpoint file to working folder...');
+         instmanager.executeCommand(inst.id, cmd, function (error, output) {
+            if(error) return wfcb(error);
+            wfcb(null, exp, inst, url);
+         });
+      },
+      // Decompress file
+      function(exp, inst, url, wfcb){
+         // Execute command
+         var cmd = "tar zxvf "+inst.image.workpath+"/checkpoint.tar.gz";
+         logger.debug('['+MODULE_NAME+']['+exp_id+'] LoadCheckpoint: Decompressing...');
+         instmanager.executeCommand(inst.id, cmd, function (error, output) {
+            if(error) return wfcb(error);
+            wfcb(null, exp, inst, url);
+         });
+      }
+   ],
+   function(error){
+      if(error){return loadCallback(error);}
+      logger.debug('['+MODULE_NAME+']['+exp_id+'] LoadCheckpoint: Success.');
+      loadCallback(null);
    });
 }
 
@@ -1396,7 +1477,7 @@ var _pollExperiment = function(exp_id, inst_id, force, pollCallback){
          },
          // Checkpoint if activated
          function(exp, inst, wfcb){
-            if(exp.checkpoint){
+            if(exp.activate_checkpoint && exp.status == "executing"){
                // Get current epoch
                var curr_date = Math.floor(new Date() / 1000.0);
 

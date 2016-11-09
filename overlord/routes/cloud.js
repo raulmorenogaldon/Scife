@@ -826,7 +826,11 @@ router.post('/experiments/:exp_id', function (req, res, next) {
          if(req.body.debug == null) req.body.debug = false;
 
          // Launch experiment
-         scheduler.launchExperiment(req.params.exp_id, req.body.nodes, req.body.image_id, req.body.size_id, req.body.debug, function(error){
+         scheduler.launchExperiment(req.params.exp_id, req.body.nodes, req.body.image_id, req.body.size_id, {
+            debug:req.body.debug,
+            load_checkpoint:true,
+            activate_checkpoint:true
+         }, function(error){
             if(error){
                // Quota reached?
                if(error.message.includes("quota")){

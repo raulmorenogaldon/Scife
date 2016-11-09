@@ -201,6 +201,7 @@ var createExperiment = function(exp_cfg, createCallback){
             owner: exp_cfg.owner,
             desc: ('desc' in exp_cfg) ? exp_cfg.desc : "Description...",
             status: "created",
+            checkpoint: false,
             app_id: exp_cfg.app_id,
             input_tree: exp_cfg.input_tree,
             src_tree: exp_cfg.src_tree,
