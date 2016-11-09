@@ -232,14 +232,23 @@ var createInstance = function(inst_cfg, createCallback){
             image_id: inst_cfg.image_id,
             size_id: inst_cfg.size_id,
             exps: [],
-            workpath: image['workpath'],
-            inputpath: image['inputpath'],
+            nodes: insts.length,
+            size: {
+               cpus: size['workpath'],
+               ram: size['inputpath']
+            },
+            image: {
+               workpath: image['workpath'],
+               inputpath: image['inputpath'],
+               outputpath: image['outputpath'],
+               libpath: image['libpath'],
+               tmppath: image['tmppath']
+            },
             minion: MINION_NAME,
             hostname: headnode.ip,
             ip: headnode.ip,
             ip_id: headnode.ip_id,
             members: insts,
-            nodes: insts.length,
             in_use: false,
             idle_time: Date.now(),
             ready: false

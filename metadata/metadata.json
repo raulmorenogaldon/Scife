@@ -21,10 +21,10 @@
       'status': "created|launched|deployed|compiling|compiled|failed_compilation|executing|faile_execution|done",
       'app_id': "f745c536-8888-8888-8888-5254003eece4",
       'owner': "f745c536-8888-8888-8888-5254003eece4",
-      'checkpoint': true,
       'permissions':{
          'read': ["f745c536-d55a-11e5-90c8-5254003eece4"]
       },
+      'last_execution': "f745c536-d55a-11e5-90c8-5254003eece4",
       'labels': {
          'LABEL': "cmd",
          'PATH': "$PATH",
@@ -49,20 +49,45 @@
       }]
    },
 
-   System: {
+   Execution: {
       'id': "f745c536-d55a-11e5-90c8-5254003eece4",
-      'name': "System name",
-      'desc': "Description",
-      'master': "f745c536-8888-8888-8888-5254003eece4",
-      'instances': ["f745c536-8888-8888-8888-5254003eece4", "f745c536-0000-0000-0000-5254003eece4"]
+      'parent': "f745c536-d55a-11e5-90c8-5254003eece4",
+      'launch_date': "XX/XX/XX 00:00",
+      'finish_date': "XX/XX/XX 00:00",
+      'launch_opts': {
+         'checkpoint_load': false,
+         'checkpoint_interval': 3600
+      },
+      'inst_id': "f745c536-8888-8888-8888-5254003eece4",
+      'status': "created|launched|deployed|compiling|compiled|failed_compilation|executing|executed|failed_execution|checkpointing|loading_checkpoint|done",
+      'output_tree': [{
+         'label': "data.bin",
+         'id': "f745c536-8888-8888-8888-5254003eece4",
+         'children': [
+            {'label': "...", 'id':"...", 'children':[]},
+            {'label': "...", 'id':"...", 'children':["..."]}
+         ]
+      }]
    },
 
    Instance: {
       'id': "f745c536-d55a-11e5-90c8-5254003eece4",
       'name': "Instance name",
       'desc': "Description",
+      'nodes': 10,
       'image_id': "f745c536-8888-8888-8888-5254003eece4",
       'size_id': "f745c536-8888-8888-8888-5254003eece4",
+      'size': {
+         'cpus': 4,
+         'ram': 1024
+      },
+      'image': {
+         'workpath': "/home/image/workspace",
+         'inputpath': "/home/image/inputdata",
+         'outputpath': "/home/image/outputdata",
+         'libpath': "/home/image/libs",
+         'tmppath': "/tmp"
+      },
       'exps': [
          {'exp_id': "...", 'jobs': ["2385", "832378.manager"]}
       ],

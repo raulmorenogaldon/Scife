@@ -177,6 +177,17 @@ class ClusterMinion(minion.Minion):
             'hostname': self._config['username'] + '@' + self._config['url'],
             'image_id': image_id,
             'size_id': size_id,
+            'size': {
+                'cpus': size['cpus'],
+                'ram': size['ram']
+            },
+            'image': {
+                'workpath': image['workpath'],
+                'inputpath': image['inputpath'],
+                'outputpath': image['outputpath'],
+                'libpath': image['libpath'],
+                'tmppath': image['tmppath']
+            },
             'exps': [],
             'nodes': nodes,
             'minion': self.__class__.__name__,
