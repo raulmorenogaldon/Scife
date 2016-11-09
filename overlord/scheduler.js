@@ -269,6 +269,7 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, debug, launchC
       };
       taskmanager.pushTask(task, exp_id);
 
+      if(inst_cfg.debug) logger.debug('['+MODULE_NAME+']['+exp_id+'] Launch: Debug mode.');
       logger.debug('['+MODULE_NAME+']['+exp_id+'] Launch: Experiment launched.');
       launchCallback(null);
    });
@@ -570,6 +571,7 @@ taskmanager.setTaskHandler("compileExperiment", function(task){
          type: "executeExperiment",
          exp_id: exp_id,
          inst_id: inst_id,
+         retries: 1,
          debug: task.debug
       };
 
@@ -1052,7 +1054,7 @@ var _compileExperiment = function(task, exp_id, inst_id, compileCallback){
          '#!/bin/sh \n'+
          'cd '+work_dir+'\n'+
          'echo -n "compiling" > EXPERIMENT_STATUS \n'+
-         './'+app.creation_script+' &>COMPILATION_LOG \n'+
+         './'+app.creation_script+' >> COMPILATION_LOG 2>&1 \n'+
          'RETVAL=\$? \n'+
          'if [ \$RETVAL -eq 0 ]; then \n'+
          'echo -n "compiled" > EXPERIMENT_STATUS \n'+
@@ -1161,7 +1163,7 @@ var _executeExperiment = function(task, exp_id, inst_id, executionCallback){
          '#!/bin/sh \n'+
          'cd '+work_dir+'\n'+
          'echo -n "executing" > EXPERIMENT_STATUS \n'+
-         './'+app.execution_script+' &>EXECUTION_LOG \n'+
+         './'+app.execution_script+' >> EXECUTION_LOG 2>&1 \n'+
          'RETVAL=\$? \n'+
          'if [ \$RETVAL -eq 0 ]; then \n'+
          'echo -n "executed" > EXPERIMENT_STATUS \n'+
@@ -1217,7 +1219,17 @@ var _executeExperiment = function(task, exp_id, inst_id, executionCallback){
 
                // Check status
                if(status != "executed"){
-                  return executionCallback(new Error("Failed to execute experiment, status: "+status));
+                  // Retry?
+                  if(task.retries > 0){
+                     logger.info('['+MODULE_NAME+']['+exp_id+'] Execute: Retries = '+task.retries+', retrying...');
+                     // Decrease retry counter
+                     task.retries--;
+                     database.db.collection('tasks').updateOne({id: task.id},{$set:{retries: task.retries}});
+                     // Relaunch execution
+                     return _executeExperiment(task, exp_id, inst_id, executionCallback);
+                  } else {
+                     return executionCallback(new Error("Failed to execute experiment, status: "+status));
+                  }
                }
 
                // End execution task
@@ -1313,6 +1325,15 @@ var _resetExperiment = function(exp_id, task, resetCallback){
          } else {
             wfcb(null, exp);
          }
+      },
+      // Clean output folder
+      function(exp, wfcb){
+         // Clean output
+         logger.info('['+MODULE_NAME+']['+exp_id+'] Reset: Cleaning output...');
+         storage.client.invoke('deleteExperimentOutput', exp_id, exp.app_id, null, function(error){
+            // Reload output tree
+            reloadExperimentTree(exp_id, false, true, false, wfcb);
+         });
       }
    ],
    function(error, exp){
@@ -1342,7 +1363,6 @@ var _checkpoint_interval = 3600; // Seconds
  * Get experiment status from target instance and update in DB.
  */
 var _pollExperiment = function(exp_id, inst_id, force, pollCallback){
-   logger.info('['+MODULE_NAME+']['+exp_id+'] Poll: Begin.');
 
    // Check instance param
    if(!inst_id){
@@ -1358,6 +1378,8 @@ var _pollExperiment = function(exp_id, inst_id, force, pollCallback){
    // Avoid multiple polling
    if(!_polling[exp_id]){
       _polling[exp_id] = true;
+
+      logger.info('['+MODULE_NAME+']['+exp_id+'] Poll: Begin.');
 
       async.waterfall([
          // Get experiment

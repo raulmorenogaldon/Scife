@@ -2,6 +2,7 @@ import json
 import getopt
 import gevent.subprocess
 import os
+import glob
 import re
 import sys
 import uuid
@@ -426,6 +427,36 @@ class Storage(object):
             ))
 
         return file
+
+    def deleteExperimentOutput(self, exp_id, app_id, fpath):
+        # Get output storage path
+        exp_path = self.outputpath + "/" + exp_id
+
+        # Avoid absolute paths
+        # i.e. /root
+        if fpath is not None:
+            if os.path.isabs(fpath):
+                raise IOError("Delete is not supported for absolute paths: '{0}'".format(
+                    fpath
+                ))
+
+        ########################
+        # Wait for the lock
+        while self.lock:
+            gevent.sleep(0)
+        self.lock = True
+
+        # Remove file
+        if fpath is not None:
+            gevent.subprocess.call(["rm", "-rf", fpath], cwd=exp_path)
+        else:
+            # Get file array
+            files = glob.glob(exp_path+"/*")
+            gevent.subprocess.call(["rm", "-rf"]+files, cwd=exp_path)
+
+        self.lock = False
+        ########################
+        return
 
     def getOutputFolderTree(self, id):
         # Get input storage path
