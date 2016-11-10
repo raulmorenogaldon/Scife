@@ -76,42 +76,10 @@ var requestInstance = function(name, image_id, size_id, nodes, requestCallback){
  * Get instance metadata
  * @param {String} - Instance ID
  */
-var getInstance = function(inst_id, with_image, with_size, getCallback){
-   async.waterfall([
-      // Get instance
-      function(wfcb){
-         database.db.collection('instances').findOne({_id: inst_id}, function(error, inst){
-            if(error || !inst) return wfcb(new Error('Instance with ID "'+inst_id+'" does not exists'));
-            wfcb(null, inst);
-         });
-      },
-      // Get image
-      function(inst, wfcb){
-         if(with_image) {
-            getImage(inst.image_id, function(error, image){
-               if(error) wfcb(error);
-               inst.image = image;
-               wfcb(null, inst);
-            });
-         } else {
-            wfcb(null, inst);
-         }
-      },
-      // Get size
-      function(inst, wfcb){
-         if(with_size) {
-            getSize(inst.size_id, function(error, size){
-               if(error) wfcb(error);
-               inst.size = size;
-               wfcb(null, inst);
-            });
-         } else {
-            wfcb(null, inst);
-         }
-      },
-   ],
-   function(error, inst){
-      if(error) return getCallback(error);
+var getInstance = function(inst_id, getCallback){
+   // Get instance
+   database.db.collection('instances').findOne({_id: inst_id}, function(error, inst){
+      if(error || !inst) return getCallback(new Error('Instance with ID "'+inst_id+'" does not exists'));
       getCallback(null, inst);
    });
 }
@@ -258,7 +226,7 @@ var getImageQuotas = function(image_id, getCallback){
  */
 var destroyInstance = function(inst_id, destroyCallback){
    // Get instance
-   getInstance(inst_id, false, false, function(error, inst){
+   getInstance(inst_id, function(error, inst){
       if(error) return destroyCallback(error);
 
       // Get minion
@@ -276,13 +244,13 @@ var destroyInstance = function(inst_id, destroyCallback){
 /**
  * Remove experiment from instance
  */
-var cleanExperiment = function(exp_id, inst_id, b_flags, cleanCallback){
+var cleanExecution = function(exec_id, inst_id, b_flags, cleanCallback){
    if(!b_flags) b_flags = {};
 
    async.waterfall([
       // Get instance
       function(wfcb){
-         getInstance(inst_id, true, true, wfcb);
+         getInstance(inst_id, wfcb);
       },
       // Get minion for this instance
       function(inst, wfcb){
@@ -293,7 +261,7 @@ var cleanExperiment = function(exp_id, inst_id, b_flags, cleanCallback){
       // Clean jobs in this instance
       function(inst, minion, wfcb){
          logger.debug('['+MODULE_NAME+']['+inst.id+'] Clean: Aborting jobs...');
-         _abortInstanceJobs(exp_id, inst_id, function(error){
+         _abortInstanceJobs(exec_id, inst_id, function(error){
             wfcb(error, inst, minion);
          });
       },
@@ -301,7 +269,7 @@ var cleanExperiment = function(exp_id, inst_id, b_flags, cleanCallback){
       function(inst, minion, wfcb){
          if(b_flags.b_remove || b_flags.b_code){
             logger.debug('['+MODULE_NAME+']['+inst.id+'] Clean: Cleaning code...');
-            _cleanExperimentCode(minion, exp_id, inst, function(error){
+            _cleanExecutionCode(minion, exec_id, inst, function(error){
                if(error) return wfcb(error);
                wfcb(null, inst, minion);
             });
@@ -313,7 +281,7 @@ var cleanExperiment = function(exp_id, inst_id, b_flags, cleanCallback){
       function(inst, minion, wfcb){
          if(b_flags.b_remove || b_flags.b_input){
             logger.debug('['+MODULE_NAME+']['+inst.id+'] Clean: Cleaning input...');
-            _cleanExperimentInput(minion, exp_id, inst, function(error){
+            _cleanExecutionInput(minion, exec_id, inst, function(error){
                if(error) return wfcb(error);
                wfcb(null, inst, minion);
             });
@@ -325,7 +293,7 @@ var cleanExperiment = function(exp_id, inst_id, b_flags, cleanCallback){
       function(inst, minion, wfcb){
          if(b_flags.b_remove || b_flags.b_output){
             logger.debug('['+MODULE_NAME+']['+inst.id+'] Clean: Cleaning output...');
-            _cleanExperimentOutput(minion, exp_id, inst, function(error){
+            _cleanExecutionOutput(minion, exec_id, inst, function(error){
                if(error) return wfcb(error);
                wfcb(null);
             });
@@ -342,7 +310,7 @@ var cleanExperiment = function(exp_id, inst_id, b_flags, cleanCallback){
          // Remove from database
          logger.debug('['+MODULE_NAME+']['+inst_id+'] Clean: Removing experiment from instance...');
          database.db.collection('instances').updateOne({id: inst_id},{
-            $pull: {exps: {exp_id: exp_id}}
+            $pull: {execs: {exec_id: exec_id}}
          });
          database.db.collection('instances').updateOne({id: inst_id},{
             $set: {in_use: false}
@@ -355,21 +323,21 @@ var cleanExperiment = function(exp_id, inst_id, b_flags, cleanCallback){
 /**
  * Add experiment to instance experiments
  */
-var addExperiment = function(exp_id, inst_id){
+var addExecution = function(exec_id, inst_id){
    // Get instance
-   getInstance(inst_id, false, false, function(error, inst){
+   getInstance(inst_id, function(error, inst){
       if(error) return logger.error('['+MODULE_NAME+']['+inst_id+'] AddExperiment: Error - ' + error);
 
       // Check if already added
-      if(!inst.exps[exp_id]){
+      if(!inst.execs[exec_id]){
          // Add experiment to instance
          database.db.collection('instances').updateOne({
             'id': inst_id,
          },{
-            $push: {'exps': {exp_id: exp_id, jobs: []}}
+            $push: {'execs': {exec_id: exec_id, jobs: []}}
          });
       } else {
-         logger.info('['+MODULE_NAME+']['+inst_id+'] Experiment is already in instance - ' + exp_id);
+         logger.info('['+MODULE_NAME+']['+inst_id+'] Execution "'+exec_id+'" is already in instance.');
       }
    });
 }
@@ -381,7 +349,7 @@ var executeCommand = function(inst_id, cmd, executeCallback){
    async.waterfall([
       // Get instance
       function(wfcb){
-         getInstance(inst_id, false, false, wfcb);
+         getInstance(inst_id, wfcb);
       },
       // Get minion for this instance
       function(inst, wfcb){
@@ -417,7 +385,7 @@ var executeJob = function(inst_id, cmd, work_dir, nodes, executeCallback){
    async.waterfall([
       // Get instance
       function(wfcb){
-         getInstance(inst_id, false, false, wfcb);
+         getInstance(inst_id, wfcb);
       },
       // Get minion for this instance
       function(inst, wfcb){
@@ -448,7 +416,7 @@ var waitJob = function(job_id, inst_id, waitCallback){
    async.waterfall([
       // Get instance
       function(wfcb){
-         getInstance(inst_id, false, false, wfcb);
+         getInstance(inst_id, wfcb);
       },
       // Get minion for this instance
       function(inst, wfcb){
@@ -488,7 +456,7 @@ var waitJob = function(job_id, inst_id, waitCallback){
 var abortJob = function(job_id, inst_id, abortCallback){
    if(job_id && inst_id){
       // Get instance
-      getInstance(inst_id, false, false, function(error, inst){
+      getInstance(inst_id, function(error, inst){
          if(error) return abortCallback(error);
 
          // Get minion
@@ -513,8 +481,8 @@ var abortJob = function(job_id, inst_id, abortCallback){
 /**
  * Clean experiment code in instance
  */
-var _cleanExperimentCode = function(minion, exp_id, inst, cleanCallback){
-   var work_dir = inst.image.workpath+"/"+exp_id;
+var _cleanExecutionCode = function(minion, exec_id, inst, cleanCallback){
+   var work_dir = inst.image.workpath+"/"+exec_id;
    var cmd = 'rm -rf '+work_dir;
    // Execute command
    minion.invoke('executeCommand', cmd, inst.id, function (error, output) {
@@ -525,9 +493,9 @@ var _cleanExperimentCode = function(minion, exp_id, inst, cleanCallback){
 /**
  * Clean experiment input data in instance
  */
-var _cleanExperimentInput = function(minion, exp_id, inst, cleanCallback){
+var _cleanExecutionInput = function(minion, exec_id, inst, cleanCallback){
    // Remove experiment code folder
-   var input_dir = inst.image.inputpath+"/"+exp_id;
+   var input_dir = inst.image.inputpath+"/"+exec_id;
    var cmd = 'rm -rf '+input_dir;
    // Execute command
    minion.invoke('executeCommand', cmd, inst.id, function (error, output) {
@@ -538,12 +506,9 @@ var _cleanExperimentInput = function(minion, exp_id, inst, cleanCallback){
 /**
  * Clean experiment output data in instance
  */
-var _cleanExperimentOutput = function(minion, exp_id, inst, cleanCallback){
-   // [RETRO] Previous version instance compatibility
-   if(!inst.image.outputpath) return cleanCallback(null);
-
+var _cleanExecutionOutput = function(minion, exec_id, inst, cleanCallback){
    // Remove experiment code folder
-   var output_dir = inst.image.outputpath+"/"+exp_id;
+   var output_dir = inst.image.outputpath+"/"+exec_id;
    var cmd = 'rm -rf '+output_dir;
    // Execute command
    minion.invoke('executeCommand', cmd, inst.id, function (error, output) {
@@ -568,7 +533,7 @@ var _getSuperfluousInstances = function(listCallback){
       // Iterate list
       for(var i = 0; i < insts.length; i++){
          // Empty?
-         if(insts[i].ready && !insts[i].in_use && (!insts[i].exps || insts[i].exps.length == 0)){
+         if(insts[i].ready && !insts[i].in_use && (!insts[i].execs || insts[i].execs.length == 0)){
             retList.push(insts[i]);
          }
       }
@@ -581,19 +546,19 @@ var _getSuperfluousInstances = function(listCallback){
 /**
  * Abort experiment jobs in an instance
  */
-var _abortInstanceJobs = function(exp_id, inst_id, abortCallback){
+var _abortInstanceJobs = function(exec_id, inst_id, abortCallback){
    // Get instance data
-   getInstance(inst_id, false, false, function(error, inst){
+   getInstance(inst_id, function(error, inst){
       if(error) return abortCallback(error);
 
       // Iterate experiments in instance
       var tasks = [];
-      for(var e = 0; e < inst.exps.length; e++){
-         if(inst.exps[e].exp_id == exp_id){
+      for(var e = 0; e < inst.execs.length; e++){
+         if(inst.execs[e].exec_id == exec_id){
             // Experiment found in this instance
             // Iterate jobs and abort
-            var jobs = inst.exps[e].jobs;
-            for(var i = 0; i< inst.exps.length; i++){
+            var jobs = inst.execs[e].jobs;
+            for(var i = 0; i< inst.execs.length; i++){
                var job_id = jobs[i];
                // Abort this job
                (function(job_id){
@@ -727,10 +692,10 @@ module.exports.getImageQuotas = getImageQuotas;
 module.exports.requestInstance = requestInstance;
 module.exports.destroyInstance = destroyInstance;
 
-module.exports.addExperiment = addExperiment;
+module.exports.addExecution = addExecution;
 module.exports.executeCommand = executeCommand;
 module.exports.executeJob = executeJob;
 module.exports.waitJob = waitJob;
 module.exports.abortJob = abortJob;
 
-module.exports.cleanExperiment = cleanExperiment;
+module.exports.cleanExecution = cleanExecution;

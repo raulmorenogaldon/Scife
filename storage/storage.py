@@ -65,6 +65,11 @@ class Storage(object):
             # Create storage folder
             os.mkdir(self.inputpath)
 
+        # Check if outputstorage exists
+        if not os.path.isdir(self.outputpath):
+            # Create storage folder
+            os.mkdir(self.outputpath)
+
         # Load apps
         print("Loading apps in DB...")
         cursor = self._db.applications.find()
@@ -147,10 +152,6 @@ class Storage(object):
         ))
         gevent.subprocess.call(["cp", "-as", app_path, exp_path])
 
-        # Create output data folder
-        output_path = self.outputpath + "/" + exp_id
-        os.mkdir(output_path)
-
         self.lock = False
         ########################
 
@@ -173,7 +174,7 @@ class Storage(object):
         self.lock = False
         ########################
 
-    def prepareExperiment(self, app_id, exp_id, labels):
+    def prepareExecution(self, app_id, exp_id, exec_id, labels):
         # Get application storage path
         app_path = self.apppath + "/" + app_id + "/"
 
@@ -183,14 +184,19 @@ class Storage(object):
             gevent.sleep(0)
         self.lock = True
 
-        # Create experiment launching branch
-        print('Creating experiment branch...')
+        # Create execution branch
+        print('Creating execution branch...')
         gevent.subprocess.call(["git", "checkout", exp_id], cwd=app_path)
-        gevent.subprocess.call(["git", "branch", "-D", exp_id + "-L"], cwd=app_path)
-        gevent.subprocess.call(["git", "branch", exp_id + "-L"], cwd=app_path)
+        gevent.subprocess.call(["git", "branch", "-D", exec_id], cwd=app_path)
+        gevent.subprocess.call(["git", "branch", exec_id], cwd=app_path)
 
         # Apply parameters
-        self._applyExperimentLabels(app_id, exp_id, labels)
+        self._applyExperimentLabels(app_id, exp_id, exec_id, labels)
+
+        # Create output data folder
+        output_path = self.outputpath + "/" + exec_id
+        if not os.path.isdir(output_path):
+            os.mkdir(output_path)
 
         self.lock = False
         ########################
@@ -205,10 +211,6 @@ class Storage(object):
         while self.lock:
             gevent.sleep(0)
         self.lock = True
-
-        # Remove output storage path
-        output_path = self.outputpath + "/" + exp_id
-        gevent.subprocess.call(["rm", "-rf", output_path])
 
         # Remove input storage path
         input_path = self.inputpath + "/" + exp_id
@@ -232,7 +234,7 @@ class Storage(object):
 
         return url
 
-    def getExperimentOutputURL(self, exp_id):
+    def getExecutionOutputURL(self, exp_id):
         # Get output storage path
         output_path = self.outputpath + "/" + exp_id
 
@@ -428,9 +430,9 @@ class Storage(object):
 
         return file
 
-    def deleteExperimentOutput(self, exp_id, app_id, fpath):
+    def deleteExecutionOutput(self, exec_id, fpath):
         # Get output storage path
-        exp_path = self.outputpath + "/" + exp_id
+        exec_path = self.outputpath + "/" + exec_id
 
         # Avoid absolute paths
         # i.e. /root
@@ -448,11 +450,10 @@ class Storage(object):
 
         # Remove file
         if fpath is not None:
-            gevent.subprocess.call(["rm", "-rf", fpath], cwd=exp_path)
+            gevent.subprocess.call(["rm", "-rf", fpath], cwd=exec_path)
         else:
-            # Get file array
-            files = glob.glob(exp_path+"/*")
-            gevent.subprocess.call(["rm", "-rf"]+files, cwd=exp_path)
+            # Remove folder
+            gevent.subprocess.call(["rm", "-rf", exec_path])
 
         self.lock = False
         ########################
@@ -461,6 +462,10 @@ class Storage(object):
     def getOutputFolderTree(self, id):
         # Get input storage path
         path = self.outputpath + "/" + id
+
+        # Check if output exists
+        if not os.path.isdir(path):
+            return []
 
         # Create tree
         return self._fillFolderTree(path, "")
@@ -547,14 +552,14 @@ class Storage(object):
         f.write(filedata)
         f.close()
 
-    def _applyExperimentLabels(self, app_id, exp_id, labels):
+    def _applyExperimentLabels(self, app_id, exp_id, exec_id, labels):
         # Get application storage path
         app_path = self.apppath + "/" + app_id + "/"
 
         # Check out experiment
         print("===============================")
         print('Checking out experiment launch branch...')
-        gevent.subprocess.call(["git", "checkout", exp_id + "-L"], cwd=app_path)
+        gevent.subprocess.call(["git", "checkout", exec_id], cwd=app_path)
 
         # List labels
         for label in labels.keys():
@@ -573,7 +578,7 @@ class Storage(object):
         # Commit changes and return to master
         print("===============================")
         print('Committing...')
-        commit_msg = "Launched experiment {0}".format(exp_id)
+        commit_msg = "Launched execution {0}".format(exec_id)
         gevent.subprocess.call(["git", "add", "*"], cwd=app_path)
         gevent.subprocess.call(["git", "commit", "-m", commit_msg], cwd=app_path)
         gevent.subprocess.call(["git", "checkout", "master"], cwd=app_path)

@@ -33,6 +33,8 @@
 /experiments/:experimentId (DELETE) "Delete an existing experiment whose ID is passed by parameter"
 /experiments/:experimentId (POST) "Perform an operation on an experiment. Instant return, experiment must be pulled with GET to obtain status."
 
+/experiments/:experimentId?exec="id" (ANY) "Select an execution."
+
 /experiments/:experimentId/logs (GET) "Return experiment logs, ID is passed by parameter"
 /experiments/:experimentId/logs?log=COMPILATION_LOG (GET) "Return experiment log as plain text if exists"
 
@@ -48,6 +50,8 @@
 /experiments/:experimentId/srctree?folder=models/atm/src&depth=1 (GET) "Return filesystem tree from sources folder. Depth of the filesystem can be provided."
 /experiments/:experimentId/inputtree?folder=models/atm/src&depth=1 (GET) "Return filesystem tree from input folder. Depth of the filesystem can be provided."
 /experiments/:experimentId/outputtree?folder=models/atm/src&depth=1 (GET) "Return filesystem tree from output folder. Depth of the filesystem can be provided."
+
+/experiments/:experimentId/executions (GET) "Return a list with all the executions in the server"
 
 /users/ (GET) "Return a list with all the users in ther server (ADMIN)"
 /users/ (POST) "Create a user (ADMIN)"

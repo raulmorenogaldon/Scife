@@ -188,7 +188,7 @@ class ClusterMinion(minion.Minion):
                 'libpath': image['libpath'],
                 'tmppath': image['tmppath']
             },
-            'exps': [],
+            'execs': [],
             'nodes': nodes,
             'minion': self.__class__.__name__,
             'ready': True

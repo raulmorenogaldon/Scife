@@ -51,15 +51,20 @@
 
    Execution: {
       'id': "f745c536-d55a-11e5-90c8-5254003eece4",
-      'parent': "f745c536-d55a-11e5-90c8-5254003eece4",
+      'parent_id': "f745c536-d55a-11e5-90c8-5254003eece4",
+      'exp_id': "f745c536-d55a-11e5-90c8-5254003eece4",
+      'create_date': "XX/XX/XX 00:00",
       'launch_date': "XX/XX/XX 00:00",
       'finish_date': "XX/XX/XX 00:00",
+      'checkpoint_last_date': null | 7432871,
       'launch_opts': {
+         'debug': false,
          'checkpoint_load': false,
          'checkpoint_interval': 3600
       },
       'inst_id': "f745c536-8888-8888-8888-5254003eece4",
       'status': "created|launched|deployed|compiling|compiled|failed_compilation|executing|executed|failed_execution|checkpointing|loading_checkpoint|done",
+      'logs': [...],
       'output_tree': [{
          'label': "data.bin",
          'id': "f745c536-8888-8888-8888-5254003eece4",

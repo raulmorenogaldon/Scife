@@ -123,6 +123,10 @@ var ERRCODE = {
       'message': "Output file does not exits.",
       'code': 52
    },
+   EXP_EXECUTION_NOT_FOUND: {
+      'message': "Selected execution does not exits.",
+      'code': 53
+   },
 
    // Users
    USER_CREATE_INCORRECT_PARAMS: {

@@ -13,6 +13,7 @@ var scheduler = require('../scheduler.js');
 var instmanager = require('../instance.js');
 var usermanager = require('../users.js');
 var appmanager = require('../application.js');
+var execmanager = require('../execution.js');
 
 /**
  * Multer tmp uploads
@@ -48,7 +49,7 @@ router.use('/', function(req, res, next){
          } else {
             // Save decoded token
             req.auth = token_decoded;
-            utils.logger.debug('['+MODULE_NAME+'] Authenticated user '+token_decoded.username+ ' - '+token_decoded.id);
+            //utils.logger.debug('['+MODULE_NAME+'] Authenticated user '+token_decoded.username+ ' - '+token_decoded.id);
             return next();
          }
       });
@@ -432,7 +433,26 @@ router.param('exp_id', function(req, res, next, exp_id){
          }
          // Set parameter
          req.exp = exp;
-         return next();
+
+         // Is execution selected?
+         req.exec_id = req.query.exec ? req.query.exec : req.exp.last_execution;
+         if(req.exec_id){
+            execmanager.getExecution(req.exec_id, null, function(error, exec){
+               // Inexistent execution but user selected it
+               if(error && req.query.exec){
+                  return next({
+                     'http': codes.HTTPCODE.NOT_FOUND,
+                     'errors': [codes.ERRCODE.EXP_EXECUTION_NOT_FOUND]
+                  });
+               }
+               // Set parameter
+               req.exec = exec;
+               return next();
+            });
+         } else {
+            // No execution selected
+            return next();
+         }
       }
    });
 });
@@ -443,17 +463,18 @@ router.param('exp_id', function(req, res, next, exp_id){
  * @return {[Object]} - A json Object with experiment metadata
  */
 router.get('/experiments/:exp_id', function (req, res, next) {
-   res.json({
+   var exp = {
       'id': req.exp.id,
       'name': req.exp.name,
       'desc': req.exp.desc,
       'app_id': req.exp.app_id,
-      'status': req.exp.status,
       'labels': req.exp.labels,
-      'input_tree': req.exp.input_tree,
-      'output_tree': req.exp.output_tree,
-      'src_tree': req.exp.src_tree
-   });
+      // Last execution data
+      'status': req.exec ? req.exec.status : "created",
+   }
+
+   // Response
+   res.json(exp);
 });
 
 /**
@@ -462,7 +483,14 @@ router.get('/experiments/:exp_id', function (req, res, next) {
  * @return {[Object]} - A json Object with experiment logs
  */
 router.get('/experiments/:exp_id/logs', function (req, res, next) {
-   scheduler.getExperiment(req.params.exp_id, {id: 1, logs: 1}, function (error, result) {
+   // Check if execution is available
+   if(!req.exec){
+      // No logs available
+      return res.json([]);
+   }
+
+   // Get logs
+   execmanager.getExecution(req.exec.id, {id: 1, logs: 1}, function (error, result) {
       if (error) return next(error);
 
       // Provided specific log?
@@ -549,7 +577,14 @@ router.get('/experiments/:exp_id/inputtree', function (req, res, next) {
  * @return {[Object]} - A json Object with experiment output files tree
  */
 router.get('/experiments/:exp_id/outputtree', function (req, res, next) {
-   scheduler.getExperiment(req.params.exp_id, {id: 1, output_tree: 1}, function (error, result) {
+   // Check if execution is available
+   if(!req.exec){
+      // No output available
+      return res.json([]);
+   }
+
+   // Get output tree
+   execmanager.getExecution(req.exec.id, {id: 1, output_tree: 1}, function (error, result) {
       if (error) return next(error);
 
       // Get folder path and depth if provided
@@ -617,7 +652,7 @@ router.delete('/experiments/:exp_id/code', function (req, res, next) {
       if(error) return next(error);
 
       // Reload trees
-      scheduler.reloadExperimentTree(req.params.exp_id, true, true, true, function(error){
+      scheduler.reloadExperimentTree(req.params.exp_id, true, true, function(error){
          if (error) return next(error);
          res.json(null);
       });
@@ -667,7 +702,7 @@ router.post('/experiments/:exp_id/code', function (req, res, next) {
       // ...
 
       // Reload trees
-      scheduler.reloadExperimentTree(req.params.exp_id, false, false, true, function(error){
+      scheduler.reloadExperimentTree(req.params.exp_id, false, true, function(error){
          if (error) return next(error);
          res.json(null);
       });
@@ -694,7 +729,7 @@ router.delete('/experiments/:exp_id/input', function (req, res, next) {
       if(error) return next(error);
 
       // Reload trees
-      scheduler.reloadExperimentTree(req.params.exp_id, true, false, false, function(error){
+      scheduler.reloadExperimentTree(req.params.exp_id, true, false, function(error){
          if (error) return next(error);
          res.json(null);
       });
@@ -740,7 +775,7 @@ router.post('/experiments/:exp_id/input', upload.array('inputFile'), function (r
       if(error) return next(error);
 
       // Reload trees
-      scheduler.reloadExperimentTree(req.params.exp_id, true, false, false, function(error){
+      scheduler.reloadExperimentTree(req.params.exp_id, true, false, function(error){
          if (error) return next(error);
          res.json(null);
       });
@@ -753,6 +788,15 @@ router.post('/experiments/:exp_id/input', upload.array('inputFile'), function (r
  * @return {[Object]} - A json Object with output data
  */
 router.get('/experiments/:exp_id/download', function (req, res, next) {
+   // Check if execution is available
+   if(!req.exec){
+      // No output available
+      return next({
+         'http': codes.HTTPCODE.NOT_FOUND,
+         'errors': [codes.ERRCODE.EXP_NO_OUTPUT_DATA]
+      });
+   }
+
    // Get file path if provided
    var fpath = req.query.file;
 
@@ -847,11 +891,15 @@ router.post('/experiments/:exp_id', function (req, res, next) {
          });
       }
    } else if (req.body.op == "reset") {
-      // Reset experiment
-      scheduler.resetExperiment(req.params.exp_id, function(error){
-         if(error) return next(error);
-         res.json(null);
-      });
+      // Delete last execution
+      if(req.exec){
+         scheduler.destroyExecution(req.exec.id, false, function(error){
+            if(error) return next(error);
+            return res.json(null);
+         });
+      } else {
+         return res.json(null);
+      }
    } else {
       // Unknown operation
       return next({
@@ -860,6 +908,100 @@ router.post('/experiments/:exp_id', function (req, res, next) {
       });
    }
 });
+
+/***********************************************************
+ * --------------------------------------------------------
+ * EXECUTION METHODS
+ * --------------------------------------------------------
+ ***********************************************************/
+
+/**
+ * Get execution metadata from the storage using its ID
+ * @param {String} - The execution ID.
+ * @return {[Object]} - A json Object with execution metadata
+ */
+router.get('/experiments/:exp_id/executions', function (req, res, next) {
+   // Search fields
+   var fields = {
+      exp_id: req.exp.id
+   }
+
+   // Search
+   execmanager.searchExecutions(fields, function (error, result) {
+      if(error) return next(error);
+      res.json(result);
+   });
+});
+
+/**
+ * Check execution id parameter
+ * @param {String} - The execution ID.
+ */
+//router.param('exec_id', function(req, res, next, exec_id){
+//   // Get experiment
+//   execmanager.getExecution(exec_id, null, function (error, exec) {
+//      // Error retrieving this execution
+//      if(error){
+//         return next({
+//            'http': codes.HTTPCODE.NOT_FOUND,
+//            'errors': [codes.ERRCODE.EXEC_NOT_FOUND]
+//         });
+//      } else {
+//         // Checking permissions is not needed
+//         // This is already checked in experiment owner
+//
+//         // Set parameter
+//         req.exec = exec;
+//         return next();
+//      }
+//   });
+//});
+
+/**
+ * Get execution metadata from the storage using its ID
+ * @param {String} - The experiment ID.
+ * @param {String} - The execution ID.
+ * @return {[Object]} - A json Object with execution metadata
+ */
+//router.get('/experiments/:exp_id/executions/:exec_id', function (req, res, next) {
+//   // Projection
+//   var projection = {
+//      exp_id: req.exp.id
+//   }
+//
+//   // Get execution data
+//   execmanager.getExecution(req.exec.exec_id, projection, function (error, exec) {
+//      if (error) return next(error);
+//
+//      // Provided specific log?
+//      var log = req.query.log;
+//      if(log){
+//         // Search this log in result
+//         var fcontent = null;
+//         for(var i = 0; i < result.logs.length; i++){
+//            if(result.logs[i].name == log){
+//               fcontent = result.logs[i].content;
+//               break;
+//            }
+//         }
+//
+//         // Not found
+//         if(!fcontent){
+//            return next({
+//               'http': codes.HTTPCODE.NOT_FOUND,
+//               'errors': [codes.ERRCODE.EXP_LOG_NOT_FOUND]
+//            });
+//         }
+//
+//         // Response
+//         res.set('Content-Type', 'text/plain');
+//         res.send(fcontent);
+//      } else {
+//         // Response all logs
+//         res.json(result);
+//      }
+//   });
+//});
 
 /***********************************************************
  * --------------------------------------------------------
