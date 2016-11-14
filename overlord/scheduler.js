@@ -289,17 +289,20 @@ var destroyExperiment = function(exp_id, destroyCallback){
             wfcb(null, exp);
          });
       },
-      // TODO: Stop and delete executions
+      // Destroy executions associated with this experiment
       function(exp, wfcb){
-         if(exp.last_execution){
-            logger.debug('['+MODULE_NAME+']['+exp_id+'] Destroy: EXECUTION CLEANING AND DELETION HERE');
-            destroyExecution(exp.last_execution, false, function(error){
-               database.db.collection('experiments').updateOne({id: exp_id},{$set:{last_execution:null}});
+         // Update DB
+         database.db.collection('experiments').updateOne({id: exp_id},{$set:{last_execution:null}});
+
+         // Get executions
+         execmanager.searchExecutions({exp_id: exp.id},function(error, execs){
+            if(error) return wfcb(error);
+            // Destroy executions
+            _destroyExecutions(execs, function(error){
+               if(error) return wfcb(error);
                wfcb(null, exp);
             });
-         } else {
-            wfcb(null, exp);
-         }
+         });
       },
       // Remove experiment data from storage
       function(exp, wfcb){
@@ -1346,6 +1349,33 @@ var _retrieveExecutionOutput = function(task, exec_id, retrieveCallback){
       if(error) return retrieveCallback(error);
       logger.info('['+MODULE_NAME+']['+exec_id+'] Retrieve: Done.');
       retrieveCallback(null);
+   });
+}
+
+/**
+ * Destroy an array of executions
+ */
+var _destroyExecutions = function(execs, cb){
+   // The list is empty?
+   if(!execs || execs.length == 0) return cb(null);
+
+   // Iterate and destroy
+   var tasks = [];
+   for(var e = 0; e < execs.length; e++){
+      // Destroy this execution
+      (function(exec_id){
+         tasks.push(function(taskcb){
+            logger.debug('['+MODULE_NAME+']['+exec_id+'] Destroying...');
+            execmanager.destroyExecution(exec_id, false, function(error){
+               return taskcb(error);
+            });
+         });
+      })(execs[e].id);
+   }
+
+   // Execute tasks
+   async.parallel(tasks, function(error){
+      return cb(error);
    });
 }
 

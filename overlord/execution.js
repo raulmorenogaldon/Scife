@@ -96,6 +96,9 @@ var destroyExecution = function(exec_id, remove_from_db, cb){
       },
       // Update database
       function(exec, wfcb){
+         // Already deleted?
+         if(exec.status == "deleted") return wfcb(true);
+
          database.db.collection('executions').updateOne({id: exec_id},{$set:{status:"deleting"}});
          wfcb(null, exec);
       },
@@ -128,21 +131,23 @@ var destroyExecution = function(exec_id, remove_from_db, cb){
    ],
    function(error){
       if(error){
+         // No error, execution was deleted already
+         if(error == true) return cb(null);
+
          // Error trying to delete execution
          database.db.collection('executions').updateOne({id: exec_id},{$set:{status:"delete_failed"}});
-         cb(error);
-      } else {
-         // Update status
-         if(remove_from_db){
-            database.db.collection('executions').remove({id: exec_id});
-         } else {
-            database.db.collection('executions').updateOne({id: exec_id},{$set:{status:"deleted"}});
-         }
-
-         // Callback
-         logger.debug('['+MODULE_NAME+']['+exec_id+'] Delete: Done.');
-         cb(null);
+         return cb(error);
       }
+      // Update status
+      if(remove_from_db){
+         database.db.collection('executions').remove({id: exec_id});
+      } else {
+         database.db.collection('executions').updateOne({id: exec_id},{$set:{status:"deleted"}});
+      }
+
+      // Callback
+      logger.debug('['+MODULE_NAME+']['+exec_id+'] Delete: Done.');
+      cb(null);
    });
 }
 
