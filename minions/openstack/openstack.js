@@ -169,111 +169,114 @@ var createInstance = function(inst_cfg, createCallback){
    // Retrieve image
    getImages(inst_cfg.image_id, function(error, image){
       if(error) return createCallback(error);
+      getSizes(inst_cfg.size_id, function(error, size){
+         if(error) return createCallback(error);
 
-      // Cluster option
-      var headnode = {};
-      var insts = [];
-      var tasks = [];
-      var failed = false;
-      for(var i = 0; i < inst_cfg.nodes; i++){
-         // var i must be independent between tasks
-         (function(i){
-            tasks.push(function(taskcb){
-               // Instance details
-               var aux_cfg = {
-                  name: inst_cfg.name + '-' + i,
-                  image_id: inst_cfg.image_id,
-                  size_id: inst_cfg.size_id
-               };
-               if(i == 0) aux_cfg.publicIP = true;
+         // Cluster option
+         var headnode = {};
+         var insts = [];
+         var tasks = [];
+         var failed = false;
+         for(var i = 0; i < inst_cfg.nodes; i++){
+            // var i must be independent between tasks
+            (function(i){
+               tasks.push(function(taskcb){
+                  // Instance details
+                  var aux_cfg = {
+                     name: inst_cfg.name + '-' + i,
+                     image_id: inst_cfg.image_id,
+                     size_id: inst_cfg.size_id
+                  };
+                  if(i == 0) aux_cfg.publicIP = true;
 
-               // Create OpenStack instance
-               _createOpenStackInstance(aux_cfg, function(error, os_inst_id){
-                  if(error) {
-                     failed = true;
-                     // We want to execute the parallel part when all tasks ended.
-                     return taskcb(null);
-                  }
+                  // Create OpenStack instance
+                  _createOpenStackInstance(aux_cfg, function(error, os_inst_id){
+                     if(error) {
+                        failed = true;
+                        // We want to execute the parallel part when all tasks ended.
+                        return taskcb(null);
+                     }
 
-                  // Put public node in front
-                  if(i == 0){
-                     headnode = aux_cfg;
-                     insts.unshift(os_inst_id);
-                  }
-                  else insts.push(os_inst_id);
+                     // Put public node in front
+                     if(i == 0){
+                        headnode = aux_cfg;
+                        insts.unshift(os_inst_id);
+                     }
+                     else insts.push(os_inst_id);
 
-                  // Created
-                  taskcb(null);
+                     // Created
+                     taskcb(null);
+                  });
                });
-            });
-         })(i);
-      }
-
-      // Execute tasks
-      async.parallel(tasks, function(error){
-         // Clean created instances
-         if(error || failed){
-            for (var i = 0; i < insts.length; i++){
-               console.error('['+MINION_NAME+'] Destroying OpenStack instance "'+insts[i]+'".');
-               _destroyOpenStackInstance(insts[i], function(error){
-                  if(error) console.error('['+MINION_NAME+'] Error destroying OpenStack instance "'+insts[i]+'" - ' + error);
-               });
-            }
-            if(failed) return createCallback(new Error('Failed to create instance members.'));
-            else return createCallback(error);
+            })(i);
          }
 
-         // Create instance metadata
-         var id = utils.generateUUID();
-         var inst = {
-            _id: id,
-            id: id,
-            name: inst_cfg.name,
-            image_id: inst_cfg.image_id,
-            size_id: inst_cfg.size_id,
-            execs: [],
-            nodes: insts.length,
-            size: {
-               cpus: size['workpath'],
-               ram: size['inputpath']
-            },
-            image: {
-               workpath: image['workpath'],
-               inputpath: image['inputpath'],
-               outputpath: image['outputpath'],
-               libpath: image['libpath'],
-               tmppath: image['tmppath']
-            },
-            minion: MINION_NAME,
-            hostname: headnode.ip,
-            ip: headnode.ip,
-            ip_id: headnode.ip_id,
-            members: insts,
-            in_use: false,
-            idle_time: Date.now(),
-            ready: false
-         };
-
-         // Add to DB
-         database.collection('instances').insert(inst, function(error){
-            if(error) return createCallback(error);
-            console.log('['+MINION_NAME+']['+inst.id+'] Added instance to DB.');
-
-            // Configure cluster
-            _configureInstance(inst.id, function(error){
-               if(error){
-                  for (var i = 0; i < insts.length; i++){
-                     _destroyOpenStackInstance(insts[i], function(error){
-                        if(error) console.error(error);
-                     });
-                  }
-                  return createCallback(error);
+         // Execute tasks
+         async.parallel(tasks, function(error){
+            // Clean created instances
+            if(error || failed){
+               for (var i = 0; i < insts.length; i++){
+                  console.error('['+MINION_NAME+'] Destroying OpenStack instance "'+insts[i]+'".');
+                  _destroyOpenStackInstance(insts[i], function(error){
+                     if(error) console.error('['+MINION_NAME+'] Error destroying OpenStack instance "'+insts[i]+'" - ' + error);
+                  });
                }
+               if(failed) return createCallback(new Error('Failed to create instance members.'));
+               else return createCallback(error);
+            }
 
-               // Set instance as ready
-               database.collection('instances').updateOne({id:inst.id},{"$set":{ready: true, idle_time: Date.now()}});
-               console.log('['+MINION_NAME+']['+inst.id+'] Ready.');
-               createCallback(null, inst.id);
+            // Create instance metadata
+            var id = utils.generateUUID();
+            var inst = {
+               _id: id,
+               id: id,
+               name: inst_cfg.name,
+               image_id: inst_cfg.image_id,
+               size_id: inst_cfg.size_id,
+               execs: [],
+               nodes: insts.length,
+               size: {
+                  cpus: size['workpath'],
+                  ram: size['inputpath']
+               },
+               image: {
+                  workpath: image['workpath'],
+                  inputpath: image['inputpath'],
+                  outputpath: image['outputpath'],
+                  libpath: image['libpath'],
+                  tmppath: image['tmppath']
+               },
+               minion: MINION_NAME,
+               hostname: headnode.ip,
+               ip: headnode.ip,
+               ip_id: headnode.ip_id,
+               members: insts,
+               in_use: false,
+               idle_time: Date.now(),
+               ready: false
+            };
+
+            // Add to DB
+            database.collection('instances').insert(inst, function(error){
+               if(error) return createCallback(error);
+               console.log('['+MINION_NAME+']['+inst.id+'] Added instance to DB.');
+
+               // Configure cluster
+               _configureInstance(inst.id, function(error){
+                  if(error){
+                     for (var i = 0; i < insts.length; i++){
+                        _destroyOpenStackInstance(insts[i], function(error){
+                           if(error) console.error(error);
+                        });
+                     }
+                     return createCallback(error);
+                  }
+
+                  // Set instance as ready
+                  database.collection('instances').updateOne({id:inst.id},{"$set":{ready: true, idle_time: Date.now()}});
+                  console.log('['+MINION_NAME+']['+inst.id+'] Ready.');
+                  createCallback(null, inst.id);
+               });
             });
          });
       });
