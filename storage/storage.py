@@ -459,6 +459,28 @@ class Storage(object):
         ########################
         return
 
+    def getOutputFolderUsage(self, id):
+        # Get input storage path
+        path = self.outputpath + "/" + id
+
+        # Check if output exists
+        if not os.path.isdir(path):
+            return None
+
+        ########################
+        # Wait for the lock
+        while self.lock:
+            gevent.sleep(0)
+        self.lock = True
+
+        # Get bytes
+        bytes = getFolderSize(path)
+
+        self.lock = False
+        ########################
+
+        return bytes
+
     def getOutputFolderTree(self, id):
         # Get input storage path
         path = self.outputpath + "/" + id
@@ -582,6 +604,19 @@ class Storage(object):
         gevent.subprocess.call(["git", "add", "*"], cwd=app_path)
         gevent.subprocess.call(["git", "commit", "-m", commit_msg], cwd=app_path)
         gevent.subprocess.call(["git", "checkout", "master"], cwd=app_path)
+
+
+# http://stackoverflow.com/questions/1392413/calculating-a-directory-size-using-python
+# Samuel Lampa
+def getFolderSize(folder):
+    total_size = os.path.getsize(folder)
+    for item in os.listdir(folder):
+        itempath = os.path.join(folder, item)
+        if os.path.isfile(itempath):
+            total_size += os.path.getsize(itempath)
+        elif os.path.isdir(itempath):
+            total_size += getFolderSize(itempath)
+    return total_size
 
 # Start RPC server
 # Execute this only if called directly from python command

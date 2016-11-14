@@ -42,6 +42,7 @@ var createExecution = function(exp_id, parent_id, launch_opts, cb){
       finish_date: null,
       launch_opts: launch_opts,
       status: "created",
+      usage: {},
       logs: null,
       output_tree: []
    };
@@ -88,7 +89,7 @@ var getExecution = function(exec_id, fields, cb){
  * Delete execution data
  */
 var destroyExecution = function(exec_id, remove_from_db, cb){
-   logger.debug('['+MODULE_NAME+']['+exec_id+'] Destroying...');
+   logger.debug('['+MODULE_NAME+']['+exec_id+'] Destroy: Destroying...');
    async.waterfall([
       // Get execution
       function(wfcb){
@@ -210,7 +211,21 @@ var reloadExecutionOutputTree = function(exec_id, cb){
             }
 
             database.db.collection('executions').updateOne({id: exec_id},{$set: {output_tree: tree}});
-            wfcb(null);
+            wfcb(null, exec);
+         });
+      },
+      // Obtain experiment output usage
+      function(exec, wfcb){
+         logger.debug('['+MODULE_NAME+']['+exec_id+'] ReloadTree: Getting output storage usage...');
+         storage.client.invoke('getOutputFolderUsage', exec_id, function (error, bytes) {
+            if(error){
+               logger.debug('['+MODULE_NAME+']['+exec_id+'] ReloadTree: Error getting output usage - '+error);
+               return wfcb(error);
+            }
+
+            // Update DB
+            database.db.collection('executions').updateOne({id: exec_id},{$set: {'usage.storage': bytes}});
+            wfcb(null, exec);
          });
       }
    ],

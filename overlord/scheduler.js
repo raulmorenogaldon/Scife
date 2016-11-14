@@ -1374,7 +1374,7 @@ var _destroyExecutions = function(execs, cb){
       // Destroy this execution
       (function(exec_id){
          tasks.push(function(taskcb){
-            logger.debug('['+MODULE_NAME+']['+exec_id+'] Destroying...');
+            logger.debug('['+MODULE_NAME+']['+exec_id+'] DestroyExecutions: Destroying...');
             execmanager.destroyExecution(exec_id, false, function(error){
                return taskcb(error);
             });

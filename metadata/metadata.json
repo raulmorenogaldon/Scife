@@ -64,6 +64,9 @@
       },
       'inst_id': "f745c536-8888-8888-8888-5254003eece4",
       'status': "created|launched|deployed|compiling|compiled|failed_compilation|executing|executed|failed_execution|checkpointing|loading_checkpoint|done",
+      'usage': {
+         'storage': 587293879
+      },
       'logs': [...],
       'output_tree': [{
          'label': "data.bin",
