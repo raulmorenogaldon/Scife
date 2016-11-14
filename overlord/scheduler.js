@@ -624,6 +624,15 @@ taskmanager.setTaskHandler("retrieveExecutionOutput", function(task){
 
       // Set execution to done status
       database.db.collection('executions').updateOne({id: exec_id},{$set:{status: "done"}});
+
+      // Update experiment status if it is the last launched experiment
+      execmanager.getExecution(exec_id, null, function(error, exec){
+         getExperiment(exec.exp_id, null, function(error, exp){
+            if(exec_id = exp.last_execution){
+               database.db.collection('experiments').updateOne({id: exp.id},{$set:{status:"done"}});
+            }
+         });
+      })
    });
 });
 
@@ -1489,10 +1498,6 @@ var _pollExecution = function(exec_id, force, pollCallback){
                // Update status if the file exists
                if(status != ""){
                   database.db.collection('executions').updateOne({id: exec_id},{$set:{status:status}});
-                  // Update experiment status if it is the last launched experiment
-                  if(exec.id = exec.exp.last_execution){
-                     database.db.collection('experiments').updateOne({id: exec.exp_id},{$set:{status:status}});
-                  }
                }
 
                // Callback status
@@ -1505,6 +1510,11 @@ var _pollExecution = function(exec_id, force, pollCallback){
          _polling[exec_id] = false;
          if(error) return pollCallback(error);
          logger.info('['+MODULE_NAME+']['+exec_id+'] Poll: Done - ' + exec.status);
+
+         // Update experiment status if it is the last launched experiment
+         if(exec.id = exec.exp.last_execution){
+            database.db.collection('experiments').updateOne({id: exec.exp_id},{$set:{status:exec.status}});
+         }
          pollCallback(null, exec.status);
       });
    } else {
