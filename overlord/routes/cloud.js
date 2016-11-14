@@ -926,6 +926,9 @@ router.get('/experiments/:exp_id/executions', function (req, res, next) {
       exp_id: req.exp.id
    }
 
+   // All?
+   if(req.query.deleted != 1) fields.status = {'$ne': "deleted"};
+
    // Search
    execmanager.searchExecutions(fields, function (error, result) {
       if(error) return next(error);
