@@ -801,7 +801,7 @@ router.get('/experiments/:exp_id/download', function (req, res, next) {
    var fpath = req.query.file;
 
    // Get file
-   scheduler.getExperimentOutputFile(req.params.exp_id, fpath, function (error, file) {
+   scheduler.getExecutionOutputFile(req.exec.id, fpath, function (error, file) {
       if (error) {
          return next({
             'http': codes.HTTPCODE.NOT_FOUND,

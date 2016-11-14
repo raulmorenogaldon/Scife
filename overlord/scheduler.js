@@ -146,8 +146,8 @@ var deleteExperimentInput = function(exp_id, fpath, deleteCallback){
 /**
  * Get experiment output data file path
  */
-var getExperimentOutputFile = function(exp_id, fpath, getCallback){
-   storage.client.invoke("getExperimentOutputFile", exp_id, fpath, function(error, file){
+var getExecutionOutputFile = function(exp_id, fpath, getCallback){
+   storage.client.invoke("getExecutionOutputFile", exp_id, fpath, function(error, file){
       if (error) {
          getCallback(new Error("Failed to get experiment "+exp_id+" output data, error: "+error));
       } else {
@@ -1856,9 +1856,9 @@ exports.putExperimentCode = putExperimentCode;
 exports.deleteExperimentCode = deleteExperimentCode;
 exports.putExperimentInput = putExperimentInput;
 exports.deleteExperimentInput = deleteExperimentInput;
-exports.getExperimentOutputFile = getExperimentOutputFile;
 exports.reloadExperimentTree = reloadExperimentTree;
 exports.reloadExecutionOutputTree = reloadExecutionOutputTree;
+exports.getExecutionOutputFile = getExecutionOutputFile;
 
 exports.cleanExecution = cleanExecution;
 exports.destroyExecution = destroyExecution;

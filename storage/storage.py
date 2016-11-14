@@ -414,7 +414,7 @@ class Storage(object):
         ########################
         return
 
-    def getExperimentOutputFile(self, exp_id, fpath):
+    def getExecutionOutputFile(self, exp_id, fpath):
         # Check if none fpath
         if fpath is None:
             fpath = "output.tar.gz"
