@@ -468,7 +468,7 @@ router.get('/experiments/:exp_id', function (req, res, next) {
       'name': req.exp.name,
       'desc': req.exp.desc,
       'app_id': req.exp.app_id,
-      'labels': req.exp.labels,
+      'labels': req.exec ? req.exec.labels : req.exp.labels,
       // Last execution data
       'status': req.exec ? req.exec.status : "created",
    }

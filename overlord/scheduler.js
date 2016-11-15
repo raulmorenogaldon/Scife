@@ -233,7 +233,7 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launch_opts, l
       },
       // Create execution
       function(wfcb){
-         execmanager.createExecution(exp_id, null, launch_opts, function(error, exec){
+         execmanager.createExecution(exp_id, null, launch_opts, _exp.labels, function(error, exec){
             if(error) return wfcb(error);
             logger.debug('['+MODULE_NAME+']['+exp_id+'] Launch: Initialized execution data '+exec.id);
             // Update status

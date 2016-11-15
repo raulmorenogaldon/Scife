@@ -68,6 +68,12 @@
          'storage': 587293879
       },
       'logs': [...],
+      'labels': {
+         'LABEL': "cmd",
+         'PATH': "$PATH",
+         'ARG1': "-n 128",
+         '...': "..."
+      },
       'output_tree': [{
          'label': "data.bin",
          'id': "f745c536-8888-8888-8888-5254003eece4",

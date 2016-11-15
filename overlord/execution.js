@@ -20,7 +20,7 @@ var MODULE_NAME = "EX";
  */
 var cfg = process.argv[2];
 
-var createExecution = function(exp_id, parent_id, launch_opts, cb){
+var createExecution = function(exp_id, parent_id, launch_opts, labels, cb){
    // Connected to DB?
    if(database.db == null) return cb(new Error("Not connected to DB"));
 
@@ -42,6 +42,7 @@ var createExecution = function(exp_id, parent_id, launch_opts, cb){
       finish_date: null,
       launch_opts: launch_opts,
       status: "created",
+      labels: labels,
       usage: {},
       logs: null,
       output_tree: []
