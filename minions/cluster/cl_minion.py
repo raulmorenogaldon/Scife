@@ -190,6 +190,7 @@ class ClusterMinion(minion.Minion):
             },
             'execs': [],
             'nodes': nodes,
+            'in_use': True,
             'minion': self.__class__.__name__,
             'ready': True
         }

@@ -308,7 +308,7 @@ var cleanExecution = function(exec_id, inst_id, b_flags, cleanCallback){
 
       if(b_flags.b_remove){
          // Remove from database
-         logger.debug('['+MODULE_NAME+']['+inst_id+'] Clean: Removing experiment from instance...');
+         logger.debug('['+MODULE_NAME+']['+inst_id+'] Clean: Removing execution from instance...');
          database.db.collection('instances').updateOne({id: inst_id},{
             $pull: {execs: {exec_id: exec_id}}
          });
@@ -595,7 +595,11 @@ var _destroyEmptyInstances = function(destroyCallback){
    _getSuperfluousInstances(function(error, list){
       if(error) return destroyCallback(error);
 
-      if(list.length > 0) logger.info('['+MODULE_NAME+'] DestroyEmpty: Destroying empty instances: '+ list.length);
+      if(list.length > 0){
+         logger.info('['+MODULE_NAME+'] DestroyEmpty: Destroying empty instances: '+ list.length);
+      } else {
+         return destroyCallback(null);
+      }
 
       // Destroy instances task
       var tasks = [];
@@ -605,11 +609,11 @@ var _destroyEmptyInstances = function(destroyCallback){
                // Destroy instance
                logger.info('['+MODULE_NAME+']['+list[i].id+'] DestroyEmpty: Destroying...');
                destroyInstance(list[i].id, function(error){
-                  if(error){
-                     logger.error('['+MODULE_NAME+']['+list[i].id+'] DestroyEmpty: Failed to destroy instance - ' + error);
-                  } else {
-                     logger.info('['+MODULE_NAME+']['+list[i].id+'] DestroyEmpty: Done.');
-                  }
+                  //if(error){
+                  //   logger.error('['+MODULE_NAME+']['+list[i].id+'] DestroyEmpty: Failed to destroy instance - ' + error);
+                  //} else {
+                  //   logger.info('['+MODULE_NAME+']['+list[i].id+'] DestroyEmpty: Done.');
+                  //}
 
                   // Always return no error
                   taskcb(null);
@@ -620,7 +624,8 @@ var _destroyEmptyInstances = function(destroyCallback){
 
       // Execute tasks
       async.parallel(tasks, function(error){
-         if(destroyCallback) destroyCallback(error);
+         logger.info('['+MODULE_NAME+'] DestroyEmpty: Finished.');
+         if(destroyCallback) return destroyCallback(error);
       });
    });
 }
@@ -668,12 +673,20 @@ var init = function(cfg, initCallback){
       /**
        * Task: Remove empty instances from the system
        */
+      var _lock_destroy = true;
       _destroyEmptyInstances(function(error){
          if(error) console.error('['+MODULE_NAME+'] DestroyEmpty: Failed - ' + error);
+         _lock_destroy = false;
       });
-      setInterval(_destroyEmptyInstances, destroyInterval, function(error){
-         if(error) console.error('['+MODULE_NAME+'] DestroyEmpty: Failed - ' + error);
-      });
+      // Periodic
+      setInterval(function(){
+         if(_lock_destroy == true) return;
+         _lock_destroy = true;
+         _destroyEmptyInstances(function(error){
+            _lock_destroy = false;
+            if(error) console.error('['+MODULE_NAME+'] DestroyEmpty: Failed - ' + error);
+         });
+      }, destroyInterval);
    });
 }
 

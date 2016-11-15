@@ -114,6 +114,7 @@ var setTaskDone = function(task_id, next_task, queue){
          database.db.collection('tasks').updateOne({id: task.id},{$set:{_status:task._status}});
          // Add next task to queue
          if(next_task) pushTask(next_task, queue);
+         logger.info('['+MODULE_NAME+'] Task "'+task.type+'" done.');
       } else {
          // Aborted
          if(task._abortcb) task._abortcb(null, task);
@@ -143,12 +144,9 @@ var abortQueue = function(queue, abortTaskFunc, abortCallback){
       while(i--){
          var task = hashQueue[queue][i];
 
-         // Remove from queue
-         hashQueue[queue].splice(i, 1);
-
          // Only stop running tasks
          if(task._status == "running"){
-            (function(task){
+            (function(task, i){
                tasks.push(function(taskcb){
                   // Change status
                   task._status = "aborted";
@@ -156,10 +154,12 @@ var abortQueue = function(queue, abortTaskFunc, abortCallback){
                   task._abortcb = taskcb;
                   // Update DB
                   database.db.collection('tasks').updateOne({id: task.id},{$set:{_status:task._status}});
+                  // Remove from queue
+                  hashQueue[queue].splice(i, 1);
                   // Call abort function if not null
                   if(abortTaskFunc) abortTaskFunc(task);
                });
-            })(task);
+            })(task, i);
          }
       }
    }

@@ -887,13 +887,13 @@ router.post('/experiments/:exp_id', function (req, res, next) {
                   return next(error);
                }
             }
-            res.json(null);
+            return res.json(null);
          });
       }
    } else if (req.body.op == "reset") {
       // Delete last execution
       if(req.exec){
-         scheduler.destroyExecution(req.exec.id, false, function(error){
+         scheduler.abortExecution(req.exec.id, function(error){
             if(error) return next(error);
             return res.json(null);
          });

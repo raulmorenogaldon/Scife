@@ -125,6 +125,7 @@ var destroyExecution = function(exec_id, remove_from_db, cb){
          logger.debug('['+MODULE_NAME+']['+exec_id+'] Destroy: Cleaning output...');
          storage.client.invoke('deleteExecutionOutput', exec_id, null, function(error){
             if(error) return wfcb(error);
+
             // Reload output tree
             logger.debug('['+MODULE_NAME+']['+exec_id+'] Destroy: Reloading output...');
             reloadExecutionOutputTree(exec_id, wfcb);

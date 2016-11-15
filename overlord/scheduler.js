@@ -401,6 +401,25 @@ var cleanExecution = function(exec_id, cb){
 }
 
 /**
+ * Abort experiment execution
+ */
+var abortExecution = function(exec_id, cb){
+   // Abort all tasks for this execution
+   taskmanager.abortQueue(exec_id, null, function(error){
+      if(error) logger.error('['+MODULE_NAME+']['+exec_id+'] Failed to abort queue.');
+
+      // Add destroy task
+      var task = {
+         type: "destroyExecution",
+         exec_id: exec_id
+      };
+      taskmanager.pushTask(task, exec_id);
+
+      return cb(null);
+   });
+}
+
+/**
  * Destroy experiment execution
  */
 var destroyExecution = function(exec_id, cb){
@@ -415,6 +434,7 @@ var destroyExecution = function(exec_id, cb){
             if(exp.last_execution == exec.id){
                database.db.collection('experiments').updateOne({id: exp.id},{$set: {last_execution: null}});
             }
+            cb(null);
          });
       });
    });
@@ -551,7 +571,7 @@ taskmanager.setTaskHandler("compileExecution", function(task){
       var next_task = {
          type: "executeExecution",
          exec_id: exec_id,
-         retries: 1,
+         retries: 3,
       };
 
       // Set task to done and setup next task
@@ -636,6 +656,26 @@ taskmanager.setTaskHandler("retrieveExecutionOutput", function(task){
    });
 });
 
+/**
+ * Destroy execution
+ */
+taskmanager.setTaskHandler("destroyExecution", function(task){
+   // Get vars
+   var task_id = task.id;
+   var exec_id = task.exec_id;
+
+   // Retrieve execution output data to storage
+   destroyExecution(exec_id, function(error){
+      if(error){
+         // Set task failed
+         taskmanager.setTaskFailed(task_id, error);
+         return;
+      }
+
+      // Set task to done
+      taskmanager.setTaskDone(task_id, null, null);
+   });
+});
 
 /***********************************************************
  * --------------------------------------------------------
@@ -1861,4 +1901,5 @@ exports.reloadExecutionOutputTree = reloadExecutionOutputTree;
 exports.getExecutionOutputFile = getExecutionOutputFile;
 
 exports.cleanExecution = cleanExecution;
+exports.abortExecution = abortExecution;
 exports.destroyExecution = destroyExecution;

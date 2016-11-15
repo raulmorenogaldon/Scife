@@ -251,7 +251,7 @@ var createInstance = function(inst_cfg, createCallback){
                ip: headnode.ip,
                ip_id: headnode.ip_id,
                members: insts,
-               in_use: false,
+               in_use: true,
                idle_time: Date.now(),
                ready: false
             };
