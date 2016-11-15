@@ -377,8 +377,8 @@ class ClusterMinion(minion.Minion):
         cmd = """{0}; {1}""".format(self._cmd_env, cmd)
         task = gevent.spawn(self._executeSSH, ssh, cmd)
         gevent.joinall([task])
-        ret_val = task.value[0].read()
-        ret_err = task.value[1].read()
+        ret_val = task.value[0]
+        ret_err = task.value[1]
 
         # Close connection
         ssh.close()
@@ -430,7 +430,12 @@ class ClusterMinion(minion.Minion):
         # Execute script
         task = gevent.spawn(self._executeSSH, ssh, cmd)
         gevent.joinall([task])
-        job_id = task.value[0].read()
+        job_id = task.value[0]
+
+        # Check if operation failed
+        if job_id is None:
+            self._instance_lock[instance_id] = False
+            raise Exception("Cannot retrieve Job ID: " + task.value[1])
 
         # Close connection
         ssh.close()
@@ -464,7 +469,7 @@ class ClusterMinion(minion.Minion):
                 )
                 task = gevent.spawn(self._executeSSH, ssh, cmd)
                 gevent.joinall([task])
-                ret = task.value[1].read()
+                ret = task.value[1]
                 gevent.sleep(1)
                 if ret != "":
                     break
@@ -496,7 +501,7 @@ class ClusterMinion(minion.Minion):
             )
             task = gevent.spawn(self._executeSSH, ssh, cmd)
             gevent.joinall([task])
-            ret = task.value[1].read()
+            ret = task.value[1]
             if "Unknown" not in ret:
                 status = "running"
             else:
@@ -624,9 +629,42 @@ class ClusterMinion(minion.Minion):
 
     def _executeSSH(self, ssh, cmd):
         stdin, stdout, stderr = ssh.exec_command(cmd)
+
+        # No stdin
+        stdin.close()
+        stdout.channel.shutdown_write()
+        stderr.channel.shutdown_write()
+
+        # Receive data
+        str_out = ""
+        str_err = ""
         while not stdout.channel.exit_status_ready():
+            # Available data?
+            while stdout.channel.recv_ready():
+                str_out = str_out + stdout.channel.recv(1024)
+            while stdout.channel.recv_stderr_ready():
+                str_err = str_err + stdout.channel.recv_stderr(1024)
+
+            # Event loop
             gevent.sleep(0)
-        return [stdout, stderr]
+
+        # More stdout available data?
+        while stdout.channel.recv_ready():
+            str_out = str_out + stdout.channel.recv(1024)
+            gevent.sleep(0)
+
+        # More stderr available data?
+        while stdout.channel.recv_stderr_ready():
+            str_err = str_err + stdout.channel.recv_stderr(1024)
+            gevent.sleep(0)
+
+        # Close
+        stdout.channel.shutdown_read()
+        stdout.channel.close()
+        stdout.close()
+        stderr.close()
+
+        return [str_out, str_err]
 
 # Start RPC minion
 # Execute this only if called directly from python command

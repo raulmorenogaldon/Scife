@@ -399,6 +399,7 @@ var executeJob = function(inst_id, cmd, work_dir, nodes, executeCallback){
             if (error) {
                return wfcb(error);
             } else {
+               if(!job_id) return wfcb(new Error('Minion did not return a valid Job ID - '+job_id));
                wfcb(null, job_id);
             }
          });

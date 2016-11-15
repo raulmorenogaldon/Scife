@@ -393,6 +393,8 @@ var cleanExecution = function(exec_id, cb){
    // Get execution
    execmanager.getExecution(exec_id, null, function(error, exec){
       if(error) return cb(error);
+      if(!exec.inst_id) return cb(null);
+
       // Clean instance
       instmanager.cleanExecution(exec_id, exec.inst_id, {b_input: true, b_output: true, b_sources: true, b_remove: true}, function(error){
          return cb(error);
@@ -1641,6 +1643,7 @@ var _pollExecutionLogs = function(exec_id, inst_id, work_dir, log_files, pollCal
                      } else {
                         // Update log
                         var cmd = 'zcat -f '+loglist[i];
+                        logger.debug('['+MODULE_NAME+']['+exec_id+'] PollLogs: Updating log content - ' + log_filename + ' : ' + log_date + " ...");
                         instmanager.executeCommand(inst_id, cmd, function (error, output) {
                            if(error) return taskcb(new Error("Failed to poll log "+ loglist[i]+ ", error: "+ error));
 
@@ -1648,7 +1651,6 @@ var _pollExecutionLogs = function(exec_id, inst_id, work_dir, log_files, pollCal
                            var content = output.stdout;
 
                            // Add log
-                           logger.debug('['+MODULE_NAME+']['+exec_id+'] PollLogs: Updating log content - ' + log_filename + ' : ' + log_date);
                            logs.push({name: log_filename, content: content, last_modified: log_date});
                            taskcb(null);
                         });
@@ -1718,20 +1720,25 @@ var _cleanInstances = function(){
       if(execs){
          for(var i = 0; i < execs.length; i++){
             var exec_id = execs[i].exec_id;
-            (function(exec_id){
+            (function(exec_id, inst_id){
                execmanager.getExecution(exec_id, null, function(error, exec){
                   if(!exec || exec.status == "created" || exec.status == "done" || exec.status == "failed_compilation" || exec.status == "failed_execution"){
                      // Do not remove from instance in debug mode
                      if(!exec || !exec.launch_opts || !exec.launch_opts.debug){
                         // Remove experiment from this instance
                         cleanExecution(exec_id, function(error){
-                           if(error) logger.error('['+MODULE_NAME+']['+exec_id+'] CleanInstances: Failed to clean execution from instance - ' + inst.id + ' : ' + error);
-                           logger.info('['+MODULE_NAME+']['+exec_id+'] CleanInstances: Cleaned execution from instance - ' + inst.id);
+                           if(error){
+                              logger.error('['+MODULE_NAME+']['+exec_id+'] CleanInstances: Error cleaning execution from instance - ' + inst.id + ' : ' + error);
+                           }
+                           // Clean orphan instance
+                           instmanager.cleanExecution(exec_id, inst_id, {b_input: true, b_output: true, b_sources: true, b_remove: true}, function(error){
+                              logger.info('['+MODULE_NAME+']['+exec_id+'] CleanInstances: Cleaned instance - ' + inst.id);
+                           });
                         });
                      }
                   }
                });
-            })(exec_id);
+            })(exec_id, inst.id);
          }
       }
    });
@@ -1751,7 +1758,7 @@ var _pollExecutingExperiments = function(){
       status: { $in: ["deployed", "compiling", "executing"]}
    }).forEach(function(exec){
       // Poll execution status
-      logger.debug('['+MODULE_NAME+']['+exec.id+'] PollExecuting: Polling...');
+      // logger.debug('['+MODULE_NAME+']['+exec.id+'] PollExecuting: Polling...');
       _pollExecution(exec.id, false, function(error, status){
          if(error) logger.error('['+MODULE_NAME+']['+exec.id+'] Failed to automatic poll: '+error);
       });
