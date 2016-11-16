@@ -424,21 +424,45 @@ var abortExecution = function(exec_id, cb){
 /**
  * Destroy experiment execution
  */
-var destroyExecution = function(exec_id, cb){
-   // Get execution
-   execmanager.getExecution(exec_id, null, function(error, exec){
-      if(error) return cb(error);
-      // Destroy execution first
-      execmanager.destroyExecution(exec_id, false, function(error){
-         if(error) return cb(error);
-         // Update last execution
+var destroyExecution = function(task, exec_id, cb){
+   async.waterfall([
+      // Get execution
+      function(wfcb){
+         execmanager.getExecution(exec_id, null, function(error, exec){
+            if(error) return wfcb(error);
+            wfcb(null, exec);
+         });
+      },
+      // Abort previous job
+      function(exec, wfcb){
+         if(task && task.job_id){
+            instmanager.abortJob(task.job_id, exec.inst.id, function(error){
+               wfcb(error, exec);
+            });
+         } else {
+            wfcb(null, exec);
+         }
+      },
+      // Destroy execution
+      function(exec, wfcb){
+         execmanager.destroyExecution(exec_id, false, function(error){
+            if(error) return wfcb(error);
+            wfcb(null, exec);
+         });
+      },
+      // Update last execution
+      function(exec, wfcb){
          getExperiment(exec.exp_id, null, function(error, exp){
             if(exp.last_execution == exec.id){
                database.db.collection('experiments').updateOne({id: exp.id},{$set: {last_execution: null}});
             }
-            cb(null);
+            wfcb(null);
          });
-      });
+      }
+   ],
+   function(error){
+      if(error) return cb(error);
+      cb(error);
    });
 }
 
@@ -667,7 +691,7 @@ taskmanager.setTaskHandler("destroyExecution", function(task){
    var exec_id = task.exec_id;
 
    // Retrieve execution output data to storage
-   destroyExecution(exec_id, function(error){
+   destroyExecution(task, exec_id, function(error){
       if(error){
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
