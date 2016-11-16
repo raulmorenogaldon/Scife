@@ -395,10 +395,11 @@ class Storage(object):
 
         # Avoid absolute paths
         # i.e. /root
-        if os.path.isabs(fpath):
-            raise IOError("Delete is not supported for absolute paths: '{0}'".format(
-                fpath
-            ))
+        if fpath is not None:
+            if os.path.isabs(fpath):
+                raise IOError("Delete is not supported for absolute paths: '{0}'".format(
+                    fpath
+                ))
 
         ########################
         # Wait for the lock
@@ -409,6 +410,9 @@ class Storage(object):
         # Remove file
         if fpath is not None:
             gevent.subprocess.call(["rm", "-rf", fpath], cwd=exp_path)
+        else:
+            # Remove folder
+            gevent.subprocess.call(["rm", "-rf", exp_path])
 
         self.lock = False
         ########################
@@ -480,6 +484,12 @@ class Storage(object):
         ########################
 
         return bytes
+
+    def getInputIDs(self):
+        return os.listdir(self.inputpath)
+
+    def getOutputIDs(self):
+        return os.listdir(self.outputpath)
 
     def getOutputFolderTree(self, id):
         # Get input storage path

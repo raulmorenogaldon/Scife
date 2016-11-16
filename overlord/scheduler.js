@@ -1768,6 +1768,56 @@ var _cleanInstances = function(){
 }
 
 /**
+ * Remove data from inexistent executions
+ */
+var _cleanStorage = function(){
+   // Wait for database to connect
+   if(!database.db){
+      return setTimeout(_cleanStorage, 1000);
+   }
+
+   // Get list of IDs in output storage
+   storage.client.invoke('getOutputIDs', function(error, ids){
+      if(error) return logger.error('['+MODULE_NAME+'] CleanStorage: Failed to automatic get output folder IDs: '+error);
+
+      // Iterate IDs and check if they exists
+      for(var i = 0; i < ids.length; i++){
+         (function(exec_id){
+            execmanager.getExecution(exec_id, null, function(error, exec){
+               if(error){
+                  // This folder should not exists
+                  storage.client.invoke('deleteExecutionOutput', exec_id, null, function(error){
+                     if(error) return logger.error('['+MODULE_NAME+'] CleanStorage: Failed to clean execution "'+exec_id+'" output folder: '+error);
+                     return logger.debug('['+MODULE_NAME+'] CleanStorage: Execution "'+exec_id+'" output folder has been removed.');
+                  });
+               }
+            });
+         })(ids[i]);
+      }
+   });
+
+   // Get list of IDs in input storage
+   storage.client.invoke('getInputIDs', function(error, ids){
+      if(error) return logger.error('['+MODULE_NAME+'] CleanStorage: Failed to automatic get input folder IDs: '+error);
+
+      // Iterate IDs and check if they exists
+      for(var i = 0; i < ids.length; i++){
+         (function(exp_id){
+            getExperiment(exp_id, null, function(error, exp){
+               if(error){
+                  // This folder should not exists
+                  storage.client.invoke('deleteExperimentInput', exp_id, null, null, function(error){
+                     if(error) return logger.error('['+MODULE_NAME+'] CleanStorage: Failed to clean experiment "'+exp_id+'" input folder: '+error);
+                     return logger.debug('['+MODULE_NAME+'] CleanStorage: Experiment "'+exp_id+'" input folder has been removed.');
+                  });
+               }
+            });
+         })(ids[i]);
+      }
+   });
+}
+
+/**
  * Poll executions
  */
 var _pollExecutingExperiments = function(){
@@ -1899,6 +1949,8 @@ function(error){
 
    // Remove non executing experiments from instances
    _cleanInstances();
+   // Remove orphan output folders
+   _cleanStorage();
    setInterval(_pollExecutingExperiments, pollInterval, function(error){
       if(error) return logger.error(error);
    });
