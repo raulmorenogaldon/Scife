@@ -461,8 +461,7 @@ var destroyExecution = function(task, exec_id, cb){
       }
    ],
    function(error){
-      if(error) return cb(error);
-      cb(error);
+      return cb(error);
    });
 }
 

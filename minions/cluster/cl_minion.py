@@ -370,9 +370,6 @@ class ClusterMinion(minion.Minion):
             self._instance_lock[instance_id] = False
             raise Exception("Instance without SSH")
 
-        self._instance_lock[instance_id] = False
-        ####################
-
         # Execute task
         cmd = """{0}; {1}""".format(self._cmd_env, cmd)
         task = gevent.spawn(self._executeSSH, ssh, cmd)
@@ -382,6 +379,9 @@ class ClusterMinion(minion.Minion):
 
         # Close connection
         ssh.close()
+
+        self._instance_lock[instance_id] = False
+        ####################
 
         return {
             'stdout': ret_val,
@@ -612,17 +612,24 @@ class ClusterMinion(minion.Minion):
         username = self._config['username']
         # password = self._config['password']
 
+        # Init retries
+        retries = 3
+
         # Get valid URL
         url = urlparse(url).path
-        try:
-            # Create command line and connect to the cluster
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(url, username=username)
+        while True:
+            try:
+                # Create command line and connect to the cluster
+                ssh = paramiko.SSHClient()
+                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                ssh.connect(url, username=username)
+                break
 
-        except Exception as e:
-            print("FAILED to connect to", url, "- Reason:", e)
-            raise e
+            except Exception as e:
+                print("FAILED to connect to", url, "- Reason:", e)
+                retries -= 1
+                if(retries == 0):
+                    raise e
 
         # Save connection var
         return ssh
@@ -642,8 +649,10 @@ class ClusterMinion(minion.Minion):
             # Available data?
             while stdout.channel.recv_ready():
                 str_out = str_out + stdout.channel.recv(1024)
+                gevent.sleep(0)
             while stdout.channel.recv_stderr_ready():
                 str_err = str_err + stdout.channel.recv_stderr(1024)
+                gevent.sleep(0)
 
             # Event loop
             gevent.sleep(0)
@@ -660,7 +669,9 @@ class ClusterMinion(minion.Minion):
 
         # Close
         stdout.channel.shutdown_read()
+        stderr.channel.shutdown_read()
         stdout.channel.close()
+        stderr.channel.close()
         stdout.close()
         stderr.close()
 
