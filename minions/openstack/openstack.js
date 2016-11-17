@@ -236,8 +236,8 @@ var createInstance = function(inst_cfg, createCallback){
                execs: [],
                nodes: insts.length,
                size: {
-                  cpus: size['workpath'],
-                  ram: size['inputpath']
+                  cpus: size['cpus'],
+                  ram: size['ram']
                },
                image: {
                   workpath: image['workpath'],
