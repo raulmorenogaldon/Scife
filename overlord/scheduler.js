@@ -19,7 +19,7 @@ var execmanager = require('./execution.js');
  * Module vars
  */
 var MODULE_NAME = "SC";
-var pollInterval = 30000;
+var pollInterval = 60000;
 var cfg = process.argv[2];
 var constants = {};
 
@@ -1584,9 +1584,9 @@ var _pollExecution = function(exec_id, force, pollCallback){
       });
    } else {
       // If force, full polling must be done
-      if(force) return setTimeout(_pollExecution, 1000, exec_id, true, pollCallback);
+      if(force) return setTimeout(_pollExecution, 10000, exec_id, true, pollCallback);
       // If not, just wait current polling to end
-      else return setTimeout(_waitPollFinish, 3000, exec_id, pollCallback);
+      else return setTimeout(_waitPollFinish, 10000, exec_id, pollCallback);
    }
 }
 
@@ -1602,7 +1602,7 @@ var _waitPollFinish = function(exec_id, pollCallback){
          return pollCallback(null, exec.status);
       });
    } else {
-      return setTimeout(_waitPollFinish, 3000, exec_id, pollCallback);
+      return setTimeout(_waitPollFinish, 5000, exec_id, pollCallback);
    }
 }
 
@@ -1805,10 +1805,15 @@ var _cleanStorage = function(){
          (function(exp_id){
             getExperiment(exp_id, null, function(error, exp){
                if(error){
-                  // This folder should not exists
-                  storage.client.invoke('deleteExperimentInput', exp_id, null, null, function(error){
-                     if(error) return logger.error('['+MODULE_NAME+'] CleanStorage: Failed to clean experiment "'+exp_id+'" input folder: '+error);
-                     return logger.debug('['+MODULE_NAME+'] CleanStorage: Experiment "'+exp_id+'" input folder has been removed.');
+                  // Is App?
+                  getApplication(exp_id, function(error, app){
+                     if(error){
+                        // This folder should not exists
+                        storage.client.invoke('deleteExperimentInput', exp_id, null, null, function(error){
+                           if(error) return logger.error('['+MODULE_NAME+'] CleanStorage: Failed to clean experiment "'+exp_id+'" input folder: '+error);
+                           return logger.debug('['+MODULE_NAME+'] CleanStorage: Experiment "'+exp_id+'" input folder has been removed.');
+                        });
+                     }
                   });
                }
             });
