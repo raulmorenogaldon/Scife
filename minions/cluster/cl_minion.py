@@ -648,23 +648,23 @@ class ClusterMinion(minion.Minion):
         while not stdout.channel.exit_status_ready():
             # Available data?
             while stdout.channel.recv_ready():
-                str_out = str_out + stdout.channel.recv(1024)
+                str_out = str_out + stdout.channel.recv(4098)
                 gevent.sleep(0)
             while stdout.channel.recv_stderr_ready():
-                str_err = str_err + stdout.channel.recv_stderr(1024)
+                str_err = str_err + stdout.channel.recv_stderr(4098)
                 gevent.sleep(0)
 
             # Event loop
             gevent.sleep(0)
 
         # More stdout available data?
-        while stdout.channel.recv_ready():
-            str_out = str_out + stdout.channel.recv(1024)
+        while not stdout.channel.closed or stdout.channel.recv_ready():
+            str_out = str_out + stdout.channel.recv(4098)
             gevent.sleep(0)
 
         # More stderr available data?
-        while stdout.channel.recv_stderr_ready():
-            str_err = str_err + stdout.channel.recv_stderr(1024)
+        while not stdout.channel.closed or stdout.channel.recv_stderr_ready():
+            str_err = str_err + stdout.channel.recv_stderr(4098)
             gevent.sleep(0)
 
         # Close
