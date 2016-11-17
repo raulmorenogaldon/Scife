@@ -88,11 +88,11 @@ var ERRCODE = {
       'code': 60
    },
    EXP_NO_OPERATION: {
-      'message': "You must pass 'op' argument. Possible: launch, reset.",
+      'message': "You must pass 'op' argument. Possible: [launch, reset, reloadTrees].",
       'code': 44
    },
    EXP_UNKNOWN_OPERATION: {
-      'message': "Unknown operation, possible operations: [launch, reset].",
+      'message': "Unknown operation, possible operations: [launch, reset, reloadTrees].",
       'code': 45
    },
    EXP_NO_OUTPUT_DATA: {

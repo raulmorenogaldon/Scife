@@ -900,6 +900,18 @@ router.post('/experiments/:exp_id', function (req, res, next) {
       } else {
          return res.json(null);
       }
+   } else if (req.body.op == "reloadTrees") {
+      // Reload experiment trees
+      scheduler.reloadExperimentTree(req.params.exp_id, true, true, function(error){
+         if(error) logger.error('['+MODULE_NAME+']['+req.params.exp_id+'] Failed to reload experiment trees.');
+         if(req.exec){
+            // Reload execution trees
+            scheduler.reloadExecutionOutputTree(req.exec.id, function(error){
+               if(error) logger.error('['+MODULE_NAME+']['+req.exec.id+'] Failed to reload execution output tree.');
+            });
+         }
+      });
+      return res.json(null);
    } else {
       // Unknown operation
       return next({

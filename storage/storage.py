@@ -545,6 +545,7 @@ class Storage(object):
                     tree.append({
                         "label": file,
                         "id": rel_filepath,
+                        "size": os.path.getsize(full_filepath),
                         "children": []
                     })
                 else:
