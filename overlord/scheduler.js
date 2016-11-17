@@ -334,7 +334,7 @@ var destroyExperiment = function(exp_id, destroyCallback){
  * Reload experiments' file tree.
  */
 var reloadExperimentTree = function(exp_id, b_input, b_sources, reloadCallback){
-   logger.info('['+MODULE_NAME+']['+exp_id+'] ReloadTree: Reloading experiment trees...');
+   logger.debug('['+MODULE_NAME+']['+exp_id+'] ReloadTree: Reloading experiment trees...');
    async.waterfall([
       // Get experiment
       function(wfcb){
@@ -374,7 +374,7 @@ var reloadExperimentTree = function(exp_id, b_input, b_sources, reloadCallback){
    ],
    function(error){
       if(error) return reloadCallback(error);
-      logger.info('['+MODULE_NAME+']['+exp_id+'] ReloadTree: Trees reloaded.');
+      logger.debug('['+MODULE_NAME+']['+exp_id+'] ReloadTree: Trees reloaded.');
       reloadCallback(error);
    });
 }
@@ -1370,7 +1370,7 @@ var _loadCheckpointExecution = function(exec_id, loadCallback){
  * Retrieve experiment output data
  */
 var _retrieveExecutionOutput = function(task, exec_id, retrieveCallback){
-   logger.info('['+MODULE_NAME+']['+exec_id+'] Retrieve: Begin.');
+   logger.debug('['+MODULE_NAME+']['+exec_id+'] Retrieve: Begin.');
 
    async.waterfall([
       // Get execution
@@ -1421,7 +1421,7 @@ var _retrieveExecutionOutput = function(task, exec_id, retrieveCallback){
    ],
    function(error){
       if(error) return retrieveCallback(error);
-      logger.info('['+MODULE_NAME+']['+exec_id+'] Retrieve: Done.');
+      logger.debug('['+MODULE_NAME+']['+exec_id+'] Retrieve: Done.');
       retrieveCallback(null);
    });
 }
@@ -1469,7 +1469,7 @@ var _pollExecution = function(exec_id, force, pollCallback){
    if(!_polling[exec_id]){
       _polling[exec_id] = true;
 
-      logger.info('['+MODULE_NAME+']['+exec_id+'] Poll: Begin.');
+      logger.debug('['+MODULE_NAME+']['+exec_id+'] Poll: Begin.');
 
       async.waterfall([
          // Get execution
@@ -1574,7 +1574,7 @@ var _pollExecution = function(exec_id, force, pollCallback){
       function(error, exec){
          _polling[exec_id] = false;
          if(error) return pollCallback(error);
-         logger.info('['+MODULE_NAME+']['+exec_id+'] Poll: Done - ' + exec.status);
+         logger.debug('['+MODULE_NAME+']['+exec_id+'] Poll: Done - ' + exec.status);
 
          // Update experiment status if it is the last launched experiment
          if(exec.id = exec.exp.last_execution){

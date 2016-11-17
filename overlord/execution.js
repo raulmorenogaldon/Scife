@@ -233,7 +233,7 @@ var reloadExecutionOutputTree = function(exec_id, cb){
    ],
    function(error){
       if(error) return cb(error);
-      logger.info('['+MODULE_NAME+']['+exec_id+'] ReloadTree: Trees reloaded.');
+      logger.debug('['+MODULE_NAME+']['+exec_id+'] ReloadTree: Trees reloaded.');
       cb(error);
    });
 }
