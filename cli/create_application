@@ -32,7 +32,7 @@ JSON = {
 }
 
 # POST
-app_id = cli.POST('/cloud/applications', data=JSON)
+app_id = cli.POST('/applications', data=JSON)
 
 # Print info
 print('-------------------------------------------------------')
