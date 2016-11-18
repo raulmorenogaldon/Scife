@@ -237,7 +237,8 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launch_opts, l
             if(error) return wfcb(error);
             logger.debug('['+MODULE_NAME+']['+exp_id+'] Launch: Initialized execution data '+exec.id);
             // Update status
-            database.db.collection('experiments').updateOne({id: exp_id},{$set:{last_execution:exec.id}});
+            database.db.collection('experiments').updateOne({id: exp_id},{$set:{last_execution:exec.id, status:"launched"}});
+            database.db.collection('executions').updateOne({id: _exec.id},{$set:{status:"launched"}});
             _exec = exec;
             wfcb(null);
          });
@@ -259,9 +260,6 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launch_opts, l
          logger.error('['+MODULE_NAME+']['+exp_id+'] Launch: Error launching - '+error);
          return launchCallback(error);
       }
-
-      // Update status
-      database.db.collection('executions').updateOne({id: _exec.id},{$set:{status:"launched"}});
 
       // Add instancing task
       var task = {
@@ -407,8 +405,14 @@ var cleanExecution = function(exec_id, cb){
  */
 var abortExecution = function(exec_id, cb){
    // Abort all tasks for this execution
-   taskmanager.abortQueue(exec_id, null, function(error){
-      if(error) logger.error('['+MODULE_NAME+']['+exec_id+'] Failed to abort queue.');
+   taskmanager.abortQueue(exec_id, function(task){
+      // Abort job
+      if(task.job_id){
+         logger.error('['+MODULE_NAME+']['+exec_id+'] AbortExec: Aborting job: '+task.job_id);
+         instmanager.abortJob(task.job_id, exec_id, function(error){});
+      }
+   }, function(error){
+      if(error) logger.error('['+MODULE_NAME+']['+exec_id+'] AbortExec: Failed to abort queue.');
 
       // Add destroy task
       var task = {
