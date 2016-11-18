@@ -458,7 +458,7 @@ var destroyExecution = function(task, exec_id, cb){
       function(exec, wfcb){
          getExperiment(exec.exp_id, null, function(error, exp){
             if(exp.last_execution == exec.id){
-               database.db.collection('experiments').updateOne({id: exp.id},{$set: {last_execution: null}});
+               database.db.collection('experiments').updateOne({id: exp.id},{$set: {last_execution: null, status:"created"}});
             }
             wfcb(null);
          });
