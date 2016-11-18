@@ -238,7 +238,7 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launch_opts, l
             logger.debug('['+MODULE_NAME+']['+exp_id+'] Launch: Initialized execution data '+exec.id);
             // Update status
             database.db.collection('experiments').updateOne({id: exp_id},{$set:{last_execution:exec.id, status:"launched"}});
-            database.db.collection('executions').updateOne({id: _exec.id},{$set:{status:"launched"}});
+            database.db.collection('executions').updateOne({id: exec.id},{$set:{status:"launched"}});
             _exec = exec;
             wfcb(null);
          });
