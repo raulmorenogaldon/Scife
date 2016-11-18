@@ -75,6 +75,7 @@ function errorGeneric(error, req, res, next){
       res.status(error.http);
       res.json({'errors': error.errors});
    } else {
+      logger.error('INTERNAL ERROR: '+error.message);
       res.status(codes.HTTPCODE.INTERNAL_ERROR); //What happened?
       res.json({
          'errors': [{

@@ -77,7 +77,7 @@ router.use('/', function(req, res, next){
 router.get('/sizes', function (req, res, next) {
    instmanager.getSizesList(function (error, result){
       if(error) return next(error);
-      res.json(result);
+      return res.json(result);
    });
 });
 
@@ -108,7 +108,7 @@ router.param('size_id', function(req, res, next, size_id){
  * @return {Object} - A json Object with the follow structure: { "id":"size id", "name":"size name", "desc":"Description", "cpus":"Nº CPUs", "ram":"ram in mb"}
  */
 router.get('/sizes/:size_id', function (req, res, next) {
-   res.json(req.size);
+   return res.json(req.size);
 });
 
 /***********************************************************
@@ -125,7 +125,7 @@ router.get('/sizes/:size_id', function (req, res, next) {
 router.get('/instances', function (req, res, next) {
    instmanager.getInstancesList(function (error, result){
       if(error) return next(error);
-      res.json(result);
+      return res.json(result);
    });
 });
 
@@ -156,7 +156,7 @@ router.param('instance_id', function(req, res, next, instance_id){
  * @return {Object} - A json Object with the follow structure: {"id":"instance id", "name":"name", "desc":"description", "image_id":"image id", "size_id":"size id"}
  */
 router.get('/instances/:instance_id', function (req, res, next) {
-   res.json(req.instance);
+   return res.json(req.instance);
 });
 
 
@@ -173,7 +173,7 @@ router.get('/instances/:instance_id', function (req, res, next) {
 router.get('/images', function (req, res, next) {
    instmanager.getImagesList(function (error, result){
       if(error) return next(error);
-      res.json(result);
+      return res.json(result);
    });
 });
 
@@ -204,7 +204,7 @@ router.param('image_id', function(req, res, next, image_id){
  * @return {Object} - A json Object with the follow structure: {"id":"image id", "name":"name", "desc":"description"}
  */
 router.get('/images/:image_id', function (req, res, next) {
-   res.json(req.image);
+   return res.json(req.image);
 });
 
 /***********************************************************
@@ -220,7 +220,7 @@ router.get('/images/:image_id', function (req, res, next) {
 router.get('/applications', function (req, res, next) {
    scheduler.searchApplications(null, function (error, result) {
       if(error) return next(error);
-      res.json(result);
+      return res.json(result);
    });
 });
 
@@ -244,7 +244,7 @@ router.post('/applications', function (req, res, next) {
                'errors': [codes.ERRCODE.EXP_INCORRECT_PARAMS]
             });
          } else {
-            res.json(result);
+            return res.json(result);
          }
       });
    }
@@ -287,7 +287,7 @@ router.get('/applications/:app_id', function (req, res, next) {
             ]
          });
       }
-      res.json(result);
+      return res.json(result);
    });
 });
 
@@ -324,7 +324,7 @@ router.post('/applications/:app_id', function (req, res, next) {
             'errors': [error.message]
          });
       }
-      res.json(null);
+      return res.json(null);
    });
 });
 
@@ -380,7 +380,7 @@ router.get('/experiments', function (req, res, next) {
       // Search
       scheduler.searchExperiments(fields, function (error, result) {
          if(error) return next(error);
-         res.json(result);
+         return res.json(result);
       });
    });
 });
@@ -401,11 +401,8 @@ router.post('/experiments', function (req, res, next) {
 
       // Create experiment
       scheduler.createExperiment(req.body, function (error, result) {
-         if (error) {
-            return next(error);
-         } else {
-            res.json(result);
-         }
+         if (error) return next(error);
+         return res.json(result);
       });
    }
 });
@@ -474,7 +471,7 @@ router.get('/experiments/:exp_id', function (req, res, next) {
    }
 
    // Response
-   res.json(exp);
+   return res.json(exp);
 });
 
 /**
@@ -518,7 +515,7 @@ router.get('/experiments/:exp_id/logs', function (req, res, next) {
          res.send(fcontent);
       } else {
          // Response all logs
-         res.json(result);
+         return res.json(result);
       }
    });
 });
@@ -543,7 +540,7 @@ router.get('/experiments/:exp_id/srctree', function (req, res, next) {
       }
       result.src_tree = utils.cutTree(result.src_tree, fpath, depth);
 
-      res.json(result);
+      return res.json(result);
    });
 });
 
@@ -567,7 +564,7 @@ router.get('/experiments/:exp_id/inputtree', function (req, res, next) {
       }
       result.input_tree = utils.cutTree(result.input_tree, fpath, depth);
 
-      res.json(result);
+      return res.json(result);
    });
 });
 
@@ -598,7 +595,7 @@ router.get('/experiments/:exp_id/outputtree', function (req, res, next) {
       }
       result.output_tree = utils.cutTree(result.output_tree, fpath, depth);
 
-      res.json(result);
+      return res.json(result);
    });
 });
 
@@ -654,7 +651,7 @@ router.delete('/experiments/:exp_id/code', function (req, res, next) {
       // Reload trees
       scheduler.reloadExperimentTree(req.params.exp_id, true, true, function(error){
          if (error) return next(error);
-         res.json(null);
+         return res.json(null);
       });
    });
 });
@@ -704,7 +701,7 @@ router.post('/experiments/:exp_id/code', function (req, res, next) {
       // Reload trees
       scheduler.reloadExperimentTree(req.params.exp_id, false, true, function(error){
          if (error) return next(error);
-         res.json(null);
+         return res.json(null);
       });
    });
 });
@@ -731,7 +728,7 @@ router.delete('/experiments/:exp_id/input', function (req, res, next) {
       // Reload trees
       scheduler.reloadExperimentTree(req.params.exp_id, true, false, function(error){
          if (error) return next(error);
-         res.json(null);
+         return res.json(null);
       });
    });
 });
@@ -777,7 +774,7 @@ router.post('/experiments/:exp_id/input', upload.array('inputFile'), function (r
       // Reload trees
       scheduler.reloadExperimentTree(req.params.exp_id, true, false, function(error){
          if (error) return next(error);
-         res.json(null);
+         return res.json(null);
       });
    });
 });
@@ -832,7 +829,7 @@ router.get('/experiments/:exp_id/download', function (req, res, next) {
 router.put('/experiments/:exp_id', function (req, res, next) {
    scheduler.updateExperiment(req.params.exp_id, req.body, function (error, result, more) {
       if (error) return next(error);
-      res.json(result);
+      return res.json(result);
    });
 });
 
@@ -844,7 +841,7 @@ router.delete('/experiments/:exp_id', function (req, res, next) {
    // Remove experiment
    scheduler.destroyExperiment(req.params.exp_id, function(error){
       if(error) return next(error);
-      res.json(null);
+      return res.json(null);
    });
 });
 
@@ -944,7 +941,7 @@ router.get('/experiments/:exp_id/executions', function (req, res, next) {
    // Search
    execmanager.searchExecutions(fields, function (error, result) {
       if(error) return next(error);
-      res.json(result);
+      return res.json(result);
    });
 });
 
@@ -1040,7 +1037,7 @@ router.get('/users', function (req, res, next) {
    // List all users
    usermanager.searchUsers(null, function (error, result) {
       if(error) return next(error);
-      res.json(result);
+      return res.json(result);
    });
 });
 
@@ -1113,7 +1110,7 @@ router.get('/users/:user_id', function (req, res, next) {
    }
 
    // Return data
-   res.json({
+   return res.json({
       'id': req.user.id,
       'username': req.user.username,
       'admin': req.user.admin
@@ -1143,7 +1140,7 @@ router.put('/users/:user_id/permissions', function (req, res, next) {
    // Set permissions
    usermanager.setUserPermissions(req.params.user_id, req.body.permission, req.body.value, req.body.allow, function (error, result) {
       if (error) return next(error);
-      res.json(null);
+      return res.json(null);
    });
 });
 
