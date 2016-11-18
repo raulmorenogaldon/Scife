@@ -15,7 +15,7 @@ from pymongo import MongoClient
 class Storage(object):
     """Class to handle application storage in standard a FS."""
 
-    def __init__(self, apppath, inputpath, outputpath, public_url, username, mongo, db):
+    def __init__(self, apppath, inputpath, outputpath, public_url, git_port, username, mongo, db):
         print("Initializing storage...")
 
         # Set path for storage
@@ -28,6 +28,9 @@ class Storage(object):
 
         # Set public url
         self.public_url = public_url
+
+        # Set git port
+        self.git_port = git_port
 
         # Connect to DB (default "localhost")
         # db vars must be private to avoid zerorpc errors
@@ -229,8 +232,7 @@ class Storage(object):
         #app_path = self.apppath + "/" + app_id
 
         # Get public URL for this experiment
-        #url = "{0}@{1}:{2}".format(self.username, self.public_url, app_path)
-        url = "git://{0}/{1}".format(self.public_url, app_id)
+        url = "git://{0}:{1}/{2}".format(self.public_url, self.git_port, app_id)
 
         return url
 
@@ -668,6 +670,7 @@ if __name__ == "__main__":
         inputpath=cfg['inputstorage'],
         outputpath=cfg['outputstorage'],
         public_url=cfg['public_url'],
+        git_port=cfg['git_port'],
         username=cfg['username'],
         mongo=cfg['mongo'],
         db=cfg['db']
