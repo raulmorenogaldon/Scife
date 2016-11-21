@@ -134,8 +134,17 @@ var getTaskQueue = function(queue){
  * abortFunc will be called for every task in the queue.
  * abortCallback will be called when all tasks finish their execution.
  */
+var _aborting = {};
 var abortQueue = function(queue, abortTaskFunc, abortCallback){
    var tasks = [];
+
+   // Do not reabort
+   if(_aborting[queue] == true){
+      return abortCallback(new Error('Queue is already being aborted.'));
+   }
+
+   // Set lock
+   _aborting[queue] = true;
 
    // Iterate tasks in this queue
    if(hashQueue[queue]){
@@ -168,6 +177,10 @@ var abortQueue = function(queue, abortTaskFunc, abortCallback){
    // All aborted and finished
    logger.info('['+MODULE_NAME+'] Aborting queue "'+queue+'", '+tasks.length+' running tasks');
    async.parallel(tasks, function(error, task){
+      // Unset lock
+      _aborting[queue] = false;
+
+      // Callbacks
       if(error){return abortCallback(error);}
       abortCallback(null);
    });

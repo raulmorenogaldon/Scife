@@ -404,31 +404,47 @@ var cleanExecution = function(exec_id, cb){
  * Abort experiment execution
  */
 var abortExecution = function(exec_id, cb){
-   // Abort all tasks for this execution
-   taskmanager.abortQueue(exec_id, function(task){
-      // Abort job
-      if(task.job_id){
-         logger.error('['+MODULE_NAME+']['+exec_id+'] AbortExec: Aborting job: '+task.job_id);
-         instmanager.abortJob(task.job_id, exec_id, function(error){});
-      }
-   }, function(error){
-      if(error) logger.error('['+MODULE_NAME+']['+exec_id+'] AbortExec: Failed to abort queue.');
+   // Get execution
+   execmanager.getExecution(exec_id, null, function(error, exec){
+      if(exec.status == "aborting") return cb(null);
 
-      // Add destroy task
-      var task = {
-         type: "destroyExecution",
-         exec_id: exec_id
-      };
-      taskmanager.pushTask(task, exec_id);
+      // Set execution status
+      database.db.collection('executions').updateOne({id: exec_id},{$set:{status: "aborting"}});
 
-      return cb(null);
+      // Abort all tasks for this execution
+      taskmanager.abortQueue(exec_id, function(task){
+         // Abort job
+         if(task.job_id){
+            logger.error('['+MODULE_NAME+']['+exec_id+'] AbortExec: Aborting job: '+task.job_id);
+            instmanager.abortJob(task.job_id, exec.inst_id, function(error){
+               if(error) logger.error('['+MODULE_NAME+']['+inst_id+'] AbortExec: Failed to abort job: '+error);
+            });
+         }
+      }, function(error){
+         if(error){
+            logger.error('['+MODULE_NAME+']['+exec_id+'] AbortExec: Failed to abort queue.');
+            return cb(error);
+         }
+
+         // Add destroy task
+         var task = {
+            type: "destroyExecution",
+            exec_id: exec_id
+         };
+         taskmanager.pushTask(task, exec_id);
+
+         return cb(null);
+      });
+
    });
+
 }
 
 /**
  * Destroy experiment execution
  */
 var destroyExecution = function(task, exec_id, cb){
+   database.db.collection('executions').updateOne({id: exec_id},{$set:{status: "aborting"}});
    async.waterfall([
       // Get execution
       function(wfcb){
@@ -1565,7 +1581,7 @@ var _pollExecution = function(exec_id, force, pollCallback){
                var status = output.stdout;
 
                // Update status if the file exists
-               if(status != ""){
+               if(status != "" && exec.status != "aborting"){
                   database.db.collection('executions').updateOne({id: exec_id},{$set:{status:status}});
                }
 
@@ -1581,7 +1597,7 @@ var _pollExecution = function(exec_id, force, pollCallback){
          logger.debug('['+MODULE_NAME+']['+exec_id+'] Poll: Done - ' + exec.status);
 
          // Update experiment status if it is the last launched experiment
-         if(exec.id = exec.exp.last_execution){
+         if(exec.id = exec.exp.last_execution && exec.status != "aborting"){
             database.db.collection('experiments').updateOne({id: exec.exp_id},{$set:{status:exec.status}});
          }
          pollCallback(null, exec.status);
