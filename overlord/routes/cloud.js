@@ -436,27 +436,7 @@ router.param('exp_id', function(req, res, next, exp_id){
             app_id: exp.app_id
          };
 
-         // Is execution selected?
-         req.exec_id = req.query.exec ? req.query.exec : req.exp.last_execution;
-         if(req.exec_id){
-            execmanager.getExecution(req.exec_id, null, function(error, exec){
-               // Inexistent execution but user selected it
-               if(error && req.query.exec){
-                  return next({
-                     'http': codes.HTTPCODE.NOT_FOUND,
-                     'errors': [codes.ERRCODE.EXP_EXECUTION_NOT_FOUND]
-                  });
-               }
-               // Set parameter
-               req.exec = exec;
-               req.exp_minimal.exec_id = exec.id;
-               req.exp_minimal.status = exec.status;
-               return next();
-            });
-         } else {
-            // No execution selected
-            return next();
-         }
+         return next();
       }
    });
 });
@@ -473,61 +453,13 @@ router.get('/experiments/:exp_id', function (req, res, next) {
       'desc': req.exp.desc,
       'app_id': req.exp.app_id,
       'last_execution': req.exp.last_execution,
-      'labels': req.exec ? req.exec.labels : req.exp.labels,
-      // Last execution data
-      'status': req.exec ? req.exec.status : "created",
+      'labels': req.exp.labels
    }
 
    // Response
    return res.json(exp);
 });
 
-/**
- * Get experiment logs
- * @param {String} - The experiment id.
- * @return {[Object]} - A json Object with experiment logs
- */
-router.get('/experiments/:exp_id/logs', function (req, res, next) {
-   // Check if execution is available
-   if(!req.exec){
-      // No logs available
-      return res.json([]);
-   }
-
-   // Get logs
-   execmanager.getExecution(req.exec.id, {id: 1, logs: 1}, function (error, result) {
-      if (error) return next(error);
-
-      // Provided specific log?
-      var log = req.query.log;
-      if(log){
-         // Search this log in result
-         var fcontent = null;
-         for(var i = 0; i < result.logs.length; i++){
-            if(result.logs[i].name == log){
-               fcontent = result.logs[i].content;
-               break;
-            }
-         }
-
-         // Not found
-         if(!fcontent){
-            return next({
-               'http': codes.HTTPCODE.NOT_FOUND,
-               'errors': [codes.ERRCODE.EXP_LOG_NOT_FOUND]
-            });
-         }
-
-         // Response
-         res.set('Content-Type', 'text/plain');
-         res.send(fcontent);
-      } else {
-         // Response all logs
-         req.exp_minimal.logs = result.logs;
-         return res.json(req.exp_minimal);
-      }
-   });
-});
 
 /**
  * Get experiment sources tree
@@ -536,7 +468,7 @@ router.get('/experiments/:exp_id/logs', function (req, res, next) {
  */
 router.get('/experiments/:exp_id/srctree', function (req, res, next) {
    // Retrieve sources tree
-   scheduler.getExperiment(req.params.exp_id, {id: 1, src_tree: 1}, function (error, result) {
+   scheduler.getExperiment(req.params.exp_id, {id: 1, name: 1, src_tree: 1}, function (error, result) {
       if (error) return next(error);
 
       // Get folder path and depth if provided
@@ -561,7 +493,7 @@ router.get('/experiments/:exp_id/srctree', function (req, res, next) {
  */
 router.get('/experiments/:exp_id/inputtree', function (req, res, next) {
    // Retrieve input tree
-   scheduler.getExperiment(req.params.exp_id, {id: 1, input_tree: 1}, function (error, result) {
+   scheduler.getExperiment(req.params.exp_id, {id: 1, name: 1, input_tree: 1}, function (error, result) {
       if (error) return next(error);
 
       // Get folder path and depth if provided
@@ -578,39 +510,6 @@ router.get('/experiments/:exp_id/inputtree', function (req, res, next) {
       return res.json(result);
    });
 });
-
-/**
- * Get experiment output files tree
- * @param {String} - The experiment id.
- * @return {[Object]} - A json Object with experiment output files tree
- */
-router.get('/experiments/:exp_id/outputtree', function (req, res, next) {
-   // Check if execution is available
-   if(!req.exec){
-      // No output available
-      return res.json([]);
-   }
-
-   // Get output tree
-   execmanager.getExecution(req.exec.id, {id: 1, output_tree: 1}, function (error, result) {
-      if (error) return next(error);
-
-      // Get folder path and depth if provided
-      var fpath = req.query.folder;
-      var depth = req.query.depth;
-      if(!result){
-         return next({
-            'http': codes.HTTPCODE.NOT_FOUND,
-            'errors': [codes.ERRCODE.EXP_OUTPUT_FILE_NOT_FOUND]
-         });
-      }
-      result.output_tree = utils.cutTree(result.output_tree, fpath, depth);
-
-      req.exp_minimal.exec = result;
-      return res.json(req.exp_minimal);
-   });
-});
-
 
 /**
  * Get experiment source file content
@@ -792,49 +691,6 @@ router.post('/experiments/:exp_id/input', upload.array('inputFile'), function (r
 });
 
 /**
- * Get download link for experiment output data
- * @param {String} - The experiment id.
- * @return {[Object]} - A json Object with output data
- */
-router.get('/experiments/:exp_id/download', function (req, res, next) {
-   // Check if execution is available
-   if(!req.exec){
-      // No output available
-      return next({
-         'http': codes.HTTPCODE.NOT_FOUND,
-         'errors': [codes.ERRCODE.EXP_NO_OUTPUT_DATA]
-      });
-   }
-
-   // Get file path if provided
-   var fpath = req.query.file;
-
-   // Get file
-   scheduler.getExecutionOutputFile(req.exec.id, fpath, function (error, file) {
-      if (error) {
-         return next({
-            'http': codes.HTTPCODE.NOT_FOUND,
-            'errors': [codes.ERRCODE.EXP_NO_OUTPUT_DATA]
-         });
-      } else {
-         // Create header with file info
-         var stat = fs.statSync(file);
-         var filename = req.exp.name+'.tar.gz';
-         if(fpath) filename = mpath.basename(file);
-         res.writeHead(200, {
-            'Content-Type': 'application/octet-stream',
-            'Content-Length': stat.size,
-            'Content-Disposition': 'inline; filename="'+filename+'"'
-         });
-
-         // Send file
-         var readStream = fs.createReadStream(file);
-         readStream.pipe(res);
-      }
-   });
-});
-
-/**
  * Update experiment metadata
  * @param {String} - The experiment id.
  */
@@ -937,7 +793,7 @@ router.post('/experiments/:exp_id', function (req, res, next) {
  ***********************************************************/
 
 /**
- * Get execution metadata from the storage using its ID
+ * Get executions metadata from the storage using its ID
  * @param {String} - The execution ID.
  * @return {[Object]} - A json Object with execution metadata
  */
@@ -975,8 +831,9 @@ router.param('exec_id', function(req, res, next, exec_id){
             'errors': [codes.ERRCODE.AUTH_PERMISSION_DENIED]
          });
 
-         // Set parameter
+         // Set parameters
          req.exec = exec;
+         req.exec.exp_name = exp.name;
          return next();
       });
    });
@@ -990,7 +847,133 @@ router.param('exec_id', function(req, res, next, exec_id){
  */
 router.get('/executions/:exec_id', function (req, res, next) {
    // Project execution
-   res.json(req.exec);
+   var exec = {
+      'id': req.exec.id,
+      'parent_id': req.exec.parent_id,
+      'exp_name': req.exec.exp_name,
+      'status': req.exec.status,
+      'create_date': req.exec.create_date,
+      'launch_date': req.exec.launch_date,
+      'finish_date': req.exec.finish_date,
+      'launch_opts': req.exec.launch_opts,
+      'labels': req.exec.labels,
+      'usage': req.exec.usage
+   }
+   res.json(exec);
+});
+
+/**
+ * Delete execution
+ * @param {String} - The experiment id.
+ */
+router.delete('/executions/:exec_id', function (req, res, next) {
+   // Remove execution
+   scheduler.abortExecution(req.exec.id, function(error){
+      if(error) return next(error);
+      return res.json(null);
+   });
+});
+
+/**
+ * Get execution logs
+ * @param {String} - The execution id.
+ * @return {[Object]} - A json Object with execution logs
+ */
+router.get('/executions/:exec_id/logs', function (req, res, next) {
+   // Get logs
+   execmanager.getExecution(req.exec.id, {id: 1, exp_id: 1, logs: 1}, function (error, result) {
+      if (error) return next(error);
+
+      // Provided specific log?
+      var log = req.query.log;
+      if(log){
+         // Search this log in result
+         var fcontent = null;
+         for(var i = 0; i < result.logs.length; i++){
+            if(result.logs[i].name == log){
+               fcontent = result.logs[i].content;
+               break;
+            }
+         }
+
+         // Not found
+         if(!fcontent){
+            return next({
+               'http': codes.HTTPCODE.NOT_FOUND,
+               'errors': [codes.ERRCODE.EXEC_LOG_NOT_FOUND]
+            });
+         }
+
+         // Response
+         res.set('Content-Type', 'text/plain');
+         res.send(fcontent);
+      } else {
+         // Response all logs
+         result.exp_name = req.exec.exp_name;
+         return res.json(result);
+      }
+   });
+});
+
+/**
+ * Get execution output files tree
+ * @param {String} - The execution id.
+ * @return {[Object]} - A json Object with execution output files tree
+ */
+router.get('/executions/:exec_id/outputtree', function (req, res, next) {
+   // Get output tree
+   execmanager.getExecution(req.exec.id, {id: 1, exp_id: 1, output_tree: 1}, function (error, result) {
+      if (error) return next(error);
+
+      // Get folder path and depth if provided
+      var fpath = req.query.folder;
+      var depth = req.query.depth;
+      if(!result){
+         return next({
+            'http': codes.HTTPCODE.NOT_FOUND,
+            'errors': [codes.ERRCODE.EXP_OUTPUT_FILE_NOT_FOUND]
+         });
+      }
+      // Response requested tree
+      result.output_tree = utils.cutTree(result.output_tree, fpath, depth);
+      result.exp_name = req.exec.exp_name;
+      return res.json(result);
+   });
+});
+
+
+/**
+ * Get download link for execution output data
+ * @param {String} - The execution id.
+ * @return {[Object]} - A json Object with output data
+ */
+router.get('/executions/:exec_id/download', function (req, res, next) {
+   // Get file path if provided
+   var fpath = req.query.file;
+
+   // Get file
+   scheduler.getExecutionOutputFile(req.exec.id, fpath, function (error, file) {
+      if (error) {
+         return next({
+            'http': codes.HTTPCODE.NOT_FOUND,
+            'errors': [codes.ERRCODE.EXEC_NO_OUTPUT_DATA]
+         });
+      } else {
+         // Create header with file info
+         var stat = fs.statSync(file);
+         var filename = req.exec.exp_name+'.tar.gz';
+         if(fpath) filename = mpath.basename(file);
+         res.writeHead(200, {
+            'Content-Type': 'application/octet-stream',
+            'Content-Length': stat.size,
+            'Content-Disposition': 'inline; filename="'+filename+'"'
+         });
+
+         // Send file
+         var readStream = fs.createReadStream(file);
+         readStream.pipe(res);
+      }
+   });
 });
 
 /***********************************************************

@@ -46,10 +46,13 @@
 
 /executions?exp="exp_id"&deleted=1 (GET) "Return a list with all the executions in the server, ¿deleted ones included?"
 
+/executions/:executionId (GET) "Return execution data, ID is passed by parameter"
+/executions/:executionId (DELETE) "Delete an existing execution whose ID is passed by parameter"
+
 /executions/:executionId/logs                                     (GET) "Return execution logs, ID is passed by parameter"
 /executions/:executionId/logs?log=COMPILATION_LOG                 (GET) "Return execution log as plain text if exists"
-/executions/:executionId/download?file=archive/rest/exp.nc        (GET) "Download execution output data, ID is passed by parameter"
 /executions/:executionId/outputtree?folder=models/atm/src&depth=1 (GET) "Return filesystem tree from output folder. Depth of the filesystem can be provided."
+/executions/:executionId/download?file=archive/rest/exp.nc        (GET) "Download execution output data, ID is passed by parameter"
 
 /users/ (GET) "Return a list with all the users in ther server (ADMIN)"
 /users/ (POST) "Create a user (ADMIN)"

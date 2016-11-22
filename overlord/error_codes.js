@@ -85,18 +85,14 @@ var ERRCODE = {
    },
    LAUNCH_QUOTA_REACHED: {
       'message': "Quota has been reached.",
-      'code': 60
-   },
-   EXP_NO_OPERATION: {
-      'message': "You must pass 'op' argument. Possible: [launch, reset, reloadTrees].",
       'code': 44
    },
-   EXP_UNKNOWN_OPERATION: {
-      'message': "Unknown operation, possible operations: [launch, reset, reloadTrees].",
+   EXP_NO_OPERATION: {
+      'message': "You must pass 'op' argument. Possible: [launch, reloadTrees].",
       'code': 45
    },
-   EXP_NO_OUTPUT_DATA: {
-      'message': "Output data does not exist for this experiment.",
+   EXP_UNKNOWN_OPERATION: {
+      'message': "Unknown operation, possible operations: [launch, reloadTrees].",
       'code': 46
    },
    EXP_CODE_FILE_PATH_MISSING: {
@@ -115,17 +111,23 @@ var ERRCODE = {
       'message': "Input file does not exits.",
       'code': 50
    },
-   EXP_LOG_NOT_FOUND: {
-      'message': "Requested log does not exits.",
-      'code': 51
-   },
-   EXP_OUTPUT_FILE_NOT_FOUND: {
-      'message': "Output file does not exits.",
-      'code': 52
-   },
-   EXP_EXECUTION_NOT_FOUND: {
+
+   // Executions
+   EXEC_NOT_FOUND: {
       'message': "Selected execution does not exits.",
-      'code': 53
+      'code': 60
+   },
+   EXEC_NO_OUTPUT_DATA: {
+      'message': "Output data does not exist for this execution.",
+      'code': 61
+   },
+   EXEC_LOG_NOT_FOUND: {
+      'message': "Requested log does not exits.",
+      'code': 62
+   },
+   EXEC_OUTPUT_FILE_NOT_FOUND: {
+      'message': "Output file does not exits.",
+      'code': 63
    },
 
    // Users
