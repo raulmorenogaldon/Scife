@@ -128,8 +128,10 @@ var destroyExecution = function(exec_id, remove_from_db, cb){
             if(error) return wfcb(error);
 
             // Reload output tree
-            logger.debug('['+MODULE_NAME+']['+exec_id+'] Destroy: Reloading output...');
-            reloadExecutionOutputTree(exec_id, wfcb);
+            // logger.debug('['+MODULE_NAME+']['+exec_id+'] Destroy: Reloading output...');
+            // reloadExecutionOutputTree(exec_id, wfcb);
+            // We want to maintain the output tree, even if data is not there
+            wfcb(null, exec);
          });
       }
    ],

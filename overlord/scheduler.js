@@ -406,7 +406,7 @@ var cleanExecution = function(exec_id, cb){
 var abortExecution = function(exec_id, cb){
    // Get execution
    execmanager.getExecution(exec_id, null, function(error, exec){
-      if(exec.status == "aborting") return cb(null);
+      if(exec.status == "aborting" || exec.status == "deleting" || exec.status == "deleted") return cb(null);
 
       // Set execution status
       database.db.collection('executions').updateOne({id: exec_id},{$set:{status: "aborting"}});
