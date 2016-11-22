@@ -941,54 +941,46 @@ router.post('/experiments/:exp_id', function (req, res, next) {
  * @param {String} - The execution ID.
  * @return {[Object]} - A json Object with execution metadata
  */
-router.get('/experiments/:exp_id/executions', function (req, res, next) {
-   // Check if execution is available
-   if(req.query.exec){
-      // Get execution data
-      execmanager.getExecution(req.exec.id, null, function (error, result) {
-         if (error) return next(error);
-         return res.json(result);
-      });
-   } else {
-      // Search fields
-      var fields = {
-         exp_id: req.exp.id
-      }
+router.get('/executions', function (req, res, next) {
+   var fields = {};
 
-      // All?
-      if(req.query.deleted != 1) fields.status = {'$ne': "deleted"};
+   // Set queries
+   if(req.query.exp) fields.exp_id = req.query.exp;
+   if(req.query.deleted != 1) fields.status = {'$ne': "deleted"};
 
-      // Search
-      execmanager.searchExecutions(fields, function (error, result) {
-         if(error) return next(error);
-         return res.json(result);
-      });
-   }
+   // Search
+   execmanager.searchExecutions(fields, function (error, result) {
+      if(error) return next(error);
+      return res.json(result);
+   });
 });
 
 /**
  * Check execution id parameter
  * @param {String} - The execution ID.
  */
-//router.param('exec_id', function(req, res, next, exec_id){
-//   // Get experiment
-//   execmanager.getExecution(exec_id, null, function (error, exec) {
-//      // Error retrieving this execution
-//      if(error){
-//         return next({
-//            'http': codes.HTTPCODE.NOT_FOUND,
-//            'errors': [codes.ERRCODE.EXEC_NOT_FOUND]
-//         });
-//      } else {
-//         // Checking permissions is not needed
-//         // This is already checked in experiment owner
-//
-//         // Set parameter
-//         req.exec = exec;
-//         return next();
-//      }
-//   });
-//});
+router.param('exec_id', function(req, res, next, exec_id){
+   // Get execution
+   execmanager.getExecution(exec_id, null, function (error, exec) {
+      if(error) return next({
+            'http': codes.HTTPCODE.NOT_FOUND,
+            'errors': [codes.ERRCODE.EXEC_NOT_FOUND]
+      });
+
+      // Get execution experiment
+      scheduler.getExperiment(exec.exp_id, null, function(error, exp){
+         // Check permissions
+         if(exp.owner != req.auth.id && !req.auth.admin) return next({
+            'http': codes.HTTPCODE.FORBIDDEN,
+            'errors': [codes.ERRCODE.AUTH_PERMISSION_DENIED]
+         });
+
+         // Set parameter
+         req.exec = exec;
+         return next();
+      });
+   });
+});
 
 /**
  * Get execution metadata from the storage using its ID
@@ -996,45 +988,10 @@ router.get('/experiments/:exp_id/executions', function (req, res, next) {
  * @param {String} - The execution ID.
  * @return {[Object]} - A json Object with execution metadata
  */
-//router.get('/experiments/:exp_id/executions/:exec_id', function (req, res, next) {
-//   // Projection
-//   var projection = {
-//      exp_id: req.exp.id
-//   }
-//
-//   // Get execution data
-//   execmanager.getExecution(req.exec.exec_id, projection, function (error, exec) {
-//      if (error) return next(error);
-//
-//      // Provided specific log?
-//      var log = req.query.log;
-//      if(log){
-//         // Search this log in result
-//         var fcontent = null;
-//         for(var i = 0; i < result.logs.length; i++){
-//            if(result.logs[i].name == log){
-//               fcontent = result.logs[i].content;
-//               break;
-//            }
-//         }
-//
-//         // Not found
-//         if(!fcontent){
-//            return next({
-//               'http': codes.HTTPCODE.NOT_FOUND,
-//               'errors': [codes.ERRCODE.EXP_LOG_NOT_FOUND]
-//            });
-//         }
-//
-//         // Response
-//         res.set('Content-Type', 'text/plain');
-//         res.send(fcontent);
-//      } else {
-//         // Response all logs
-//         res.json(result);
-//      }
-//   });
-//});
+router.get('/executions/:exec_id', function (req, res, next) {
+   // Project execution
+   res.json(req.exec);
+});
 
 /***********************************************************
  * --------------------------------------------------------
