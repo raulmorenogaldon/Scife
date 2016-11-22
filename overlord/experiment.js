@@ -27,6 +27,7 @@ var getExperiment = function(exp_id, fields, getCallback){
    // Parse fields
    if(!fields){
       fields = {
+         _id: 0,
          input_tree: 0,
          src_tree: 0,
          output_tree: 0,
@@ -34,10 +35,10 @@ var getExperiment = function(exp_id, fields, getCallback){
       };
    } else {
       // Required values
+      fields._id = 0;
       fields.id = 1;
       fields.name = 1;
       fields.app_id = 1;
-      fields.status = 1;
    }
 
    // Retrieve experiment metadata
@@ -83,6 +84,7 @@ var searchExperiments = function(fields, searchCallback){
 
    // Projection
    var projection = {
+         _id: 0,
          input_tree: 0,
          src_tree: 0,
          output_tree: 0,

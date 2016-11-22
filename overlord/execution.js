@@ -63,14 +63,15 @@ var getExecution = function(exec_id, fields, cb){
    // Parse fields
    if(!fields){
       fields = {
-         logs: 0,
+         _id: 0,
+         output_tree: 0,
+         logs: 0
       };
    } else {
       // Required values
+      fields._id = 0;
       fields.id = 1;
       fields.status = 1;
-      fields.exp_id = 1;
-      fields.inst_id = 1;
    }
 
    // Retrieve execution metadata
@@ -182,6 +183,8 @@ var searchExecutions = function(fields, cb){
 
    // Projection
    var projection = {
+         _id: 0,
+         inst_id: 0,
          output_tree: 0,
          logs: 0
    };

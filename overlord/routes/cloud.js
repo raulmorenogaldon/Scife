@@ -430,6 +430,11 @@ router.param('exp_id', function(req, res, next, exp_id){
          }
          // Set parameter
          req.exp = exp;
+         req.exp_minimal = {
+            id: exp.id,
+            name: exp.name,
+            app_id: exp.app_id
+         };
 
          // Is execution selected?
          req.exec_id = req.query.exec ? req.query.exec : req.exp.last_execution;
@@ -444,6 +449,8 @@ router.param('exp_id', function(req, res, next, exp_id){
                }
                // Set parameter
                req.exec = exec;
+               req.exp_minimal.exec_id = exec.id;
+               req.exp_minimal.status = exec.status;
                return next();
             });
          } else {
@@ -465,6 +472,7 @@ router.get('/experiments/:exp_id', function (req, res, next) {
       'name': req.exp.name,
       'desc': req.exp.desc,
       'app_id': req.exp.app_id,
+      'last_execution': req.exp.last_execution,
       'labels': req.exec ? req.exec.labels : req.exp.labels,
       // Last execution data
       'status': req.exec ? req.exec.status : "created",
@@ -515,7 +523,8 @@ router.get('/experiments/:exp_id/logs', function (req, res, next) {
          res.send(fcontent);
       } else {
          // Response all logs
-         return res.json(result);
+         req.exp_minimal.logs = result.logs;
+         return res.json(req.exp_minimal);
       }
    });
 });
@@ -526,6 +535,7 @@ router.get('/experiments/:exp_id/logs', function (req, res, next) {
  * @return {[Object]} - A json Object with experiment sources tree
  */
 router.get('/experiments/:exp_id/srctree', function (req, res, next) {
+   // Retrieve sources tree
    scheduler.getExperiment(req.params.exp_id, {id: 1, src_tree: 1}, function (error, result) {
       if (error) return next(error);
 
@@ -550,6 +560,7 @@ router.get('/experiments/:exp_id/srctree', function (req, res, next) {
  * @return {[Object]} - A json Object with experiment input files tree
  */
 router.get('/experiments/:exp_id/inputtree', function (req, res, next) {
+   // Retrieve input tree
    scheduler.getExperiment(req.params.exp_id, {id: 1, input_tree: 1}, function (error, result) {
       if (error) return next(error);
 
@@ -595,7 +606,8 @@ router.get('/experiments/:exp_id/outputtree', function (req, res, next) {
       }
       result.output_tree = utils.cutTree(result.output_tree, fpath, depth);
 
-      return res.json(result);
+      req.exp_minimal.exec = result;
+      return res.json(req.exp_minimal);
    });
 });
 
@@ -930,19 +942,28 @@ router.post('/experiments/:exp_id', function (req, res, next) {
  * @return {[Object]} - A json Object with execution metadata
  */
 router.get('/experiments/:exp_id/executions', function (req, res, next) {
-   // Search fields
-   var fields = {
-      exp_id: req.exp.id
+   // Check if execution is available
+   if(req.query.exec){
+      // Get execution data
+      execmanager.getExecution(req.exec.id, null, function (error, result) {
+         if (error) return next(error);
+         return res.json(result);
+      });
+   } else {
+      // Search fields
+      var fields = {
+         exp_id: req.exp.id
+      }
+
+      // All?
+      if(req.query.deleted != 1) fields.status = {'$ne': "deleted"};
+
+      // Search
+      execmanager.searchExecutions(fields, function (error, result) {
+         if(error) return next(error);
+         return res.json(result);
+      });
    }
-
-   // All?
-   if(req.query.deleted != 1) fields.status = {'$ne': "deleted"};
-
-   // Search
-   execmanager.searchExecutions(fields, function (error, result) {
-      if(error) return next(error);
-      return res.json(result);
-   });
 });
 
 /**
