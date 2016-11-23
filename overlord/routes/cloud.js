@@ -825,8 +825,13 @@ router.param('exec_id', function(req, res, next, exec_id){
             'errors': [codes.ERRCODE.EXEC_NOT_FOUND]
       });
 
+      // Set execution parameter
+      req.exec = exec;
+
       // Get execution experiment
       scheduler.getExperiment(exec.exp_id, null, function(error, exp){
+         if(!exp) return next();
+
          // Check permissions
          if(exp.owner != req.auth.id && !req.auth.admin) return next({
             'http': codes.HTTPCODE.FORBIDDEN,
@@ -834,7 +839,6 @@ router.param('exec_id', function(req, res, next, exec_id){
          });
 
          // Set parameters
-         req.exec = exec;
          req.exec.exp_name = exp.name;
          return next();
       });
