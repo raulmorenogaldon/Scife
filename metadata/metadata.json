@@ -5,12 +5,21 @@
       'desc': "Description"
       'creation_script': "./creation.sh",
       'execution_script': "./exec.sh",
-      'labels': ["LABEL", "PATH", "ARG1", "..."],
-      'labels_default': {
-         'LABEL': "cmd",
-         'PATH': "$PATH",
-         'ARG1': "-n 128",
-         '...': "..."
+      'labels': {
+         'LABEL_NAME': {
+            'type': "MULTITEXT",
+            'category': "CAT",
+            'default_value': [
+               'First line',
+               'Second line',
+               'Third line...'
+            ]
+         },
+         'PATH': {
+            'type': "TEXT",
+            'category': "CAT2",
+            'default_value': "$PATH"
+         }
       }
    },
 
