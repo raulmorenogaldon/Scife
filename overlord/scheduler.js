@@ -64,6 +64,14 @@ var getExperiment = function(exp_id, fields, getCallback){
 }
 
 /**
+ * Perform a maintenance operation over experiment
+ */
+var maintainExperiment = function(exec_id, operation, maintainCallback){
+   exps.maintainExperiment(exec_id, operation, maintainCallback);
+}
+
+
+/**
  * Get experiment source file
  */
 var getExperimentCode = function(exp_id, fpath, getCallback){
@@ -1992,6 +2000,7 @@ exports.createApplication = createApplication;
 exports.searchApplications = searchApplications;
 
 exports.getExperiment = getExperiment;
+exports.maintainExperiment = maintainExperiment;
 exports.createExperiment = createExperiment;
 exports.updateExperiment = updateExperiment;
 exports.destroyExperiment = destroyExperiment;

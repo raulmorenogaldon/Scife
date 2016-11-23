@@ -606,13 +606,15 @@ router.post('/experiments/:exp_id/code', function (req, res, next) {
          });
       }
 
-      // TODO: Reload labels
-      // ...
-
-      // Reload trees
-      scheduler.reloadExperimentTree(req.params.exp_id, false, true, function(error){
+      // Reload labels
+      scheduler.maintainExperiment(req.params.exp_id, "discoverLabels", function(error){
          if (error) return next(error);
-         return res.json(null);
+
+         // Reload trees
+         scheduler.reloadExperimentTree(req.params.exp_id, false, true, function(error){
+            if (error) return next(error);
+            return res.json(null);
+         });
       });
    });
 });

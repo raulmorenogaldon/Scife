@@ -117,19 +117,32 @@ class Storage(object):
         gevent.subprocess.call(["git", "add", "*"], cwd=dst_path)
         gevent.subprocess.call(["git", "commit", "-q", "-m", "'Application created'"], cwd=dst_path)
 
-    def discoverLabels(self, app_id):
+    def discoverLabels(self, app_id, exp_id):
         # Get application path
         app_path = self.apppath + "/" + app_id
         meta_file = app_path + '/LABELS.meta'
 
+        ########################
+        # Wait for the lock
+        while self.lock:
+            gevent.sleep(0)
+        self.lock = True
+
+        # Checkout experiment if requested
+        if exp_id is not None:
+            gevent.subprocess.call(["git", "checkout", exp_id], cwd=app_path)
+        else:
+            gevent.subprocess.call(["git", "checkout", "master"], cwd=app_path)
+
         labels = {}
-        print('Discovering labels metadata...'+meta_file)
+        print('Discovering labels metadata...')
         # Exists metadata?
         if os.path.isfile(meta_file):
             try:
                 with open(meta_file) as f:
                     labels = json.load(f)
             except Exception as e:
+                self.lock = False
                 raise Exception("Invalid LABELS.meta for app '{0}': {1}.".format(app_id, e))
 
         print('Discovering additional labels...')
@@ -137,6 +150,13 @@ class Storage(object):
             file = os.path.join(app_path, file)
             if os.path.isfile(file):
                 self._getLabelsInFile(file, labels)
+
+        # Restore to master
+        if exp_id is not None:
+            gevent.subprocess.call(["git", "checkout", "master"], cwd=app_path)
+
+        self.lock = False
+        ########################
 
         return labels
 

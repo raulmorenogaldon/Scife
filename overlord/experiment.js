@@ -2,11 +2,16 @@ var zerorpc = require('zerorpc');
 var async = require('async');
 
 var utils = require('./utils.js');
+var logger = utils.logger;
 var apps = require('./application.js');
 var database = require('./database.js');
 var storage = require('./storage.js');
 var usermanager = require('./users.js');
 
+/**
+ * Module name
+ */
+var MODULE_NAME = "EP";
 
 /**
  * Get experiment data
@@ -255,7 +260,57 @@ var updateExperiment = function(exp_id, exp_cfg, updateCallback){
    });
 }
 
+/**
+ * Execute an operation over an experiment
+ */
+var maintainExperiment = function(exp_id, operation, maintainCallback){
+   // Check parameters
+   if(!exp_id) return maintainCallback(new Error("Experiment ID not set."));
+
+   // Do tasks
+   async.waterfall([
+      // Get experiment
+      function(wfcb){
+         getExperiment(exp_id, null, wfcb);
+      },
+      // Apply operation
+      function(exp, wfcb){
+         if(operation == 'discoverLabels'){
+            // Get labels list
+            storage.client.invoke('discoverLabels', exp.app_id, exp_id, function(error, labels){
+               if(error) return wfcb(error);
+
+               // Iterate current experiment labels
+               for(var label in exp.labels){
+                  // Set current value
+                  if(labels[label] && exp.labels[label].value){
+                     labels[label].value = exp.labels[label].value;
+                  }
+               }
+
+               // Update labels in DB
+               database.db.collection('experiments').update({id: exp_id}, {$set: {labels: labels}}, function(error){
+                  if(error) return wfcb(error);
+                  // Success updating labels
+                  return wfcb(null, exp);
+               });
+            });
+         } else {
+            return wfcb(new Error("Unknown operation: "+operation));
+         }
+      }
+   ],
+   function(error, exp){
+      if(error) return maintainCallback(error);
+
+      // Success
+      logger.debug('['+MODULE_NAME+']['+exp_id+'] Operation "'+operation+'" success.');
+      return maintainCallback(null);
+   });
+}
+
 exports.getExperiment = getExperiment;
 exports.searchExperiments = searchExperiments;
 exports.createExperiment = createExperiment;
 exports.updateExperiment = updateExperiment;
+exports.maintainExperiment = maintainExperiment;
