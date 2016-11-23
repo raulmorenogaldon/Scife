@@ -120,13 +120,24 @@ class Storage(object):
     def discoverLabels(self, app_id):
         # Get application path
         app_path = self.apppath + "/" + app_id
+        meta_file = app_path + '/LABELS.meta'
 
-        labels = []
-        print('Discovering parameters...')
+        labels = {}
+        print('Discovering labels metadata...'+meta_file)
+        # Exists metadata?
+        if os.path.isfile(meta_file):
+            try:
+                with open(meta_file) as f:
+                    labels = json.load(f)
+            except Exception as e:
+                raise Exception("Invalid LABELS.meta for app '{0}': {1}.".format(app_id, e))
+
+        print('Discovering additional labels...')
         for file in os.listdir(app_path):
             file = os.path.join(app_path, file)
             if os.path.isfile(file):
-                labels = list(set(labels + self._getLabelsInFile(file)))
+                self._getLabelsInFile(file, labels)
+
         return labels
 
     def copyExperiment(self, exp_id, app_id):
@@ -559,17 +570,24 @@ class Storage(object):
                     })
         return tree
 
-    def _getLabelsInFile(self, file):
+    def _getLabelsInFile(self, file, labels):
         print("Getting labels from file: {0}".format(file))
         # Load file
         f = open(file, 'r')
         filedata = f.read()
         f.close()
         # Find labels
-        labels = re.findall(r"\[\[\[(\w+)\]\]\]", filedata)
-        labels = list(set(labels))
-        print("Found: {0}".format(labels))
-        return labels
+        label_list = re.findall(r"\[\[\[(\w+)\]\]\]", filedata)
+        # Iterate labels
+        for l in label_list:
+            if l not in labels:
+                labels[l] = {
+                    "type": "TEXT",
+                    "category": None,
+                    "default_value": None
+                }
+        print("Found: {0}".format(label_list))
+        return
 
     def _replaceLabelsInFile(self, file, labels):
         print("Replacing labels in file: {0}".format(file))

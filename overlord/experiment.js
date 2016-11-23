@@ -165,10 +165,19 @@ var createExperiment = function(exp_cfg, createCallback){
             }
          });
       },
-      // Set default labels
+      // Setup labels
       function(wfcb){
-         if(!exp_cfg.labels && exp_cfg.app.labels_default){
-            exp_cfg.labels = exp_cfg.app.labels_default;
+         // Specified labels?
+         if(!exp_cfg.labels && exp_cfg.app.labels){
+            // Copy labels to experiment
+            exp_cfg.labels = exp_cfg.app.labels;
+            // Iterate labels and set current value
+            for(var label_key in exp_cfg.labels){
+               // Get default value and set if exists
+               if(exp_cfg.labels[label_key].default_value){
+                  exp_cfg.labels[label_key].value = exp_cfg.labels[label_key].default_value;
+               }
+            }
          }
          wfcb(null);
       },
@@ -202,15 +211,11 @@ var createExperiment = function(exp_cfg, createCallback){
             name: exp_cfg.name,
             owner: exp_cfg.owner,
             desc: ('desc' in exp_cfg) ? exp_cfg.desc : "Description...",
-            status: "created",
-            checkpoint: false,
             app_id: exp_cfg.app_id,
             input_tree: exp_cfg.input_tree,
             src_tree: exp_cfg.src_tree,
-            output_tree: [],
-            inst_id: null,
-            labels: ('labels' in exp_cfg) ? exp_cfg.labels : {},
-            exec_env: ('exec_env' in exp_cfg) ? exp_cfg.exec_env : {}
+            last_execution: null,
+            labels: ('labels' in exp_cfg) ? exp_cfg.labels : {}
          };
 
          // Add experiment to DB
@@ -243,7 +248,6 @@ var updateExperiment = function(exp_id, exp_cfg, updateCallback){
       if('name' in exp_cfg) new_exp.name = exp_cfg.name;
       if('desc' in exp_cfg) new_exp.desc = exp_cfg.desc;
       if('labels' in exp_cfg) new_exp.labels = exp_cfg.labels;
-      if('exec_env' in exp_cfg) new_exp.exec_env = exp_cfg.exec_env;
 
       // Update DB
       database.db.collection('experiments').updateOne({id: exp_id},{$set: new_exp});
