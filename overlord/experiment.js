@@ -90,10 +90,12 @@ var searchExperiments = function(fields, searchCallback){
    // Projection
    var projection = {
          _id: 0,
-         input_tree: 0,
-         src_tree: 0,
-         output_tree: 0,
-         logs: 0
+         id: 1,
+         name: 1,
+         desc: 1,
+         app_id: 1,
+         labels: 1,
+         last_execution: 1
    };
 
    // Retrieve experiment metadata

@@ -60,7 +60,20 @@ var searchApplications = function(name, searchCallback){
  * Get experiment metadata
  */
 var getExperiment = function(exp_id, fields, getCallback){
-   exps.getExperiment(exp_id, fields, getCallback);
+   exps.getExperiment(exp_id, fields, function(error, exp){
+      if(error) return getCallback(error);
+
+      // Add last execution status
+      if(exp.last_execution){
+         execmanager.getExecution(exp.last_execution, {status: 1}, function(error, exec){
+            // If error, just return experiment
+            if(!error) exp.last_execution_status = exec.status;
+            return getCallback(null, exp);
+         });
+      } else {
+         return getCallback(null, exp);
+      }
+   });
 }
 
 /**
@@ -182,7 +195,30 @@ var updateExperiment = function(exp_id, exp_cfg, updateCallback){
  * Search experiments
  */
 var searchExperiments = function(fields, searchCallback){
-   exps.searchExperiments(fields, searchCallback);
+   exps.searchExperiments(fields, function(error, exps){
+      if(error) return searchCallback(error);
+
+      // Add last execution status
+      var tasks = [];
+      for(var e = 0; e < exps.length; e++){
+         if(exps[e].last_execution){
+            (function(exp, i){
+               tasks.push(function(taskcb){
+                  execmanager.getExecution(exp.last_execution, {status: 1}, function(error, exec){
+                     // If error, just return experiment
+                     if(!error) exps[i].last_execution_status = exec.status;
+                     return taskcb(null);
+                  });
+               });
+            })(exps[e],e);
+         }
+      }
+
+      // Execute tasks
+      async.parallel(tasks, function(error){
+         return searchCallback(error, exps);
+      });
+   });
 }
 
 /**
@@ -245,7 +281,7 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launch_opts, l
             if(error) return wfcb(error);
             logger.debug('['+MODULE_NAME+']['+exp_id+'] Launch: Initialized execution data '+exec.id);
             // Update status
-            database.db.collection('experiments').updateOne({id: exp_id},{$set:{last_execution:exec.id, status:"launched"}});
+            database.db.collection('experiments').updateOne({id: exp_id},{$set:{last_execution:exec.id}});
             database.db.collection('executions').updateOne({id: exec.id},{$set:{status:"launched"}});
             _exec = exec;
             wfcb(null);
@@ -482,7 +518,7 @@ var destroyExecution = function(task, exec_id, cb){
       function(exec, wfcb){
          getExperiment(exec.exp_id, null, function(error, exp){
             if(exp.last_execution == exec.id){
-               database.db.collection('experiments').updateOne({id: exp.id},{$set: {last_execution: null, status:"created"}});
+               database.db.collection('experiments').updateOne({id: exp.id},{$set: {last_execution: null}});
             }
             wfcb(null);
          });
@@ -697,15 +733,6 @@ taskmanager.setTaskHandler("retrieveExecutionOutput", function(task){
 
       // Set execution to done status
       database.db.collection('executions').updateOne({id: exec_id},{$set:{status: "done"}});
-
-      // Update experiment status if it is the last launched experiment
-      execmanager.getExecution(exec_id, null, function(error, exec){
-         getExperiment(exec.exp_id, null, function(error, exp){
-            if(exec_id = exp.last_execution){
-               database.db.collection('experiments').updateOne({id: exp.id},{$set:{status:"done"}});
-            }
-         });
-      })
    });
 });
 
@@ -1603,11 +1630,6 @@ var _pollExecution = function(exec_id, force, pollCallback){
          _polling[exec_id] = false;
          if(error) return pollCallback(error);
          logger.debug('['+MODULE_NAME+']['+exec_id+'] Poll: Done - ' + exec.status);
-
-         // Update experiment status if it is the last launched experiment
-         if(exec.id = exec.exp.last_execution && exec.status != "aborting"){
-            database.db.collection('experiments').updateOne({id: exec.exp_id},{$set:{status:exec.status}});
-         }
          pollCallback(null, exec.status);
       });
    } else {
