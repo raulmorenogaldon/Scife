@@ -35,6 +35,7 @@
       },
       'last_execution': "f745c536-d55a-11e5-90c8-5254003eece4",
       'last_execution_status': "done",
+      'times_executed': 2,
       'labels': {
          'LABEL': "cmd",
          'PATH': "$PATH",
@@ -63,6 +64,7 @@
       'id': "f745c536-d55a-11e5-90c8-5254003eece4",
       'parent_id': "f745c536-d55a-11e5-90c8-5254003eece4",
       'exp_id': "f745c536-d55a-11e5-90c8-5254003eece4",
+      'name': "Exp name #2",
       'create_date': "XX/XX/XX 00:00",
       'launch_date': "XX/XX/XX 00:00",
       'finish_date': "XX/XX/XX 00:00",

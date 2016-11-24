@@ -277,11 +277,13 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launch_opts, l
       },
       // Create execution
       function(wfcb){
-         execmanager.createExecution(exp_id, null, launch_opts, _exp.labels, function(error, exec){
+         if(!_exp.times_executed) _exp.times_executed = 0;
+         _exp.times_executed += 1;
+         execmanager.createExecution(exp_id, _exp.name+" #"+_exp.times_executed, null, launch_opts, _exp.labels, function(error, exec){
             if(error) return wfcb(error);
             logger.debug('['+MODULE_NAME+']['+exp_id+'] Launch: Initialized execution data '+exec.id);
             // Update status
-            database.db.collection('experiments').updateOne({id: exp_id},{$set:{last_execution:exec.id}});
+            database.db.collection('experiments').updateOne({id: exp_id},{$set:{last_execution:exec.id, times_executed: _exp.times_executed}});
             database.db.collection('executions').updateOne({id: exec.id},{$set:{status:"launched"}});
             _exec = exec;
             wfcb(null);

@@ -222,6 +222,7 @@ var createExperiment = function(exp_cfg, createCallback){
             input_tree: exp_cfg.input_tree,
             src_tree: exp_cfg.src_tree,
             last_execution: null,
+            times_executed: 0,
             labels: ('labels' in exp_cfg) ? exp_cfg.labels : {}
          };
 
