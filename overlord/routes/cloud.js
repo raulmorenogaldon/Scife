@@ -856,7 +856,8 @@ router.get('/executions/:exec_id', function (req, res, next) {
    var exec = {
       'id': req.exec.id,
       'parent_id': req.exec.parent_id,
-      'exp_name': req.exec.exp_name,
+      'exp_id': req.exec.exp_id,
+      'name': req.exec.name,
       'status': req.exec.status,
       'create_date': req.exec.create_date,
       'launch_date': req.exec.launch_date,
