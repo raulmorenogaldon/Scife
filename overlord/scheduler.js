@@ -1812,7 +1812,7 @@ var _cleanStorage = function(){
       for(var i = 0; i < ids.length; i++){
          (function(exec_id){
             execmanager.getExecution(exec_id, null, function(error, exec){
-               if(error){
+               if(error || exec.status == "deleted"){
                   // This folder should not exists
                   storage.client.invoke('deleteExecutionOutput', exec_id, null, function(error){
                      if(error) return logger.error('['+MODULE_NAME+'] CleanStorage: Failed to clean execution "'+exec_id+'" output folder: '+error);
@@ -1849,6 +1849,56 @@ var _cleanStorage = function(){
       }
    });
 }
+
+/**
+ * Clean orphan executions in DB
+ */
+var _cleanExecutions = function(cb){
+   // Do not search deleted executions
+   var query = {
+      status: {
+         "$ne": "deleted"
+      }
+   };
+
+   // Return only IDs and status
+   var projection = {
+      id: 1,
+      exp_id: 1,
+      status: 1
+   }
+
+   // Get executions
+   database.db.collection('executions').find(query, projection).toArray(function(error, execs){
+      // No matches
+      if(error || !execs) return cb(error);
+
+      // Iterate executions
+      var tasks = [];
+      for(var e = 0; e < execs.length; e++){
+         // Destroy this execution
+         (function(exec){
+            tasks.push(function(taskcb){
+               // Get experiment
+               getExperiment(exec.exp_id, null, function(error, exp){
+                  if(error && exec.status != "deleted"){
+                     // Experiment does not exists
+                     // Status must be "deleted"
+                     logger.debug('['+MODULE_NAME+']['+exec.id+'] CleanExecutions: Execution "'+exec.id+'" status is not "deleted", fixing...');
+                     database.db.collection('executions').updateOne({id: exec.id},{$set:{status:"deleted"}});
+                  }
+               });
+            });
+         })(execs[e]);
+      }
+
+      // Execute tasks
+      async.parallel(tasks, function(error){
+         return cb(error);
+      });
+   });
+}
+
 
 /**
  * Poll executions
@@ -1974,6 +2024,11 @@ async.waterfall([
    function(wfcb){
       logger.info('['+MODULE_NAME+'] Initializing instance...');
       instmanager.init(constants, wfcb);
+   },
+   // Init execution manager
+   function(wfcb){
+      logger.info('['+MODULE_NAME+'] Cleaning orphan executions...');
+      _cleanExecutions(wfcb);
    }
 ],
 function(error){
