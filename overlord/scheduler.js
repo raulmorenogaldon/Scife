@@ -1911,6 +1911,7 @@ var _cleanExecutions = function(cb){
                      logger.debug('['+MODULE_NAME+']['+exec.id+'] CleanExecutions: Execution "'+exec.id+'" status is not "deleted", fixing...');
                      database.db.collection('executions').updateOne({id: exec.id},{$set:{status:"deleted"}});
                   }
+                  return taskcb(null);
                });
             });
          })(execs[e]);

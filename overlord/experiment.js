@@ -163,13 +163,9 @@ var createExperiment = function(exp_cfg, createCallback){
       function(wfcb){
          // Create UUID
          exp_cfg.id = utils.generateUUID();
-
          storage.client.invoke('copyExperiment', exp_cfg.id, exp_cfg.app_id, function (error) {
-            if(error){
-               wfcb(error);
-            } else {
-               wfcb(null);
-            }
+            if(error) return wfcb(error);
+            return wfcb(null);
          });
       },
       // Setup labels

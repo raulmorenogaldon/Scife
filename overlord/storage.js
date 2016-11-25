@@ -4,7 +4,7 @@ var logger = require('./utils.js').logger;
 /**
  * Module name
  */
-var MODULE_NAME = "SG";
+var MODULE_NAME = "ST";
 var constants = {};
 
 /**
@@ -24,7 +24,7 @@ var init = function(cfg, initCallback){
 
    // Handle error in connect step
    client.on("error", function(error){
-      console.error("["+MODULE_NAME+"] Failed to connect to storage RPC, error: ", error);
+      logger.error('['+MODULE_NAME+'] Failed to connect to storage RPC, error: ', error);
    })
 
    logger.info('['+MODULE_NAME+'] Connecting to storage RPC in: ' + constants.STORAGE_URL);
