@@ -201,6 +201,13 @@ var discoverLabels = function(app_id, exp_id, cb){
                   } catch (e) {
                      return wfcb(e);
                   }
+
+                  // Convert defaults into arrays
+                  for(var label in labels){
+                     if(labels[label].default_value instanceof Array){
+                        labels[label].default_value = labels[label].default_value.join('\n');
+                     }
+                  }
                   return wfcb(null, labels);
                });
             }
