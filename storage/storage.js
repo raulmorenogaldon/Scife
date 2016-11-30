@@ -590,7 +590,7 @@ var putExperimentInput = function(exp_id, app_id, fpath, src_path, cb){
  */
 var deleteExperimentCode = function(exp_id, app_id, fpath, cb){
    // Check absolute paths
-   if(path.isAbsolute(fpath)) return cb(new Error('Absolute paths are not supported: '+fpath));
+   if(fpath && path.isAbsolute(fpath)) return cb(new Error('Absolute paths are not supported: '+fpath));
 
    // Wait for the lock
    if(_app_lock[app_id]){
@@ -660,7 +660,7 @@ var deleteExperimentCode = function(exp_id, app_id, fpath, cb){
  */
 var deleteExperimentInput = function(exp_id, app_id, fpath, cb){
    // Check absolute paths
-   if(path.isAbsolute(fpath)) return cb(new Error('Absolute paths are not supported: '+fpath));
+   if(fpath && path.isAbsolute(fpath)) return cb(new Error('Absolute paths are not supported: '+fpath));
 
    // Wait for the lock
    if(_app_lock[exp_id]){
@@ -730,7 +730,7 @@ var getExecutionOutputFile = function(exp_id, fpath, cb){
  */
 var deleteExecutionOutput = function(exec_id, fpath, cb){
    // Check absolute paths
-   if(path.isAbsolute(fpath)) return cb(new Error('Absolute paths are not supported: '+fpath));
+   if(fpath && path.isAbsolute(fpath)) return cb(new Error('Absolute paths are not supported: '+fpath));
 
    // Wait for the lock
    if(_app_lock[exec_id]){
