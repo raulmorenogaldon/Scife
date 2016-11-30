@@ -18,7 +18,7 @@ var MODULE_NAME = "EX";
 /**
  * Module vars
  */
-var cfg = process.argv[2];
+var constants = null;
 
 var createExecution = function(exp_id, name, parent_id, launch_opts, labels, cb){
    // Connected to DB?
@@ -41,6 +41,7 @@ var createExecution = function(exp_id, name, parent_id, launch_opts, labels, cb)
       create_date: curr_date.toString(),
       launch_date: null,
       finish_date: null,
+      create_date_epoch: curr_date.valueOf().toString(),
       launch_opts: launch_opts,
       status: "created",
       labels: labels,
@@ -193,8 +194,8 @@ var searchExecutions = function(fields, cb){
    };
 
    // Retrieve experiment metadata
-   database.db.collection('executions').find(query, projection).sort({create_date: -1}).toArray(function(error, execs){
-      if(error) return cb(new Error("Query for executions failed"));
+   database.db.collection('executions').find(query, projection).sort({create_date:-1}).toArray(function(error, execs){
+      if(error) return cb(new Error("Query for executions failed: "+error));
       cb(null, execs);
    });
 }
@@ -243,6 +244,26 @@ var reloadExecutionOutputTree = function(exec_id, cb){
       cb(error);
    });
 }
+
+/**
+ * Initialize module
+ */
+var init = function(cfg, cb){
+   // Set constants
+   constants = cfg;
+
+   // Create DB indices
+   database.db.collection('executions').dropIndexes();
+   database.db.collection('executions').ensureIndex({id:-1});
+   database.db.collection('executions').ensureIndex({create_date_epoch:-1});
+   database.db.collection('executions').ensureIndex({exp_id:-1});
+   database.db.collection('executions').ensureIndex({status:-1});
+
+   // Return
+   cb(null);
+}
+
+module.exports.init = init;
 
 exports.createExecution = createExecution;
 exports.getExecution = getExecution;

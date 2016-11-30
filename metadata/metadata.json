@@ -68,6 +68,7 @@
       'create_date': "XX/XX/XX 00:00",
       'launch_date': "XX/XX/XX 00:00",
       'finish_date': "XX/XX/XX 00:00",
+      'create_date_epoch': 577398892,
       'checkpoint_last_date': null | 7432871,
       'launch_opts': {
          'debug': false,

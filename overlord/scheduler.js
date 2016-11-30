@@ -2068,7 +2068,10 @@ async.waterfall([
    // Init execution manager
    function(wfcb){
       logger.info('['+MODULE_NAME+'] Cleaning orphan executions...');
-      _cleanExecutions(wfcb);
+      execmanager.init(constants, function(error){
+         if(error) return wfcb(error);
+         _cleanExecutions(wfcb);
+      });
    }
 ],
 function(error){
