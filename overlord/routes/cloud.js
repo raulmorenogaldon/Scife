@@ -37,8 +37,7 @@ router.use('/', function(req, res, next){
       // Get token
       var token = req.headers['x-access-token'];
 
-      // Verify token
-      jwt.verify(token, app.get('constants').SECRET, function(error, token_decoded) {
+      // Verify token jwt.verify(token, app.get('constants').SECRET, function(error, token_decoded) {
          if(error){
             // Token is not valid
             utils.logger.debug('['+MODULE_NAME+'] Invalid token');
@@ -805,7 +804,7 @@ router.get('/executions', function (req, res, next) {
 
    // Set queries
    if(req.query.exp) fields.exp_id = req.query.exp;
-   if(req.query.deleted != 1) fields.status = {'$ne': "deleted"};
+   if(req.query.deleted != 1) fields.status = {'$nin': ["deleted", "deleting"]};
 
    // Search
    execmanager.searchExecutions(fields, function (error, result) {
@@ -876,7 +875,7 @@ router.get('/executions/:exec_id', function (req, res, next) {
  */
 router.delete('/executions/:exec_id', function (req, res, next) {
    // Remove execution
-   scheduler.abortExecution(req.exec.id, function(error){
+   scheduler.destroyExecution(req.exec.id, function(error){
       if(error) return next(error);
       return res.json(null);
    });

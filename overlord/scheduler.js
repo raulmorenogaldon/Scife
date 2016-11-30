@@ -471,26 +471,17 @@ var abortExecution = function(exec_id, cb){
             logger.error('['+MODULE_NAME+']['+exec_id+'] AbortExec: Failed to abort queue.');
             return cb(error);
          }
-
-         // Add destroy task
-         var task = {
-            type: "destroyExecution",
-            exec_id: exec_id
-         };
-         taskmanager.pushTask(task, exec_id);
-
+         // Set execution status
+         database.db.collection('executions').updateOne({id: exec_id},{$set:{status: "aborted"}});
          return cb(null);
       });
-
    });
-
 }
 
 /**
  * Destroy experiment execution
  */
-var destroyExecution = function(task, exec_id, cb){
-   database.db.collection('executions').updateOne({id: exec_id},{$set:{status: "aborting"}});
+var destroyExecution = function(exec_id, cb){
    async.waterfall([
       // Get execution
       function(wfcb){
@@ -499,15 +490,35 @@ var destroyExecution = function(task, exec_id, cb){
             wfcb(null, exec);
          });
       },
-      // Abort previous job
+      // Abort execution first
       function(exec, wfcb){
-         if(task && task.job_id){
-            instmanager.abortJob(task.job_id, exec.inst.id, function(error){
-               wfcb(error, exec);
-            });
-         } else {
+         abortExecution(exec.id, function(error){
+            return wfcb(error, exec);
+         });
+      }
+   ],
+   function(error){
+      // Add destroy task
+      var task = {
+         type: "destroyExecution",
+         exec_id: exec_id
+      };
+      taskmanager.pushTask(task, exec_id);
+      return cb(null);
+   });
+}
+
+/**
+ * Destroy experiment execution task handler
+ */
+var _destroyExecution = function(task, exec_id, cb){
+   async.waterfall([
+      // Get execution
+      function(wfcb){
+         execmanager.getExecution(exec_id, null, function(error, exec){
+            if(error) return wfcb(error);
             wfcb(null, exec);
-         }
+         });
       },
       // Destroy execution
       function(exec, wfcb){
@@ -747,7 +758,7 @@ taskmanager.setTaskHandler("destroyExecution", function(task){
    var exec_id = task.exec_id;
 
    // Retrieve execution output data to storage
-   destroyExecution(task, exec_id, function(error){
+   _destroyExecution(task, exec_id, function(error){
       if(error){
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
