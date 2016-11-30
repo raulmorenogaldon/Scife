@@ -863,12 +863,6 @@ var _prepareExecution = function(task, exec_id, prepareCallback){
       // Update labels for this instance
       function(wfcb){
          logger.debug('['+MODULE_NAME+']['+exec_id+'] Prepare: Preparing labels...');
-         // Get application labels and join with experiment ones
-         for(var i in _cfg.app.labels){
-            if(!_cfg.exp.labels[_cfg.app.labels[i]]){
-               _cfg.exp.labels[_cfg.app.labels[i]] = "";
-            }
-         }
 
          // Numeric vars
          var nodes = _cfg.inst.nodes + '';
@@ -877,17 +871,17 @@ var _prepareExecution = function(task, exec_id, prepareCallback){
          totalcpus = totalcpus + '';
 
          // Set instance labels
-         _cfg.exp.labels['#EXPERIMENT_ID'] = _cfg.exp.id;
-         _cfg.exp.labels['#EXPERIMENT_NAME'] = _cfg.exp.name.replace(/ /g, "_");
-         _cfg.exp.labels['#APPLICATION_ID'] = _cfg.app.id;
-         _cfg.exp.labels['#APPLICATION_NAME'] = _cfg.exp.name.replace(/ /g, "_");
-         _cfg.exp.labels['#INPUTPATH'] = _cfg.inst.image.inputpath + "/" + _cfg.exec.id;
-         _cfg.exp.labels['#OUTPUTPATH'] = _cfg.inst.image.outputpath + "/" + _cfg.exec.id;
-         _cfg.exp.labels['#LIBPATH'] = _cfg.inst.image.libpath;
-         _cfg.exp.labels['#TMPPATH'] = _cfg.inst.image.tmppath;
-         _cfg.exp.labels['#CPUS'] = cpus;
-         _cfg.exp.labels['#NODES'] = nodes;
-         _cfg.exp.labels['#TOTALCPUS'] = totalcpus;
+         _cfg.exp.labels['#EXPERIMENT_ID'] = {value: _cfg.exp.id};
+         _cfg.exp.labels['#EXPERIMENT_NAME'] = {value: _cfg.exp.name.replace(/ /g, "_")};
+         _cfg.exp.labels['#APPLICATION_ID'] = {value: _cfg.app.id};
+         _cfg.exp.labels['#APPLICATION_NAME'] = {value: _cfg.exp.name.replace(/ /g, "_")};
+         _cfg.exp.labels['#INPUTPATH'] = {value: _cfg.inst.image.inputpath + "/" + _cfg.exec.id};
+         _cfg.exp.labels['#OUTPUTPATH'] = {value: _cfg.inst.image.outputpath + "/" + _cfg.exec.id};
+         _cfg.exp.labels['#LIBPATH'] = {value: _cfg.inst.image.libpath};
+         _cfg.exp.labels['#TMPPATH'] = {value: _cfg.inst.image.tmppath};
+         _cfg.exp.labels['#CPUS'] = {value: cpus};
+         _cfg.exp.labels['#NODES'] = {value: nodes};
+         _cfg.exp.labels['#TOTALCPUS'] = {value: totalcpus};
 
          // Apply labels
          logger.debug('['+MODULE_NAME+']['+exec_id+'] Prepare: Storage call.');

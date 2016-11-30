@@ -996,7 +996,17 @@ var _applyExperimentLabels = function(app_id, exp_id, exec_id, labels, cb){
                // Replace this file
                (function(file){
                   tasks.push(function(taskcb){
-                     _replaceLabelsInFile(app_path+path.sep+file, labels, taskcb);
+                     // Get full path
+                     var full_path = path.join(app_path, file);
+                     try{
+                        // Check if it is a file
+                        var stat = fs.statSync(full_path);
+                        if(stat.isFile()) return _replaceLabelsInFile(app_path+path.sep+file, labels, taskcb);
+                        else return taskcb(null);
+                     } catch(error) {
+                        // End
+                        taskcb(null);
+                     }
                   });
                })(files[f]);
             }
@@ -1026,8 +1036,12 @@ var _replaceLabelsInFile = function(file, labels, cb){
 
       // Iterate labels
       for(var label in labels){
-         //var re = new RegExp('\\[\\[\\['+label+'\\]\\]\\]', 'g');
-         fcontent = fcontent.replace('[[['+label+']]]', labels[label].value);
+         if(!labels[label].value) labels[label].value = "";
+         logger.debug('['+MODULE_NAME+'] Replacing label "'+label+'" => '+labels[label].value);
+         // Avoid special characters
+         re_label = label.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, "\\$1");
+         // Replace label in file
+         fcontent = fcontent.replace(new RegExp('\\[\\[\\['+re_label+'\\]\\]\\]', 'g'), labels[label].value);
       }
 
       // Write file
