@@ -279,6 +279,16 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launch_opts, l
       function(wfcb){
          if(!_exp.times_executed) _exp.times_executed = 0;
          _exp.times_executed += 1;
+         launch_opts.nodes = nodes;
+         launch_opts.image = {
+            name: _image.name,
+            minion: _image.minion
+         };
+         launch_opts.size = {
+            name: _size.name,
+            cpus: _size.cpus,
+            ram: _size.ram
+         };
          execmanager.createExecution(exp_id, _exp.name+" #"+_exp.times_executed, null, launch_opts, _exp.labels, function(error, exec){
             if(error) return wfcb(error);
             logger.debug('['+MODULE_NAME+']['+exp_id+'] Launch: Initialized execution data '+exec.id);
