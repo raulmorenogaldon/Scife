@@ -37,7 +37,8 @@ router.use('/', function(req, res, next){
       // Get token
       var token = req.headers['x-access-token'];
 
-      // Verify token jwt.verify(token, app.get('constants').SECRET, function(error, token_decoded) {
+      // Verify token
+      jwt.verify(token, app.get('constants').SECRET, function(error, token_decoded) {
          if(error){
             // Token is not valid
             utils.logger.debug('['+MODULE_NAME+'] Invalid token');
@@ -531,7 +532,7 @@ router.get('/experiments/:exp_id/code', function (req, res, next) {
       if (error) {
          return next({
             'http': codes.HTTPCODE.BAD_REQUEST,
-            'errors': [codes.ERRCODE.EXP_CODE_FILE_NOT_FOUND]
+            'errors': [error.message]
          });
       } else {
          res.set('Content-Type', 'text/plain');

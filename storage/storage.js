@@ -46,7 +46,7 @@ var copyApplication = function(app_id, src_path, cb){
    _app_lock[app_id] = true;
 
    // Get destination path
-   var dst_path = constants.appstorage+'/'+app_id;
+   var dst_path = constants.appstorage+path.sep+app_id;
 
    async.waterfall([
       // Check source path exists
@@ -70,7 +70,7 @@ var copyApplication = function(app_id, src_path, cb){
       },
       // Create input data folder
       function(wfcb){
-         fs.mkdir(constants.inputstorage+'/'+app_id, function(error){
+         fs.mkdir(constants.inputstorage+path.sep+app_id, function(error){
             return wfcb(error);
          });
       },
@@ -104,9 +104,9 @@ var copyExperiment = function(exp_id, app_id, cb){
    _app_lock[app_id] = true;
 
    // Get paths
-   var repo_path = constants.appstorage+'/'+app_id+'/';
-   var app_input = constants.inputstorage+'/'+app_id+'/';
-   var exp_input = constants.inputstorage+'/'+exp_id+'/';
+   var repo_path = constants.appstorage+path.sep+app_id+path.sep;
+   var app_input = constants.inputstorage+path.sep+app_id+path.sep;
+   var exp_input = constants.inputstorage+path.sep+exp_id+path.sep;
 
    async.waterfall([
       // Check paths existence
@@ -167,8 +167,8 @@ var discoverLabels = function(app_id, exp_id, cb){
    _app_lock[app_id] = true;
 
    // Get paths
-   var app_path = constants.appstorage+'/'+app_id;
-   var meta_file = app_path + '/LABELS.meta';
+   var app_path = constants.appstorage+path.sep+app_id;
+   var meta_file = app_path+path.sep+'LABELS.meta';
 
    var id = exp_id ? exp_id : app_id;
 
@@ -221,7 +221,7 @@ var discoverLabels = function(app_id, exp_id, cb){
          files = files.filter(item => !(/(^|\/)\.[^\/\.]/g).test(item));
          // Iterate
          for(var f in files){
-            var full_path = app_path + '/' + files[f];
+            var full_path = app_path + path.sep + files[f];
             if(fs.statSync(full_path).isFile()){
                // Get labels in this file
                _getLabelsInFileSync(full_path, labels);
@@ -259,7 +259,7 @@ var retrieveExperimentOutput = function(exp_id, src_path, cb){
    _app_lock[exp_id] = true;
 
    // Get experiment output storage path
-   var dst_path = constants.outputstorage+'/'+exp_id+'/';
+   var dst_path = constants.outputstorage+path.sep+exp_id+path.sep;
 
    async.waterfall([
       // Check paths existence
@@ -299,7 +299,7 @@ var prepareExecution = function(app_id, exp_id, exec_id, labels, cb){
    _app_lock[app_id] = true;
 
    // Get application storage path
-   var app_path = constants.appstorage+'/'+app_id+'/';
+   var app_path = constants.appstorage+path.sep+app_id+path.sep;
 
    async.waterfall([
       // Check paths existence
@@ -335,7 +335,7 @@ var prepareExecution = function(app_id, exp_id, exec_id, labels, cb){
       // Create output data folder
       function(wfcb){
          logger.info('['+MODULE_NAME+']['+exec_id+'] Creating output folder...');
-         fs.mkdir(constants.outputstorage+'/'+exec_id, function(error){
+         fs.mkdir(constants.outputstorage+path.sep+exec_id, function(error){
             if(error && error.code === 'EEXIST') return wfcb(null);
             return wfcb(error);
          });
@@ -363,8 +363,8 @@ var removeExperiment = function(app_id, exp_id, cb){
    _app_lock[app_id] = true;
 
    // Get application storage path
-   var app_path = constants.appstorage+'/'+app_id+'/';
-   var input_path = constants.inputstorage+'/'+exp_id+'/';
+   var app_path = constants.appstorage+path.sep+app_id+path.sep;
+   var input_path = constants.inputstorage+path.sep+exp_id+path.sep;
 
    async.waterfall([
       // Remove input path
@@ -425,8 +425,11 @@ var getExperimentCode = function(exp_id, app_id, fpath, cb){
    // Check fpath not null
    if(!fpath) return cb(new Error('File path cannot be null'));
 
+   // Check absolute paths
+   if(path.isAbsolute(fpath)) return cb(new Error('Absolute paths are not supported: '+fpath));
+
    // Get application storage path
-   var app_path = constants.appstorage+'/'+app_id+'/';
+   var app_path = constants.appstorage+path.sep+app_id+path.sep;
 
    // Get file contents
    exec('git show '+exp_id+':'+fpath,{
@@ -445,10 +448,7 @@ var putExperimentCode = function(exp_id, app_id, fpath, fcontent, cb){
    if(!fpath) return cb(new Error('File path cannot be null'));
 
    // Check absolute paths
-   if(path.resolve(fpath) === path.normalize(fpath)){
-      // Absolute!
-      return cb(new Error('Update is not supported for absolute paths: '+fpath));
-   }
+   if(path.isAbsolute(fpath)) return cb(new Error('Absolute paths are not supported: '+fpath));
 
    // Wait for the lock
    if(_app_lock[app_id]){
@@ -458,7 +458,7 @@ var putExperimentCode = function(exp_id, app_id, fpath, fcontent, cb){
    _app_lock[app_id] = true;
 
    // Get application storage path
-   var app_path = constants.appstorage+'/'+app_id+'/';
+   var app_path = constants.appstorage+path.sep+app_id;
 
    async.waterfall([
       // Check path existence
@@ -477,25 +477,29 @@ var putExperimentCode = function(exp_id, app_id, fpath, fcontent, cb){
       },
       // Create path
       function(wfcb){
-         exec('mkdir -p '+path.dirname(fpath),{
+         var dir_path = fpath;
+         if(fcontent) dir_path = path.dirname(fpath);
+         exec('mkdir -p '+dir_path,{
             cwd: app_path
          }, function(error, stdout, stderr){
-            return wfcb(error);
-         });
-      },
-      // Add gitkeep
-      function(wfcb){
-         var gitkeep = path.dirname(fpath)+'/.gitkeep';
-         exec('touch '+gitkeep+' && git add '+gitkeep,{
-            cwd: app_path
-         }, function(error, stdout, stderr){
-            return wfcb(error);
+            if(error) return wfcb(error);
+            // Add .gitkeep if folder creation
+            if(!fcontent){
+               var gitkeep = dir_path+path.sep+'.gitkeep';
+               exec('touch '+gitkeep+' && git add '+gitkeep,{
+                  cwd: app_path
+               }, function(error, stdout, stderr){
+                  return wfcb(error);
+               });
+            } else {
+               return wfcb(null);
+            }
          });
       },
       // Write file
       function(wfcb){
          if(fcontent){
-            fs.writeFile(fpath, fcontent, 'utf8', wfcb);
+            fs.writeFile(app_path+path.sep+fpath, fcontent, 'utf8', wfcb);
          } else {
             return wfcb(null);
          }
@@ -535,10 +539,7 @@ var putExperimentInput = function(exp_id, app_id, fpath, src_path, cb){
    if(!fpath) return cb(new Error('File path cannot be null'));
 
    // Check absolute paths
-   if(path.resolve(fpath) === path.normalize(fpath)){
-      // Absolute!
-      return cb(new Error('Update is not supported for absolute paths: '+fpath));
-   }
+   if(path.isAbsolute(fpath)) return cb(new Error('Absolute paths are not supported: '+fpath));
 
    // Wait for the lock
    if(_app_lock[exp_id]){
@@ -548,7 +549,7 @@ var putExperimentInput = function(exp_id, app_id, fpath, src_path, cb){
    _app_lock[exp_id] = true;
 
    // Get experiment input storage path
-   var exp_path = constants.inputstorage+'/'+exp_id+'/';
+   var exp_path = constants.inputstorage+path.sep+exp_id+path.sep;
 
    async.waterfall([
       // Check path existence
@@ -589,10 +590,7 @@ var putExperimentInput = function(exp_id, app_id, fpath, src_path, cb){
  */
 var deleteExperimentCode = function(exp_id, app_id, fpath, cb){
    // Check absolute paths
-   if(path.resolve(fpath) === path.normalize(fpath)){
-      // Absolute!
-      return cb(new Error('Delete is not supported for absolute paths: '+fpath));
-   }
+   if(path.isAbsolute(fpath)) return cb(new Error('Absolute paths are not supported: '+fpath));
 
    // Wait for the lock
    if(_app_lock[app_id]){
@@ -602,7 +600,7 @@ var deleteExperimentCode = function(exp_id, app_id, fpath, cb){
    _app_lock[app_id] = true;
 
    // Get application storage path
-   var app_path = constants.appstorage+'/'+app_id+'/';
+   var app_path = constants.appstorage+path.sep+app_id+path.sep;
 
    async.waterfall([
       // Check path existence
@@ -662,10 +660,7 @@ var deleteExperimentCode = function(exp_id, app_id, fpath, cb){
  */
 var deleteExperimentInput = function(exp_id, app_id, fpath, cb){
    // Check absolute paths
-   if(fpath && path.resolve(fpath) === path.normalize(fpath)){
-      // Absolute!
-      return cb(new Error('Delete is not supported for absolute paths: '+fpath));
-   }
+   if(path.isAbsolute(fpath)) return cb(new Error('Absolute paths are not supported: '+fpath));
 
    // Wait for the lock
    if(_app_lock[exp_id]){
@@ -675,7 +670,7 @@ var deleteExperimentInput = function(exp_id, app_id, fpath, cb){
    _app_lock[exp_id] = true;
 
    // Get experiment input storage path
-   var exp_path = constants.inputstorage+'/'+exp_id+'/';
+   var exp_path = constants.inputstorage+path.sep+exp_id+path.sep;
 
    async.waterfall([
       // Check path existence
@@ -718,13 +713,10 @@ var getExecutionOutputFile = function(exp_id, fpath, cb){
    if(!fpath) fpath = 'output.tar.gz';
 
    // Check absolute paths
-   if(path.resolve(fpath) === path.normalize(fpath)){
-      // Absolute!
-      return cb(new Error('Update is not supported for absolute paths: '+fpath));
-   }
+   if(path.isAbsolute(fpath)) return cb(new Error('Absolute paths are not supported: '+fpath));
 
    // Get experiment input storage path
-   var exp_path = constants.outputstorage+'/'+exp_id+'/'+fpath;
+   var exp_path = constants.outputstorage+path.sep+exp_id+path.sep+fpath;
 
    // Check file
    fs.stat(exp_path, function(error, stats){
@@ -738,10 +730,7 @@ var getExecutionOutputFile = function(exp_id, fpath, cb){
  */
 var deleteExecutionOutput = function(exec_id, fpath, cb){
    // Check absolute paths
-   if(fpath && path.resolve(fpath) === path.normalize(fpath)){
-      // Absolute!
-      return cb(new Error('Delete is not supported for absolute paths: '+fpath));
-   }
+   if(path.isAbsolute(fpath)) return cb(new Error('Absolute paths are not supported: '+fpath));
 
    // Wait for the lock
    if(_app_lock[exec_id]){
@@ -751,7 +740,7 @@ var deleteExecutionOutput = function(exec_id, fpath, cb){
    _app_lock[exec_id] = true;
 
    // Get experiment output storage path
-   var exec_path = constants.outputstorage+'/'+exec_id;
+   var exec_path = constants.outputstorage+path.sep+exec_id;
 
    async.waterfall([
       // Remove fpath
@@ -793,7 +782,7 @@ var getOutputFolderUsage = function(id, cb){
    _app_lock[id] = true;
 
    // Get experiment input storage path
-   var id_path = constants.outputstorage+'/'+id;
+   var id_path = constants.outputstorage+path.sep+id;
 
    // Get folder size
    du(id_path, function(error, size){
@@ -822,7 +811,7 @@ var getOutputIDs = function(cb){
  */
 var getOutputFolderTree = function(id, cb){
    // Get path
-   var id_path = constants.outputstorage+'/'+id;
+   var id_path = constants.outputstorage+path.sep+id;
 
    // Check path existence
    fs.access(id_path, function(error){
@@ -836,7 +825,7 @@ var getOutputFolderTree = function(id, cb){
  */
 var getInputFolderTree = function(id, cb){
    // Get path
-   var id_path = constants.inputstorage+'/'+id;
+   var id_path = constants.inputstorage+path.sep+id;
 
    // Check path existence
    fs.access(id_path, function(error){
@@ -857,7 +846,7 @@ var getExperimentSrcFolderTree = function(exp_id, app_id, cb){
    _app_lock[app_id] = true;
 
    // Get experiment input storage path
-   var app_path = constants.appstorage+'/'+app_id;
+   var app_path = constants.appstorage+path.sep+app_id;
 
    async.waterfall([
       // Check path existence
@@ -915,7 +904,7 @@ var getModuleName = function(cb){
  */
 var _fillFolderTreeSync = function(root, rel_path){
    // Get current dir
-   var dir = root+'/'+rel_path;
+   var dir = path.normalize(path.join(root, rel_path));
 
    // Output
    var tree = [];
@@ -929,8 +918,8 @@ var _fillFolderTreeSync = function(root, rel_path){
    // Iterate
    for(var f in files){
       var file = files[f];
-      var full_filepath = dir+'/'+file;
-      var rel_filepath = rel_path+'/'+file;
+      var full_filepath = path.join(dir, file);
+      var rel_filepath = path.join(rel_path, file);
       if(fs.statSync(full_filepath).isFile()){
          // Add leaf
          tree.push({
@@ -943,7 +932,7 @@ var _fillFolderTreeSync = function(root, rel_path){
          // Add subtree
          tree.push({
             label: file,
-            id: rel_filepath+'/',
+            id: rel_filepath+path.sep,
             children: _fillFolderTreeSync(root, rel_filepath)
          });
       }
@@ -986,7 +975,7 @@ var _getLabelsInFileSync = function(fpath, labels){
 
 var _applyExperimentLabels = function(app_id, exp_id, exec_id, labels, cb){
    // Get application storage path
-   var app_path = constants.appstorage+'/'+app_id+'/';
+   var app_path = constants.appstorage+path.sep+app_id+path.sep;
 
    async.waterfall([
       // Check paths existence
@@ -1007,7 +996,7 @@ var _applyExperimentLabels = function(app_id, exp_id, exec_id, labels, cb){
                // Replace this file
                (function(file){
                   tasks.push(function(taskcb){
-                     _replaceLabelsInFile(app_path+'/'+file, labels, taskcb);
+                     _replaceLabelsInFile(app_path+path.sep+file, labels, taskcb);
                   });
                })(files[f]);
             }
@@ -1131,7 +1120,7 @@ var _loadConfig = function(config, loadCallback){
             for(var a = 0; a < apps.length; a++){
                // Check folder existence for this app
                (function(app){
-                  fs.stat(config.appstorage+'/'+app.id, function(error, stats){
+                  fs.stat(config.appstorage+path.sep+app.id, function(error, stats){
                      if(error || !stats.isDirectory()){
                         // No data stored for this app, remove it
                         logger.info('['+MODULE_NAME+'] App "'+app.name+'" - "'+app.id+'" not found, removing from DB...');
