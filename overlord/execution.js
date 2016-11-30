@@ -193,7 +193,7 @@ var searchExecutions = function(fields, cb){
    };
 
    // Retrieve experiment metadata
-   database.db.collection('executions').find(query, projection).toArray(function(error, execs){
+   database.db.collection('executions').find(query, projection).sort({create_date: -1}).toArray(function(error, execs){
       if(error) return cb(new Error("Query for executions failed"));
       cb(null, execs);
    });
