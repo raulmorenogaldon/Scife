@@ -1025,14 +1025,12 @@ var _replaceLabelsInFile = function(file, labels, cb){
       }
 
       // Iterate labels
-      console.log(fcontent);
       for(var label in labels){
          //var re = new RegExp('\\[\\[\\['+label+'\\]\\]\\]', 'g');
          fcontent = fcontent.replace('[[['+label+']]]', labels[label].value);
       }
 
       // Write file
-      console.log(fcontent);
       fs.writeFile(file, fcontent, 'utf8', function(error){
          return cb(error);
       });
