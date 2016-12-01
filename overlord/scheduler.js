@@ -540,7 +540,7 @@ var _destroyExecution = function(task, exec_id, cb){
       // Update last execution
       function(exec, wfcb){
          getExperiment(exec.exp_id, null, function(error, exp){
-            if(exp.last_execution == exec.id){
+            if(exp && exp.last_execution == exec.id){
                database.db.collection('experiments').updateOne({id: exp.id},{$set: {last_execution: null}});
             }
             wfcb(null);
@@ -1512,7 +1512,7 @@ var _destroyExecutions = function(execs, cb){
       (function(exec_id){
          tasks.push(function(taskcb){
             logger.debug('['+MODULE_NAME+']['+exec_id+'] DestroyExecutions: Destroying...');
-            execmanager.destroyExecution(exec_id, false, function(error){
+            destroyExecution(exec_id, function(error){
                return taskcb(error);
             });
          });
