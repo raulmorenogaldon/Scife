@@ -560,7 +560,10 @@ var putExperimentInput = function(exp_id, app_id, fpath, src_path, cb){
       },
       // Create path
       function(wfcb){
-         exec('mkdir -p '+path.dirname(fpath),{
+         var dir_path = fpath;
+         // File or folder?
+         if(src_path) dir_path = path.dirname(fpath);
+         exec('mkdir -p '+dir_path,{
             cwd: exp_path
          }, function(error, stdout, stderr){
             return wfcb(error);
@@ -568,11 +571,15 @@ var putExperimentInput = function(exp_id, app_id, fpath, src_path, cb){
       },
       // Copy file
       function(wfcb){
-         exec('scp '+src_path+' '+fpath,{
-            cwd: exp_path
-         }, function(error, stdout, stderr){
-            return wfcb(error);
-         });
+         if(src_path){
+            exec('scp '+src_path+' '+fpath,{
+               cwd: exp_path
+            }, function(error, stdout, stderr){
+               return wfcb(error);
+            });
+         } else {
+            return wfcb(null);
+         }
       }
    ],
    function(error){
