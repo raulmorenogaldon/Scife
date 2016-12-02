@@ -1,16 +1,27 @@
 #!/bin/bash
 
+echo "#############################################"
+
 # Parameters
 NODE=v5.5.0
 BRANCH=develop
 
-OVERLORD=overlord/app.js ./overlord.cfg
-STORAGE=storage/storage.js ./storage.cfg
+# IDs
+UUID_OVERLORD="overlord"
+OVERLORD="overlord/app.js ./overlord.cfg"
+
+UUID_STORAGE="storage"
+STORAGE="storage/storage.js ./storage.cfg"
 
 # Update repository
-git pull origin $BRANCH
+echo "Updating repository..."
+git pull origin $BRANCH >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+	echo "Repository update failed!"
+fi
 
 # Load NodeJS
+echo "Loading NodeJS..."
 hash node
 if [ $? -ne 0 ]; then
 	nvm use $NODE
@@ -24,10 +35,15 @@ if [ $? -ne 0 ]; then
 fi
 
 # Update packages
-npm install
+echo "Installing NodeJS packages..."
+npm install >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+	echo "Package updating failed!"
+fi
 
 # Launch processes
-forever restart $STORAGE || forever start $STORAGE
-forever restart $OVERLORD || forever start $OVERLORD
+echo "Launching SciFE..."
+forever restart "$UUID_STORAGE"  || forever start --uid "$UUID_STORAGE"  $STORAGE
+forever restart "$UUID_OVERLORD" || forever start --uid "$UUID_OVERLORD" $OVERLORD
 
-echo "Success!"
+echo "DONE!"
