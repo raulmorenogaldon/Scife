@@ -1604,7 +1604,7 @@ var _pollExecution = function(exec_id, force, pollCallback){
          function(exec, wfcb){
             logger.debug('['+MODULE_NAME+']['+exec_id+'] Poll: Polling logs...');
             var work_dir = exec.inst.image.workpath+"/"+exec_id;
-            _pollExecutionLogs(exec_id, exec.inst_id, work_dir, ['COMPILATION_LOG','EXECUTION_LOG','*.log', '*.log.*', '*.bldlog.*'], function (error, logs) {
+            _pollExecutionLogs(exec_id, exec.inst_id, work_dir, ['COMPILATION_LOG','EXECUTION_LOG','*.log', '*.log.*', '*.bldlog.*', '*.out.*'], function (error, logs) {
                if(error) return wfcb(error, exec);
                // Update status
                database.db.collection('executions').updateOne({id: exec_id},{$set:{logs:logs}});
