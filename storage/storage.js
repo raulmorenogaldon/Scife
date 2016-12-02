@@ -415,7 +415,7 @@ var getExecutionOutputURL = function(exec_id, cb){
  * Get experiment input URL.
  */
 var getExperimentInputURL = function(exp_id, cb){
-   return cb(null, constants.username+'@'+constants.public_url+':'+constants.outputstorage+'/'+exp_id);
+   return cb(null, constants.username+'@'+constants.public_url+':'+constants.inputstorage+'/'+exp_id);
 }
 
 /**
@@ -1044,7 +1044,6 @@ var _replaceLabelsInFile = function(file, labels, cb){
       // Iterate labels
       for(var label in labels){
          if(!labels[label].value) labels[label].value = "";
-         logger.debug('['+MODULE_NAME+'] Replacing label "'+label+'" => '+labels[label].value);
          // Avoid special characters
          re_label = label.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, "\\$1");
          // Replace label in file
