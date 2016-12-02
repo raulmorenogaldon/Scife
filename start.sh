@@ -25,7 +25,6 @@ fi
 
 # Update packages
 npm install
-npm install forever
 
 # Launch processes
 forever restart $STORAGE || forever start $STORAGE
