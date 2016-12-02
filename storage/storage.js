@@ -158,19 +158,23 @@ var copyExperiment = function(exp_id, app_id, cb){
 /**
  * Discover labels in application or experiment.
  */
-var discoverLabels = function(app_id, exp_id, cb){
+var discoverMetadata = function(app_id, exp_id, cb){
    // Wait for the lock
    if(_app_lock[app_id]){
-      return setTimeout(discoverLabels, 1000, app_id, exp_id, cb);
+      return setTimeout(discoverMetadata, 1000, app_id, exp_id, cb);
    }
    // Set lock
    _app_lock[app_id] = true;
 
    // Get paths
    var app_path = constants.appstorage+path.sep+app_id;
-   var meta_file = app_path+path.sep+'LABELS.meta';
+   var meta_labels_file = app_path+path.sep+'LABELS.meta';
+   var meta_logs_file = app_path+path.sep+'LOGS.meta';
 
    var id = exp_id ? exp_id : app_id;
+
+   var labels = {};
+   var logs_meta = {};
 
    async.waterfall([
       // Checkout application or experiment
@@ -182,17 +186,43 @@ var discoverLabels = function(app_id, exp_id, cb){
             return wfcb(error);
          });
       },
-      // Get metadata file
+      // Get metadata file for logs
       function(wfcb){
-         logger.info('['+MODULE_NAME+']['+id+'] Searching metadata...');
-         fs.access(meta_file, function(error){
+         logger.info('['+MODULE_NAME+']['+id+'] Searching logs metadata...');
+         fs.access(meta_logs_file, function(error){
             if(error){
                // File does not exist
-               return wfcb(null, {});
+               logger.info('['+MODULE_NAME+']['+id+'] No LOGS.meta file.');
+               return wfcb(null);
+            } else {
+               // File exists, read it
+               logger.info('['+MODULE_NAME+']['+id+'] Reading metadata file: LOGS.meta.');
+               fs.readFile(meta_logs_file, {encoding: 'utf8', flag: 'r'}, function(error, fcontent){
+                  if(error) return wfcb(error);
+
+                  // Parse JSON
+                  try {
+                     logs_meta = JSON.parse(fcontent);
+                  } catch (e) {
+                     return wfcb(e);
+                  }
+                  return wfcb(null);
+               });
+            }
+         });
+      },
+      // Get metadata file
+      function(wfcb){
+         logger.info('['+MODULE_NAME+']['+id+'] Searching labels metadata...');
+         fs.access(meta_labels_file, function(error){
+            if(error){
+               // File does not exist
+               logger.info('['+MODULE_NAME+']['+id+'] No LABELS.meta file.');
+               return wfcb(null);
             } else {
                // File exists, read it
                logger.info('['+MODULE_NAME+']['+id+'] Reading metadata file: LABELS.meta.');
-               fs.readFile(meta_file, {encoding: 'utf8', flag: 'r'}, function(error, fcontent){
+               fs.readFile(meta_labels_file, {encoding: 'utf8', flag: 'r'}, function(error, fcontent){
                   if(error) return wfcb(error);
 
                   // Parse JSON
@@ -208,13 +238,13 @@ var discoverLabels = function(app_id, exp_id, cb){
                         labels[label].default_value = labels[label].default_value.join('\n');
                      }
                   }
-                  return wfcb(null, labels);
+                  return wfcb(null);
                });
             }
          });
       },
       // Discover additional labels
-      function(labels, wfcb){
+      function(wfcb){
          // Get list of files/folders
          var files = fs.readdirSync(app_path);
          // Ignore hidden, i.e. starting with dot
@@ -227,23 +257,23 @@ var discoverLabels = function(app_id, exp_id, cb){
                _getLabelsInFileSync(full_path, labels);
             }
          }
-         return wfcb(null, labels);
+         return wfcb(null);
       },
       // Checkout master again
-      function(labels, wfcb){
+      function(wfcb){
          exec('git checkout master',{
             cwd: app_path
          }, function(error, stdout, stderr){
-            return wfcb(error, labels);
+            return wfcb(error);
          });
       }
    ],
-   function(error, labels){
+   function(error){
       // Remove lock
       _app_lock[app_id] = false;
       if(error) return cb(error);
-      logger.info('['+MODULE_NAME+']['+id+'] Successful label discovering.');
-      return cb(null, labels);
+      logger.info('['+MODULE_NAME+']['+id+'] Successful metadata discovering.');
+      return cb(null, labels, logs_meta);
    });
 }
 
@@ -1158,7 +1188,7 @@ var _loadConfig = function(config, loadCallback){
          zserver = new zerorpc.Server({
             copyApplication: copyApplication,
             copyExperiment: copyExperiment,
-            discoverLabels: discoverLabels,
+            discoverMetadata: discoverMetadata,
             retrieveExperimentOutput: retrieveExperimentOutput,
             prepareExecution: prepareExecution,
             removeExperiment: removeExperiment,

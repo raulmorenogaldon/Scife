@@ -36,6 +36,9 @@
       'last_execution': "f745c536-d55a-11e5-90c8-5254003eece4",
       'last_execution_status': "done",
       'times_executed': 2,
+      'logs_meta': {
+         'poll_logs': ['*.log', '*.out']
+      },
       'labels': {
          'LABEL': "cmd",
          'PATH': "$PATH",
@@ -81,6 +84,9 @@
          'storage': 587293879
       },
       'logs': [...],
+      'logs_meta': {
+         'poll_logs': ['*.log', '*.out']
+      },
       'labels': {
          'LABEL': "cmd",
          'PATH': "$PATH",

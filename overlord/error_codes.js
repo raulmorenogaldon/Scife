@@ -62,7 +62,7 @@ var ERRCODE = {
       'code': 31
    },
    APP_NO_OPERATION: {
-      'message': "You must pass 'op' argument. Possible: discoverLabels.",
+      'message': "You must pass 'op' argument. Possible: discoverMetadata.",
       'code': 32
    },
 

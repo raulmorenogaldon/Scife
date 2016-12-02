@@ -608,7 +608,7 @@ router.post('/experiments/:exp_id/code', function (req, res, next) {
       }
 
       // Reload labels
-      scheduler.maintainExperiment(req.params.exp_id, "discoverLabels", function(error){
+      scheduler.maintainExperiment(req.params.exp_id, "discoverMetadata", function(error){
          if (error) return next(error);
 
          // Reload trees

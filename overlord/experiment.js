@@ -274,9 +274,9 @@ var maintainExperiment = function(exp_id, operation, maintainCallback){
       },
       // Apply operation
       function(exp, wfcb){
-         if(operation == 'discoverLabels'){
+         if(operation == 'discoverMetadata'){
             // Get labels list
-            storage.client.invoke('discoverLabels', exp.app_id, exp_id, function(error, labels){
+            storage.client.invoke('discoverMetadata', exp.app_id, exp_id, function(error, labels, logs_meta){
                if(error) return wfcb(error);
 
                // Iterate current experiment labels
@@ -288,7 +288,7 @@ var maintainExperiment = function(exp_id, operation, maintainCallback){
                }
 
                // Update labels in DB
-               database.db.collection('experiments').update({id: exp_id}, {$set: {labels: labels}}, function(error){
+               database.db.collection('experiments').update({id: exp_id}, {$set: {labels: labels, logs_meta: logs_meta}}, function(error){
                   if(error) return wfcb(error);
                   // Success updating labels
                   return wfcb(null, exp);
