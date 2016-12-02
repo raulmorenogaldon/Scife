@@ -47,3 +47,4 @@ forever restart "$UUID_STORAGE"  || forever start --uid "$UUID_STORAGE"  $STORAG
 forever restart "$UUID_OVERLORD" || forever start --uid "$UUID_OVERLORD" $OVERLORD
 
 echo "DONE!"
+echo "#############################################"
