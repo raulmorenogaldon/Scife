@@ -92,7 +92,7 @@ var getExecution = function(exec_id, fields, cb){
 /**
  * Delete execution data
  */
-var destroyExecution = function(exec_id, remove_from_db, cb){
+var destroyExecution = function(exec_id, remove_from_db, app_id, cb){
    logger.debug('['+MODULE_NAME+']['+exec_id+'] Destroy: Destroying...');
    async.waterfall([
       // Get execution
@@ -122,17 +122,12 @@ var destroyExecution = function(exec_id, remove_from_db, cb){
             wfcb(null, exec);
          }
       },
-      // Clean output folder
+      // Clean storage
       function(exec, wfcb){
          // Clean output
-         logger.debug('['+MODULE_NAME+']['+exec_id+'] Destroy: Cleaning output...');
-         storage.client.invoke('deleteExecutionOutput', exec_id, null, function(error){
+         logger.debug('['+MODULE_NAME+']['+exec_id+'] Destroy: Cleaning storage...');
+         storage.client.invoke('deleteExecution', app_id, exec_id, function(error){
             if(error) return wfcb(error);
-
-            // Reload output tree
-            // logger.debug('['+MODULE_NAME+']['+exec_id+'] Destroy: Reloading output...');
-            // reloadExecutionOutputTree(exec_id, wfcb);
-            // We want to maintain the output tree, even if data is not there
             wfcb(null, exec);
          });
       }

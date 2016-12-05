@@ -530,9 +530,16 @@ var _destroyExecution = function(task, exec_id, cb){
             wfcb(null, exec);
          });
       },
+      // Get app_id
+      function(exec, wfcb){
+         getExperiment(exec.exp_id, null, function(error, exp){
+            if(!error) exec.app_id = exp.app_id;
+            wfcb(null, exec);
+         });
+      },
       // Destroy execution
       function(exec, wfcb){
-         execmanager.destroyExecution(exec_id, false, function(error){
+         execmanager.destroyExecution(exec_id, false, exec.app_id, function(error){
             if(error) return wfcb(error);
             wfcb(null, exec);
          });
@@ -1771,6 +1778,7 @@ var _pollExecutionLogs = function(exec_id, inst_id, work_dir, log_files, pollCal
 var _findExecutionLogs = function(exec_id, inst_id, work_dir, log_files, findCallback){
    // No log files
    if(!log_files || log_files.length <= 0) return findCallback(new Error("No log files specified."));
+   console.log("Finding: "+log_files.toString());
 
    var logs = [];
 

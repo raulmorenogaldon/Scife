@@ -763,18 +763,31 @@ var getExecutionOutputFile = function(exp_id, fpath, cb){
 }
 
 /**
- * Delete execution output
+ * Delete execution output.
+ * Public interface.
  */
 var deleteExecutionOutput = function(exec_id, fpath, cb){
-   // Check absolute paths
-   if(fpath && path.isAbsolute(fpath)) return cb(new Error('Absolute paths are not supported: '+fpath));
-
    // Wait for the lock
    if(_app_lock[exec_id]){
       return setTimeout(deleteExecutionOutput, 1000, exec_id, fpath, cb);
    }
    // Set lock
    _app_lock[exec_id] = true;
+
+   // Private function
+   _deleteExecutionOutput(exec_id, fpath, function(error){
+      // Remove lock
+      _app_lock[exec_id] = false;
+      cb(error);
+   });
+}
+
+/**
+ * Delete execution output
+ */
+var _deleteExecutionOutput = function(exec_id, fpath, cb){
+   // Check absolute paths
+   if(fpath && path.isAbsolute(fpath)) return cb(new Error('Absolute paths are not supported: '+fpath));
 
    // Get experiment output storage path
    var exec_path = constants.outputstorage+path.sep+exec_id;
@@ -798,11 +811,50 @@ var deleteExecutionOutput = function(exec_id, fpath, cb){
       }
    ],
    function(error){
+      if(error) return cb(error);
+      logger.info('['+MODULE_NAME+']['+exec_id+'] Deleted file "'+fpath+'".');
+      return cb(null);
+   });
+}
+
+/**
+ * Delete all execution data
+ */
+var deleteExecution = function(app_id, exec_id, cb){
+   // Wait for the lock
+   if(_app_lock[exec_id]){
+      return setTimeout(deleteExecution, 1000, exec_id, cb);
+   }
+   // Set lock
+   _app_lock[exec_id] = true;
+
+   // Get execution storage path
+   var app_path = constants.appstorage+path.sep+app_id+path.sep;
+
+   async.waterfall([
+      // Remove output
+      function(wfcb){
+         _deleteExecutionOutput(exec_id, null, wfcb);
+      },
+      // Remove branch
+      function(wfcb){
+         if(app_id){
+            exec('git branch -D '+exec_id,{
+               cwd: app_path
+            }, function(error, stdout, stderr){
+               return wfcb(null);
+            });
+         } else {
+            wfcb(null);
+         }
+      }
+   ],
+   function(error){
       // Remove lock
       _app_lock[exec_id] = false;
 
       if(error) return cb(error);
-      logger.info('['+MODULE_NAME+']['+exec_id+'] Deleted file "'+fpath+'".');
+      logger.info('['+MODULE_NAME+']['+exec_id+'] Deleted execution.');
       return cb(null);
    });
 }
@@ -1202,6 +1254,7 @@ var _loadConfig = function(config, loadCallback){
             deleteExperimentInput: deleteExperimentInput,
             getExecutionOutputFile: getExecutionOutputFile,
             deleteExecutionOutput: deleteExecutionOutput,
+            deleteExecution: deleteExecution,
             getOutputFolderUsage: getOutputFolderUsage,
             getInputIDs: getInputIDs,
             getOutputIDs: getOutputIDs,
