@@ -289,7 +289,7 @@ var launchExperiment = function(exp_id, nodes, image_id, size_id, launch_opts, l
             cpus: _size.cpus,
             ram: _size.ram
          };
-         execmanager.createExecution(exp_id, _exp.name+" #"+_exp.times_executed, null, launch_opts, _exp.labels, function(error, exec){
+         execmanager.createExecution(exp_id, _exp.name+" #"+_exp.times_executed, null, launch_opts, _exp.labels, _exp.logs_meta, function(error, exec){
             if(error) return wfcb(error);
             logger.debug('['+MODULE_NAME+']['+exp_id+'] Launch: Initialized execution data '+exec.id);
             // Update status
@@ -1612,7 +1612,7 @@ var _pollExecution = function(exec_id, force, pollCallback){
             logger.debug('['+MODULE_NAME+']['+exec_id+'] Poll: Polling logs...');
             var work_dir = exec.inst.image.workpath+"/"+exec_id;
             var log_list = ['COMPILATION_LOG','EXECUTION_LOG','*.log'];
-            if(exec.logs_meta && exec.logs_meta.poll_logs) log_list.concat(exec.logs_meta.poll_logs);
+            if(exec.logs_meta && exec.logs_meta.poll_logs) log_list = log_list.concat(exec.logs_meta.poll_logs);
             _pollExecutionLogs(exec_id, exec.inst_id, work_dir, log_list, function (error, logs) {
                if(error) return wfcb(error, exec);
                // Update status
@@ -1778,7 +1778,6 @@ var _pollExecutionLogs = function(exec_id, inst_id, work_dir, log_files, pollCal
 var _findExecutionLogs = function(exec_id, inst_id, work_dir, log_files, findCallback){
    // No log files
    if(!log_files || log_files.length <= 0) return findCallback(new Error("No log files specified."));
-   console.log("Finding: "+log_files.toString());
 
    var logs = [];
 
