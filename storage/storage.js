@@ -273,7 +273,7 @@ var discoverMetadata = function(app_id, exp_id, cb){
       _app_lock[app_id] = false;
       if(error) return cb(error);
       logger.info('['+MODULE_NAME+']['+id+'] Successful metadata discovering.');
-      return cb(null, labels, logs_meta);
+      return cb(null, {labels: labels, logs_meta: logs_meta});
    });
 }
 

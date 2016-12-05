@@ -276,8 +276,12 @@ var maintainExperiment = function(exp_id, operation, maintainCallback){
       function(exp, wfcb){
          if(operation == 'discoverMetadata'){
             // Get labels list
-            storage.client.invoke('discoverMetadata', exp.app_id, exp_id, function(error, labels, logs_meta){
+            storage.client.invoke('discoverMetadata', exp.app_id, exp_id, function(error, metadata){
                if(error) return wfcb(error);
+
+               // Get meta
+               var labels = metadata.labels;
+               var logs_meta = metadata.logs_meta;
 
                // Iterate current experiment labels
                for(var label in exp.labels){

@@ -112,12 +112,12 @@ var createApplication = function(app_cfg, createCallback){
       },
       function(wfcb){
          // Get labels list
-         storage.client.invoke('discoverMetadata', app_cfg.id, function(error, labels){
+         storage.client.invoke('discoverMetadata', app_cfg.id, function(error, metadata){
             if(error){
                wfcb(error);
             } else {
                // Save labels
-               app_cfg.labels = labels;
+               app_cfg.labels = metadata.labels;
                wfcb(null);
             }
          });
@@ -174,10 +174,10 @@ var maintainApplication = function(app_id, operation, maintainCallback){
       function(app, wfcb){
          if(operation == 'discoverMetadata'){
             // Get labels list
-            storage.client.invoke('discoverMetadata', app_id, null, function(error, labels){
+            storage.client.invoke('discoverMetadata', app_id, null, function(error, metadata){
                if(error) return wfcb(error);
                // Update labels in DB
-               database.db.collection('applications').update({id: app_id}, {$set: {labels: labels}}, function(error){
+               database.db.collection('applications').update({id: app_id}, {$set: {labels: metadata.labels}}, function(error){
                   if(error) return wfcb(error);
                   // Success updating labels
                   return wfcb(null, app);
