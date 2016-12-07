@@ -4,6 +4,7 @@
    "network": "red prueba",
    "keypairname": "Minion",
    "privatekeypath": "/home/devstack/.ssh/id_rsa",
+   "AUTOUPDATE": "develop",
    "images": [
       {
          "os_id": "81743971-6f56-4c9f-a557-2edf4516d185",

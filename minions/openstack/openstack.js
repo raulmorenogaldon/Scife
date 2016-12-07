@@ -2,6 +2,7 @@ var zerorpc = require('zerorpc');
 var async = require('async');
 var request = require('request');
 var fs = require('fs');
+var exec = require('child_process').exec;
 var sleep = require('sleep');
 var ssh2 = require('ssh2').Client;
 var mongo = require('mongodb').MongoClient;
@@ -21,6 +22,7 @@ var MINION_NAME = "OpenStackVesuvius";
  ***********************************************************/
 var zserver = null;
 var cfg = process.argv[2];
+var constants = {};
 var token = null;
 var database = null;
 
@@ -92,6 +94,41 @@ var login = function(loginCallback){
 
       // Callback
       loginCallback(null);
+   });
+}
+
+/**
+ * Update repository and restart process.
+ */
+var autoupdate = function(cb){
+   logger.info('['+MODULE_NAME+'] Autoupdate: Begin.');
+   async.waterfall([
+      // Check configuration
+      function(wfcb){
+         if(!constants.AUTOUPDATE){
+            return wfcb(new Error('Autoupdate is not enabled.'));
+         }
+         return wfcb(null);
+      },
+      // Update repository
+      function(wfcb){
+         exec('git pull origin '+constants.AUTOUPDATE, function(error, stdout, stderr){
+            return wfcb(error);
+         });
+      }
+   ],
+   function(error){
+      if(error){
+         // Error trying to checkpoint execution
+         logger.debug('['+MODULE_NAME+'] Autoupdate: Error.');
+         cb(error);
+      } else {
+         logger.debug('['+MODULE_NAME+'] Autoupdate: Done, resetting...');
+         // Callback before exit
+         cb(null);
+         // Exit from Node, forever will restart the service.
+         process.exit(1);
+      }
    });
 }
 
@@ -1158,6 +1195,7 @@ var _loadConfig = function(config, loadCallback){
          // Setup server
          zserver = new zerorpc.Server({
             login: login,
+            autoupdate: autoupdate,
             getMinionName: getMinionName,
             getImages: getImages,
             getSizes: getSizes,
@@ -1372,10 +1410,10 @@ async.waterfall([
       console.log("["+MINION_NAME+"] Loading config file...");
 
       // Parse cfg
-      cfg = JSON.parse(fcontent);
+      constants = JSON.parse(fcontent);
 
       // Loading
-      _loadConfig(cfg, function(error){
+      _loadConfig(constants, function(error){
          if(error) return wfcb(error);
          wfcb(null);
       });

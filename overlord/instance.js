@@ -646,7 +646,6 @@ var autoupdate = function(cb){
             minion.invoke('autoupdate', function (error) {
                if(error){
                   logger.error('['+MODULE_NAME+'] Failed to autoupdate minion '+minion.minion_url+'.');
-                  return taskcb(error);
                }
                return taskcb(null);
             });
