@@ -982,6 +982,41 @@ var getModuleName = function(cb){
    return cb(null, MODULE_NAME);
 }
 
+/**
+ * Update repository and restart process.
+ */
+var autoupdate = function(cb){
+   logger.info('['+MODULE_NAME+'] Autoupdate: Begin.');
+   async.waterfall([
+      // Check configuration
+      function(wfcb){
+         if(!constants.AUTOUPDATE){
+            return wfcb(new Error('Autoupdate is not enabled.'));
+         }
+         return wfcb(null);
+      },
+      // Update repository
+      function(wfcb){
+         exec('git pull origin '+constants.AUTOUPDATE, function(error, stdout, stderr){
+            return wfcb(error);
+         });
+      }
+   ],
+   function(error){
+      if(error){
+         // Error trying to checkpoint execution
+         logger.debug('['+MODULE_NAME+'] Autoupdate: Error.');
+         cb(error);
+      } else {
+         logger.debug('['+MODULE_NAME+'] Autoupdate: Done, resetting...');
+         // Callback before exit
+         cb(null);
+         // Exit from Node, forever will restart the service.
+         process.exit(1);
+      }
+   });
+}
+
 /***********************************************************
  * --------------------------------------------------------
  * PRIVATE FUNCTIONS
@@ -1238,6 +1273,7 @@ var _loadConfig = function(config, loadCallback){
       function(wfcb){
          // Setup server
          zserver = new zerorpc.Server({
+            autoupdate: autoupdate,
             copyApplication: copyApplication,
             copyExperiment: copyExperiment,
             discoverMetadata: discoverMetadata,

@@ -632,6 +632,36 @@ var _destroyEmptyInstances = function(destroyCallback){
 }
 
 /**
+ * Update minions.
+ */
+var autoupdate = function(cb){
+   logger.info('['+MODULE_NAME+'] Autoupdate: Begin.');
+   var tasks = [];
+   // Iterate minions
+   for(var i in vMinionClients){
+      // var i must be independent between tasks
+      (function(i){
+         tasks.push(function(taskcb){
+            var minion = vMinionClients[i];
+            minion.invoke('autoupdate', function (error) {
+               if(error){
+                  logger.error('['+MODULE_NAME+'] Failed to autoupdate minion '+minion.minion_url+'.');
+                  return taskcb(error);
+               }
+               return taskcb(null);
+            });
+         });
+      })(i);
+   }
+
+   // Restart minions
+   async.parallel(tasks, function(error){
+      // Callback
+      return cb(error);
+   });
+}
+
+/**
  * Initialize minions
  */
 var init = function(cfg, initCallback){
@@ -692,6 +722,7 @@ var init = function(cfg, initCallback){
 }
 
 module.exports.init = init;
+module.exports.autoupdate = autoupdate;
 
 module.exports.getInstance = getInstance;
 module.exports.getImage = getImage;

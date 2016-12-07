@@ -1,6 +1,7 @@
 var zerorpc = require('zerorpc');
 var async = require('async');
 var fs = require('fs');
+var exec = require('child_process').exec;
 var codes = require('./error_codes.js');
 var logger = require('./utils.js').logger;
 
@@ -2032,6 +2033,51 @@ var _checkpointExecution = function(exec_id, cb){
    });
 }
 
+/***********************************************************
+ * --------------------------------------------------------
+ * AUTOUPDATING
+ * --------------------------------------------------------
+ ***********************************************************/
+var autoupdate = function(cb){
+   logger.info('['+MODULE_NAME+'] Autoupdate: Begin.');
+   async.waterfall([
+      // Check configuration
+      function(wfcb){
+         if(!constants.AUTOUPDATE){
+            return wfcb(new Error('Autoupdate is not enabled.'));
+         }
+         return wfcb(null);
+      },
+      // Update storage
+      function(wfcb){
+         storage.autoupdate(wfcb);
+      },
+      // Update minions
+      function(wfcb){
+         instmanager.autoupdate(wfcb);
+      },
+      // Update repository
+      function(wfcb){
+         exec('git pull origin '+constants.AUTOUPDATE, function(error, stdout, stderr){
+            return wfcb(error);
+         });
+      }
+   ],
+   function(error){
+      if(error){
+         // Error trying to checkpoint execution
+         logger.debug('['+MODULE_NAME+'] Autoupdate: Error.');
+         cb(error);
+      } else {
+         logger.debug('['+MODULE_NAME+'] Autoupdate: Done, resetting...');
+         // Callback before restart
+         cb(null);
+         // Exit from Node, forever will restart the service.
+         process.exit(1);
+      }
+   });
+}
+
 
 /***********************************************************
  * --------------------------------------------------------
@@ -2101,6 +2147,8 @@ function(error){
  * PUBLIC INTERFACE
  * --------------------------------------------------------
  ***********************************************************/
+
+exports.autoupdate = autoupdate;
 
 exports.getApplication = getApplication;
 exports.createApplication = createApplication;

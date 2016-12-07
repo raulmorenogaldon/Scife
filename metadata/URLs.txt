@@ -58,3 +58,5 @@
 /users/ (POST) "Create a user (ADMIN)"
 /users/:userId (GET) "Return user metadata (ADMIN for other users)"
 /users/:userId/permissions (PUT) "Setup user permissions (ADMIN)"
+
+/autoupdate (POST) "Update Scife and restart. (ADMIN)"

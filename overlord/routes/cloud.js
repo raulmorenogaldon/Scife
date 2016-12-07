@@ -1113,4 +1113,34 @@ router.put('/users/:user_id/permissions', function (req, res, next) {
    });
 });
 
+/***********************************************************
+ * --------------------------------------------------------
+ * AUTOUPDATE METHODS
+ * --------------------------------------------------------
+ ***********************************************************/
+
+/**
+ * Update Scife
+ */
+router.post('/autoupdate', function (req, res, next) {
+   // Check permissions
+   if(!req.auth.admin){
+      return next({
+         'http': codes.HTTPCODE.FORBIDDEN,
+         'errors': [codes.ERRCODE.AUTH_PERMISSION_DENIED]
+      });
+   }
+
+   // Update services
+   scheduler.autoupdate(function (error) {
+      if (error){
+         return next({
+            'http': codes.HTTPCODE.INTERNAL_ERROR,
+            'errors': [error.message]
+         });
+      }
+      return res.json(null);
+   });
+});
+
 module.exports = router;
