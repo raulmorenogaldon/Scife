@@ -450,10 +450,14 @@ var cleanExecution = function(exec_id, cb){
       if(error) return cb(error);
       if(!exec.inst_id) return cb(null);
 
-      // Clean instance
-      instmanager.cleanExecution(exec_id, exec.inst_id, {b_input: true, b_output: true, b_sources: true, b_remove: true}, function(error){
-         return cb(error);
-      });
+      // Clean instance if not debug mode
+      if(!exec || !exec.launch_opts || !exec.launch_opts.debug){
+         instmanager.cleanExecution(exec_id, exec.inst_id, {b_input: true, b_output: true, b_sources: true, b_remove: true}, function(error){
+            return cb(error);
+         });
+      } else {
+         return cb(null);
+      }
    });
 }
 
