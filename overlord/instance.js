@@ -41,30 +41,29 @@ var requestInstance = function(name, image_id, size_id, nodes, requestCallback){
          if(error) return requestCallback(error);
 
          // Get minion
-         var minion = dMinionClients[image.minion];
-
-         // Connected to minion?
-         if(!minion) return requestCallback(new Error("Minion "+image.minion+" not found."));
-
-         // Check quotas
-         getImageQuotas(image_id, function(error, quotas){
+         var minion = _getMinion(image.minion, false, function(error, minion){
             if(error) return requestCallback(error);
 
-            // Enough quotas?
-            if(quotas.instances.in_use + nodes > quotas.instances.limit) return requestCallback(new Error('Not enough instances quota.'));
-            if(quotas.cores.in_use + (nodes * size.cpus) > quotas.cores.limit) return requestCallback(new Error('Not enough cores quota.'));
-            if(quotas.ram.in_use + size.ram > quotas.ram.limit) return requestCallback(new Error('Not enough RAM quota.'));
-
-            // Instance
-            minion.invoke('createInstance', {
-               name: name,
-               image_id: image_id,
-               size_id: size_id,
-               nodes: nodes,
-               publicIP: true
-            }, function (error, instance_id) {
+            // Check quotas
+            getImageQuotas(image_id, function(error, quotas){
                if(error) return requestCallback(error);
-               requestCallback(null, instance_id);
+
+               // Enough quotas?
+               if(quotas.instances.in_use + nodes > quotas.instances.limit) return requestCallback(new Error('Not enough instances quota.'));
+               if(quotas.cores.in_use + (nodes * size.cpus) > quotas.cores.limit) return requestCallback(new Error('Not enough cores quota.'));
+               if(quotas.ram.in_use + size.ram > quotas.ram.limit) return requestCallback(new Error('Not enough RAM quota.'));
+
+               // Instance
+               minion.invoke('createInstance', {
+                  name: name,
+                  image_id: image_id,
+                  size_id: size_id,
+                  nodes: nodes,
+                  publicIP: true
+               }, function (error, instance_id) {
+                  if(error) return requestCallback(error);
+                  requestCallback(null, instance_id);
+               });
             });
          });
       });
@@ -210,13 +209,14 @@ var getImageQuotas = function(image_id, getCallback){
       if(error) return getCallback(error);
 
       // Get minion
-      var minion = dMinionClients[image.minion];
-      if(!minion) return getCallback(new Error("Minion "+image.minion+" is not loaded."))
-
-      // Get quotas
-      minion.invoke('getQuotas', function (error, quotas) {
+      var minion = _getMinion(image.minion, false, function(error, minion){
          if(error) return getCallback(error);
-         getCallback(null, quotas);
+
+         // Get quotas
+         minion.invoke('getQuotas', function (error, quotas) {
+            if(error) return getCallback(error);
+            getCallback(null, quotas);
+         });
       });
    });
 }
@@ -230,13 +230,14 @@ var destroyInstance = function(inst_id, destroyCallback){
       if(error) return destroyCallback(error);
 
       // Get minion
-      var minion = dMinionClients[inst.minion];
-      if(!minion) return destroyCallback(new Error("Minion "+inst.minion+" is not loaded."))
+      var minion = _getMinion(inst.minion, false, function(error, minion){
+         if(error) return destroyCallback(error);
 
-      // Destroy instance
-      minion.invoke('destroyInstance', inst_id, function (error) {
-         if(error) return destroyCallback(new Error("Failed to destroy instance " + inst_id + ", err: " + error));
-         destroyCallback(null);
+         // Destroy instance
+         minion.invoke('destroyInstance', inst_id, function (error) {
+            if(error) return destroyCallback(new Error("Failed to destroy instance " + inst_id + ", err: " + error));
+            destroyCallback(null);
+         });
       });
    });
 }
@@ -254,9 +255,10 @@ var cleanExecution = function(exec_id, inst_id, b_flags, cleanCallback){
       },
       // Get minion for this instance
       function(inst, wfcb){
-         var minion = dMinionClients[inst.minion];
-         if(!minion) return wfcb(new Error("Minion "+inst.minion+" is not loaded."))
-         wfcb(null, inst, minion);
+         var minion = _getMinion(inst.minion, false, function(error, minion){
+            if(error) return wfcb(error);
+            wfcb(null, inst, minion);
+         });
       },
       // Clean jobs in this instance
       function(inst, minion, wfcb){
@@ -353,9 +355,10 @@ var executeCommand = function(inst_id, cmd, executeCallback){
       },
       // Get minion for this instance
       function(inst, wfcb){
-         var minion = dMinionClients[inst.minion];
-         if(!minion) return wfcb(new Error("Minion "+inst.minion+" is not loaded."))
-         wfcb(null, inst, minion);
+         var minion = _getMinion(inst.minion, true, function(error, minion){
+            if(error) return wfcb(error);
+            wfcb(null, inst, minion);
+         });
       },
       // Execute command
       function(inst, minion, wfcb){
@@ -389,9 +392,10 @@ var executeJob = function(inst_id, cmd, work_dir, nodes, executeCallback){
       },
       // Get minion for this instance
       function(inst, wfcb){
-         var minion = dMinionClients[inst.minion];
-         if(!minion) return wfcb(new Error("Minion "+inst.minion+" is not loaded."))
-         wfcb(null, inst, minion);
+         var minion = _getMinion(inst.minion, true, function(error, minion){
+            if(error) return wfcb(error);
+            wfcb(null, inst, minion);
+         });
       },
       // Execute command
       function(inst, minion, wfcb){
@@ -421,9 +425,10 @@ var waitJob = function(job_id, inst_id, waitCallback){
       },
       // Get minion for this instance
       function(inst, wfcb){
-         var minion = dMinionClients[inst.minion];
-         if(!minion) return wfcb(new Error("Minion "+inst.minion+" is not loaded."))
-         wfcb(null, inst, minion);
+         var minion = _getMinion(inst.minion, true, function(error, minion){
+            if(error) return wfcb(error);
+            wfcb(null, inst, minion);
+         });
       },
       // Get job status
       function(inst, minion, wfcb){
@@ -461,22 +466,39 @@ var abortJob = function(job_id, inst_id, abortCallback){
          if(error) return abortCallback(error);
 
          // Get minion
-         var minion = dMinionClients[inst.minion];
-         if(!minion) return abortCallback(new Error("Minion "+inst.minion+" is not loaded."))
+         var minion = _getMinion(inst.minion, false, function(error, minion){
+            if(error) return abortCallback(error);
+            // Abort job
+            logger.debug('['+MODULE_NAME+']['+inst_id+'] Aborting job - ' + job_id);
+            minion.invoke('cleanJob', job_id, inst_id, function (error, result) {
+               if (error) {
+                  return abortCallback(error);
+               }
 
-         // Abort job
-         logger.debug('['+MODULE_NAME+']['+inst_id+'] Aborting job - ' + job_id);
-         minion.invoke('cleanJob', job_id, inst_id, function (error, result) {
-            if (error) {
-               return abortCallback(error);
-            }
-
-            // Callback
-            logger.debug('['+MODULE_NAME+']['+inst_id+'] Aborted job - ' + job_id);
-            abortCallback(null);
+               // Callback
+               logger.debug('['+MODULE_NAME+']['+inst_id+'] Aborted job - ' + job_id);
+               abortCallback(null);
+            });
          });
       });
    }
+}
+
+/**
+ * Get minion.
+ * If the minion does not response, wait.
+ */
+var _getMinion = function(id, wait, cb){
+   var minion = dMinionClients[id];
+
+   // Check if minion is loaded
+   if(!minion){
+      // Wait
+      if(wait == true) return setTimeout(_getMinion, 10000, id, cb);
+      else return cb(new Error('Minion "'+minion+'" is not loaded.'));
+   }
+
+   return cb(null, minion);
 }
 
 /**
