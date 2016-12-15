@@ -7,6 +7,7 @@ var sleep = require('sleep');
 var ssh2 = require('ssh2').Client;
 var mongo = require('mongodb').MongoClient;
 var utils = require('../../overlord/utils');
+var logger = utils.logger;
 
 /***********************************************************
  * --------------------------------------------------------
