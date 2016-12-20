@@ -15,15 +15,21 @@ function connectSSH(username, host, private_key, timeout, connectCallback){
    var time_elapsed = 0;
 
    // Define connection callback
-   conn.on('ready', function(){
+   conn.on('connect', function(){
       // Connected
-      connectCallback(null, conn);
+      if(conn.already_conn != true){
+         // Avoid calling callback twice
+         conn.already_conn = true;
+         return connectCallback(null, conn);
+      }
    });
 
    // Retry on error in connection callback
    conn.on('error', function(error){
       if(time_elapsed < timeout){
          setTimeout(function(){
+            // Check race condition
+            if(conn.already_conn == true) return;
             // Increate elapsed time
             time_elapsed = time_elapsed + 5000;
             // Retry SSH connection
@@ -37,7 +43,7 @@ function connectSSH(username, host, private_key, timeout, connectCallback){
          return;
       }
       // No more retries
-      connectCallback(error);
+      return connectCallback(error);
    });
 
    // SSH connect
