@@ -58,8 +58,8 @@ var copyApplication = function(app_id, src_path, cb){
       // Check destination path does not exist
       function(wfcb){
          fs.access(dst_path, function(error){
-            if(error) return cb(null);
-            else return cb(new Error('ID "'+app_id+'" already exists in storage.'))
+            if(error) return wfcb(null);
+            else return wfcb(new Error('ID "'+app_id+'" already exists in storage.'))
          });
       },
       // Copy application data to storage

@@ -112,7 +112,7 @@ var createApplication = function(app_cfg, createCallback){
       },
       function(wfcb){
          // Get labels list
-         storage.client.invoke('discoverMetadata', app_cfg.id, function(error, metadata){
+         storage.client.invoke('discoverMetadata', app_cfg.id, null, function(error, metadata){
             if(error){
                wfcb(error);
             } else {
