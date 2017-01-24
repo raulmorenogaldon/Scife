@@ -97,11 +97,11 @@ sleep 3
 
 # Launch database
 echo "Launching database..."
-forever restart "$DB_UID"  || forever start -a --uid "$DB_UID" aux_system_command.js "$DB_NUMA $DB_NUMA_OPTS $DB_BIN $DB_PORT $DB_BIND --dbpath $DB_PATH"
+forever restart "$DB_UID"  || forever start -a --uid "$DB_UID" aux_system_command.js $DB_NUMA $DB_NUMA_OPTS $DB_BIN $DB_PORT $DB_BIND --dbpath $DB_PATH
 
 # Launch Git daemon
 echo "Launching Git daemon"
-forever restart "$GD_UID"  || forever start -a --uid "$GD_UID" aux_system_command.js "$GD_BIN $GD_OPTS $GD_PORT --base-path=$GD_PATH"
+forever restart "$GD_UID"  || forever start -a --uid "$GD_UID" aux_system_command.js $GD_BIN $GD_OPTS $GD_PORT --base-path=$GD_PATH
 
 # Wait a little...
 sleep 8
