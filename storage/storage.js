@@ -64,7 +64,7 @@ var copyApplication = function(app_id, src_path, cb){
       },
       // Copy application data to storage
       function(wfcb){
-         exec('scp -r '+src_path+' '+dst_path, function(error, stdout, stderr){
+         exec('rsync -r -q --exclude=".git" '+src_path+'/ '+dst_path, function(error, stdout, stderr){
             return wfcb(error);
          });
       },
@@ -76,7 +76,7 @@ var copyApplication = function(app_id, src_path, cb){
       },
       // Create repository
       function(wfcb){
-         exec('git init && git add * && git commit -q -m "Application created"',{
+         exec('git init && git add * && git commit -q -m "Application created" && touch .git/git-daemon-export-ok',{
             cwd: dst_path
          }, function(error, stdout, stderr){
             return wfcb(error);
