@@ -15,7 +15,7 @@ function connectSSH(username, host, private_key, timeout, connectCallback){
    var time_elapsed = 0;
 
    // Define connection callback
-   conn.on('connect', function(){
+   conn.on('ready', function(){
       // Connected
       if(conn.already_conn != true){
          // Avoid calling callback twice
@@ -69,17 +69,17 @@ function execSSH(conn, cmd, work_dir, blocking, execCallback){
    // If the command is blocking, then wait until command execution
    if(blocking){
       // Change to dir and execute
-      full_cmd = ". ~/.bash_profile; cd "+work_dir+"; "+cmd+";"
+      full_cmd = "cd "+work_dir+"; "+cmd+";";
    } else {
       // Create a background process
-      full_cmd = "nohup sh -c '. ~/.bash_profile; cd "+work_dir+"; "+cmd+"' > /dev/null 2>&1 & echo -n $!;"
+      full_cmd = "nohup sh -c 'cd "+work_dir+"; "+cmd+"' > /dev/null 2>&1 & echo -n $!;";
    }
 
    // Output object with normal and error outputs.
    var output = {
       stdout: "",
       stderr: ""
-   }
+   };
 
    // Execute command
    conn.exec(full_cmd, function(error, stream){
@@ -88,7 +88,6 @@ function execSSH(conn, cmd, work_dir, blocking, execCallback){
       // Handle received data
       stream.on('close', function(code, signal){
          // Command executed, return output
-         conn.end();
          execCallback(null, output);
       }).on('data', function(data) {
          output.stdout = output.stdout + data;
