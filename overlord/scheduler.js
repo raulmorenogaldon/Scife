@@ -973,13 +973,24 @@ var _deployExecution = function(task, exec_id, deployCallback){
             wfcb(null, exec);
          }
       },
+      // Create folders
+      function(exec, wfcb){
+         logger.debug('['+MODULE_NAME+']['+exec_id+'] Deploy: Creating folders...');
+         var cmd = "mkdir -p "+exec.inst.image.workpath+"/"+exec.id +
+		   "; mkdir -p "+exec.inst.image.inputpath+"/"+exec.id +
+		   "; mkdir -p "+exec.inst.image.outputpath+"/"+exec.id;
+         instmanager.executeCommand(exec.inst.id, cmd, function (error, job_id) {
+            if (error) {return wfcb(error);}
+	    wfcb(null, exec);
+         });
+      },
       // Copy experiment in FS
       function(exec, wfcb){
          // Check task abort
          if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
-         var cmd = "mkdir -p "+exec.inst.image.workpath+"; git clone -b "+exec.id+" "+exec.app_url+" "+exec.inst.image.workpath+"/"+exec.id;
-         var work_dir = exec.inst.image.workpath+"/"+exec.id;
+         var cmd = "git clone -b "+exec.id+" "+exec.app_url+" "+exec.inst.image.workpath+"/"+exec.id;
+         var work_dir = exec.inst.image.workpath + "/" + exec.id;
 
          // Execute command
          logger.debug('['+MODULE_NAME+']['+exec_id+'] Deploy: Cloning experiment...');
@@ -1014,48 +1025,11 @@ var _deployExecution = function(task, exec_id, deployCallback){
          // Check task abort
          if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
-         var cmd = "mkdir -p "+exec.inst.image.inputpath+"/"+exec.id+
-            "; sshpass -p '"+constants.STORAGE_PASSWORD+"' rsync -Lr "+exec.input_url+"/* "+exec.inst.image.inputpath+"/"+exec.id;
+         var cmd = "sshpass -p '"+constants.STORAGE_PASSWORD+"' rsync -Lr "+exec.input_url+"/* "+exec.inst.image.inputpath+"/"+exec.id;
          var work_dir = exec.inst.image.workpath + "/" + exec.id;
 
          // Execute command
          logger.debug('['+MODULE_NAME+']['+exec_id+'] Deploy: Making inputdata directory...');
-         instmanager.executeJob(exec.inst.id, cmd, work_dir, 1, function (error, job_id) {
-            if (error) {return wfcb(error);}
-
-            // Update task and DB
-            task.job_id = job_id;
-            database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: job_id}});
-
-            // Check task abort
-            if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
-
-            // Wait for command completion
-            logger.debug('['+MODULE_NAME+']['+exec_id+'] Deploy: Waiting - ' + job_id);
-            instmanager.waitJob(job_id, exec.inst.id, function(error){
-               if(error){return wfcb(error);}
-
-               // Update task and DB
-               task.job_id = null;
-               database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
-
-               // Check task abort
-               if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
-
-               wfcb(null, exec);
-            });
-         });
-      },
-      // Create outputdata in FS
-      function(exec, wfcb){
-         // Check task abort
-         if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
-
-         var cmd = "mkdir -p "+exec.inst.image.outputpath+"/"+exec.id;
-         var work_dir = exec.inst.image.workpath + "/" + exec.id;
-
-         // Execute command
-         logger.debug('['+MODULE_NAME+']['+exec_id+'] Deploy: Creating outputdata directory...');
          instmanager.executeJob(exec.inst.id, cmd, work_dir, 1, function (error, job_id) {
             if (error) {return wfcb(error);}
 

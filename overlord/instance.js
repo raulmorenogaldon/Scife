@@ -362,7 +362,7 @@ var executeCommand = function(inst_id, cmd, executeCallback){
       },
       // Execute command
       function(inst, minion, wfcb){
-         minion.invoke('executeCommand', cmd, inst_id, function (error, result) {
+         minion.invoke('executeCommand', inst_id, cmd, function (error, result) {
             if (error) {
                wfcb(error);
             } else {
@@ -399,7 +399,7 @@ var executeJob = function(inst_id, cmd, work_dir, nodes, executeCallback){
       },
       // Execute command
       function(inst, minion, wfcb){
-         minion.invoke('executeScript', cmd, work_dir, inst_id, nodes, function (error, job_id) {
+         minion.invoke('executeScript', inst_id, cmd, work_dir, nodes, function (error, job_id) {
             if (error) {
                return wfcb(error);
             } else {
@@ -434,24 +434,24 @@ var waitJob = function(job_id, inst_id, waitCallback){
       function(inst, minion, wfcb){
          minion.invoke('getJobStatus', job_id, inst_id, function (error, status) {
             if (error) {
-               wfcb(new Error("Failed to get job status: " + inst_id + ": " + error));
+               wfcb(new Error("Failed to get job status of instance '" + inst_id + "': " + error));
             } else {
                if(status == "finished" || status == "unknown"){
                   // Done
-                  waitCallback(null);
+                  wfcb(null);
                } else {
                   // Running
-                  setTimeout(waitJob, 1000, job_id, inst_id, waitCallback);
+                  wfcb(true);
                }
-               wfcb(null);
             }
          });
       }
    ],
    function(error){
-      if(error){
-         waitCallback(error);
-         return;
+      if(error == true){
+         return setTimeout(waitJob, 1000, job_id, inst_id, waitCallback);
+      } else {
+         return waitCallback(error);
       }
    });
 }
@@ -508,7 +508,7 @@ var _cleanExecutionCode = function(minion, exec_id, inst, cleanCallback){
    var work_dir = inst.image.workpath+"/"+exec_id;
    var cmd = 'rm -rf '+work_dir;
    // Execute command
-   minion.invoke('executeCommand', cmd, inst.id, function (error, output) {
+   minion.invoke('executeCommand', inst.id, cmd, function (error, output) {
       return cleanCallback(error);
    });
 }
@@ -521,7 +521,7 @@ var _cleanExecutionInput = function(minion, exec_id, inst, cleanCallback){
    var input_dir = inst.image.inputpath+"/"+exec_id;
    var cmd = 'rm -rf '+input_dir;
    // Execute command
-   minion.invoke('executeCommand', cmd, inst.id, function (error, output) {
+   minion.invoke('executeCommand', inst.id, cmd, function (error, output) {
       return cleanCallback(error);
    });
 }
@@ -534,7 +534,7 @@ var _cleanExecutionOutput = function(minion, exec_id, inst, cleanCallback){
    var output_dir = inst.image.outputpath+"/"+exec_id;
    var cmd = 'rm -rf '+output_dir;
    // Execute command
-   minion.invoke('executeCommand', cmd, inst.id, function (error, output) {
+   minion.invoke('executeCommand', inst.id, cmd, function (error, output) {
       return cleanCallback(error);
    });
 }

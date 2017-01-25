@@ -44,8 +44,11 @@ var login = function(cb){
       return cb(null);
    }
 
+   var private_key = null;
+   if(constants.authkeyfile) private_key = fs.readFileSync(constants.authkeyfile);
+
    // Create connection
-   utils.connectSSH(constants.username, constants.url, null, 30000, function(error, conn){
+   utils.connectSSH(constants.username, constants.url, private_key, 30000, function(error, conn){
       if(error) return cb(error);
 
       // Save connection
@@ -151,7 +154,7 @@ var createInstance = function(inst_cfg, createCallback){
             minion: MINION_NAME,
             hostname: constants.url,
             ip: constants.url,
-            members: insts,
+            members: null,
             in_use: true,
             idle_time: Date.now(),
             ready: true
@@ -173,14 +176,17 @@ var destroyInstance = function(inst_id, destroyCallback){
    return destroyCallback(null);
 }
 
-var executeScript = function(script, work_dir, inst_id, nodes, executeCallback){
+var executeScript = function(inst_id, script, work_dir, nodes, executeCallback){
    // Available connection?
    if(!ssh_conn) return wfcb('No SSH connection is present');
+
+   // Always have work_dir
+   if(!work_dir) work_dir = "~";
 
    async.waterfall([
       // Get instance
       function(wfcb){
-         getInstance(inst_id, wfcb);
+         getInstances(inst_id, wfcb);
       },
       // Execute script with queue system
       function(inst, wfcb){
@@ -188,37 +194,37 @@ var executeScript = function(script, work_dir, inst_id, nodes, executeCallback){
          if(inst.ready != true) return wfcb(new Error('Instance "'+inst_id+'" is not ready, unable to execute script.'));
 
          // QSUB launch command
-         var qsub_cmd = "qsub -N "+inst.nodes+"-"+size.cpus+"-"+size.ram+" -l select="+inst.nodes+":ncpus="+size.cpus+":mem="+size.ram+"MB -o "+work_dir+" -e "+work_dir;
-         var cmd = cmd_env+"; echo '"+script+"' | "+qsub_cmd;
+         var qsub_cmd = "qsub -N "+inst.nodes+"-"+inst.size.cpus+"-"+inst.size.ram+" -l select="+inst.nodes+":ncpus="+inst.size.cpus+":mem="+inst.size.ram+"MB -e "+work_dir+" -o "+work_dir;
+         var cmd = cmd_env+"; echo '"+script+"' | "+qsub_cmd+" | tr -d '\n'"; // Strip new line
 
-         // Execute
-         utils.execSSH(ssh_conn, script, work_dir, false, wfcb);
+         // Execute (blocking as we are using queue system)
+         utils.execSSH(ssh_conn, cmd, work_dir, true, wfcb);
       }
    ],
    function(error, output){
-      return executeCallback(error, output);
+      return executeCallback(error, output.stdout); // Return Job ID
    });
 }
 
-var executeCommand = function(script, inst_id, executeCallback){
+var executeCommand = function(inst_id, script, executeCallback){
    // Available connection?
    if(!ssh_conn) return wfcb('No SSH connection is present');
 
    async.waterfall([
       // Get instance
       function(wfcb){
-         getInstance(inst_id, wfcb);
+         getInstances(inst_id, wfcb);
       },
       // Execute command
       function(inst, wfcb){
          // Check if instance is ready
          if(inst.ready != true) return wfcb(new Error('Instance "'+inst_id+'" is not ready, unable to execute script.'));
 
-         // Just the command
-         var cmd = cmd_env+"; "+script;
+	 // Just the command
+	 var cmd = cmd_env+"; "+script;
 
          // Execute
-         utils.execSSH(ssh_conn, script, work_dir, true, wfcb);
+         utils.execSSH(ssh_conn, cmd, null, true, wfcb);
       }
    ],
    function(error, output){
@@ -228,17 +234,17 @@ var executeCommand = function(script, inst_id, executeCallback){
 
 var getJobStatus = function(job_id, inst_id, getCallback){
    // Available connection?
-   if(!ssh_conn) return wfcb('No SSH connection is present');
+   if(!ssh_conn) return getCallback('No SSH connection is present');
 
    var status = "unknown";
    if(job_id){
       var cmd = cmd_env+"; qstat "+job_id;
-      utils.execSSH(ssh_conn, script, work_dir, true, function(error, output){
+      utils.execSSH(ssh_conn, cmd, null, true, function(error, output){
          // Parse output to get job info
-         if(output.indexOf("Unknown") == -1){
-            status = "finished";
-         } else {
+         if(output.stderr.indexOf("Unknown") == -1){
             status = "running";
+         } else {
+            status = "finished";
          }
          return getCallback(null, status);
       });
@@ -305,6 +311,12 @@ var _loadConfig = function(config, loadCallback){
          logger.info("["+MINION_NAME+"] Connecting to '"+config.username+"@"+config.url+"'...");
          login(function(error){
             if(error) return wfcb(error);
+
+	    // Test connection
+            //utils.execSSH(ssh_conn, "ls", "$HOME", true, function(error, output){
+            //   logger.info("["+MINION_NAME+"] ls test: "+ error);
+	    //});
+
             logger.info("["+MINION_NAME+"] Successfull connection to cluster.");
 
             // Next

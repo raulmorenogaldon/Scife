@@ -124,7 +124,7 @@ var createApplication = function(app_cfg, createCallback){
       },
       function(wfcb){
          //Create application data
-         app = {
+         var app = {
             _id: app_cfg.id,
             id: app_cfg.id,
             name: app_cfg.name,
@@ -147,13 +147,13 @@ var createApplication = function(app_cfg, createCallback){
    ],
    function(error, app){
       if(error){
-         console.log("Error creating application with config: " + JSON.stringify(app_cfg));
-         createCallback(error);
+         console.log("Error creating application with config: " + JSON.stringify(app_cfg) + ", error: " + error);
+         return createCallback(error);
       }
 
       // Return app data
       console.log("Created application: " + JSON.stringify(app));
-      createCallback(null, app);
+      return createCallback(null, app);
    });
 }
 

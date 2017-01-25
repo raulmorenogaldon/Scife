@@ -374,7 +374,7 @@ var _destroyInstanceMembers = function(members, destroyCallback){
    });
 }
 
-var executeScript = function(script, work_dir, inst_id, nodes, executeCallback){
+var executeScript = function(inst_id, script, work_dir, nodes, executeCallback){
    // Wrapper
    _executeOpenStackInstanceScript(script, work_dir, inst_id, nodes, false, function(error, output){
       if(error) return executeCallback(error);
@@ -383,7 +383,7 @@ var executeScript = function(script, work_dir, inst_id, nodes, executeCallback){
    });
 }
 
-var executeCommand = function(script, inst_id, executeCallback){
+var executeCommand = function(inst_id, script, executeCallback){
    // Wrapper
    _executeOpenStackInstanceScript(script, null, inst_id, 1, true, executeCallback);
 }
