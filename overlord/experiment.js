@@ -168,21 +168,28 @@ var createExperiment = function(exp_cfg, createCallback){
             return wfcb(null);
          });
       },
-      // Setup labels
+      // Setup metadata
       function(wfcb){
-         // Specified labels?
-         if(!exp_cfg.labels && exp_cfg.app.labels){
-            // Copy labels to experiment
-            exp_cfg.labels = exp_cfg.app.labels;
-            // Iterate labels and set current value
-            for(var label_key in exp_cfg.labels){
-               // Get default value and set if exists
-               if(exp_cfg.labels[label_key].default_value){
-                  exp_cfg.labels[label_key].value = exp_cfg.labels[label_key].default_value;
+         storage.client.invoke('discoverMetadata', exp_cfg.app_id, exp_cfg.id, function(error, metadata){
+            if(error) return wfcb(error);
+
+            // Get logs meta
+            exp_cfg.logs_meta = metadata.logs_meta;
+
+            // Specified labels?
+            if(!exp_cfg.labels && exp_cfg.app.labels){
+               // Copy labels to experiment
+               exp_cfg.labels = exp_cfg.app.labels;
+               // Iterate labels and set current value
+               for(var label_key in exp_cfg.labels){
+                  // Get default value and set if exists
+                  if(exp_cfg.labels[label_key].default_value){
+                     exp_cfg.labels[label_key].value = exp_cfg.labels[label_key].default_value;
+                  }
                }
             }
-         }
-         wfcb(null);
+            return wfcb(null);
+         });
       },
       // Obtain experiment input data tree
       function(wfcb){
@@ -219,7 +226,8 @@ var createExperiment = function(exp_cfg, createCallback){
             src_tree: exp_cfg.src_tree,
             last_execution: null,
             times_executed: 0,
-            labels: ('labels' in exp_cfg) ? exp_cfg.labels : {}
+            labels: ('labels' in exp_cfg) ? exp_cfg.labels : {},
+            logs_meta: ('logs_meta' in exp_cfg) ? exp_cfg.logs_meta : {}
          };
 
          // Add experiment to DB
