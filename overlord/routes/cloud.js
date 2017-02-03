@@ -1,3 +1,6 @@
+/**
+ * Copyright 2017 University of Castilla - La Mancha
+ */
 var express = require('express'),
    multer = require('multer'),
    router = express.Router(),

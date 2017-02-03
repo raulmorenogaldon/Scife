@@ -1,3 +1,6 @@
+/**
+ * Copyright 2017 University of Castilla - La Mancha
+ */
 var zerorpc = require('zerorpc');
 var logger = require('./utils.js').logger;
 

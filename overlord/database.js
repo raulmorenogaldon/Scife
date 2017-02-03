@@ -1,3 +1,6 @@
+/**
+ * Copyright 2017 University of Castilla - La Mancha
+ */
 var mongo = require('mongodb').MongoClient;
 var logger = require('./utils.js').logger;
 
