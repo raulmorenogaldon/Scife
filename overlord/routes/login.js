@@ -1,3 +1,6 @@
+/**
+ * Copyright 2017 University of Castilla - La Mancha
+ */
 var express = require('express');
 var router = express.Router();
 var jwt = require('jsonwebtoken');

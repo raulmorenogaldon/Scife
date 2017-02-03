@@ -1,3 +1,6 @@
+/**
+ * Copyright 2017 University of Castilla - La Mancha
+ */
 var HTTPCODE = {
    OK: 200,
    BAD_REQUEST: 400,

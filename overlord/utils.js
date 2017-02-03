@@ -1,3 +1,6 @@
+/**
+ * Copyright 2017 University of Castilla - La Mancha
+ */
 var ssh2 = require('ssh2').Client;
 var winston = require('winston');
 

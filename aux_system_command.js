@@ -1,3 +1,6 @@
+/**
+ * Copyright 2017 University of Castilla - La Mancha
+ */
 var spawn = require('child_process').spawn;
 var psTree = require('ps-tree');
 
