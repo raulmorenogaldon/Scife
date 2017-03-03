@@ -59,7 +59,7 @@ function connectSSH(username, host, private_key, timeout, connectCallback){
 };
 
 // Execute a command
-function execSSH(conn, cmd, work_dir, blocking, execCallback){
+function execSSH(conn, cmd, work_dir, blocking, tmp, execCallback){
    // Check connection
    if(!conn || !conn.exec) return execCallback(new Error("Invalid connection object."));
 
@@ -69,19 +69,24 @@ function execSSH(conn, cmd, work_dir, blocking, execCallback){
    // If no work_dir is specified, use $HOME
    if(!work_dir) work_dir = "~";
 
+   // Set output files
+   var output_path = "/dev/null";
+   if(tmp) output_path = tmp;
+
    // If the command is blocking, then wait until command execution
    if(blocking){
       // Change to dir and execute
       full_cmd = ". ~/.bash_profile; cd "+work_dir+"; "+cmd+";";
    } else {
       // Create a background process
-      full_cmd = "nohup sh -c '. ~/.bash_profile; cd "+work_dir+"; "+cmd+"' > /dev/null 2>&1 & echo -n $!;";
+      full_cmd = "nohup sh -c '. ~/.bash_profile; cd "+work_dir+"; "+cmd+"' > "+output_path+"/$$.stdout 2> "+output_path+"/$$.stderr && echo -n $? > "+output_path+"/$$.code & echo -n $!;";
    }
 
    // Output object with normal and error outputs.
    var output = {
       stdout: "",
-      stderr: ""
+      stderr: "",
+      code: null
    };
 
    // Execute command
@@ -91,6 +96,7 @@ function execSSH(conn, cmd, work_dir, blocking, execCallback){
       // Handle received data
       stream.on('close', function(code, signal){
          // Command executed, return output
+         output.code = code;
          execCallback(null, output);
       }).on('data', function(data) {
          output.stdout = output.stdout + data;

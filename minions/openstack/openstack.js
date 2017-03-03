@@ -620,7 +620,7 @@ var _checkHostsConnectivity = function(inst_id, hosts, checkCallback){
                         '((count = count - 1))\n'+
                         'done\n'+
                         'echo -n \$rc';
-                     utils.execSSH(conn, cmd, null, true, function(error, output){
+                     utils.execSSH(conn, cmd, null, true, null, function(error, output){
                         // Close connection
                         utils.closeSSH(conn);
 
@@ -880,7 +880,7 @@ var _executeOpenStackInstanceScript = function(script, work_dir, inst_id, nodes,
 
             // Execute command
             //console.log('['+MINION_NAME+']['+inst_id+'] Connected, executing command.');
-            utils.execSSH(conn, script, work_dir, blocking, function(error, output){
+            utils.execSSH(conn, script, work_dir, blocking, image.tmppath, function(error, output){
                if(error){
                   // Close connection
                   utils.closeSSH(conn);
@@ -922,7 +922,7 @@ var _getOpenStackInstanceJobStatus = function(job_id, inst_id, getCallback){
             // Execute command
             var status = "finished";
             var cmd = 'ps -ef | tr -s [:blank:] | cut -d " " -f 2 | grep -x '+job_id
-            utils.execSSH(conn, cmd, null, true, function(error, output){
+            utils.execSSH(conn, cmd, null, true, null, function(error, output){
                if(error){
                   // Close connection
                   utils.closeSSH(conn);

@@ -456,6 +456,8 @@ var cleanExecution = function(exec_id, cb){
       // Clean instance if not debug mode
       if(!exec || !exec.launch_opts || !exec.launch_opts.debug){
          instmanager.cleanExecution(exec_id, exec.inst_id, {b_input: true, b_output: true, b_sources: true, b_remove: true}, function(error){
+            // Unlink execution from instance if successful
+            if(!error) database.db.collection('executions').updateOne({id: exec_id},{$set:{inst_id: null}});
             return cb(error);
          });
       } else {
@@ -647,10 +649,15 @@ taskmanager.setTaskHandler("deployExecution", function(task){
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
 
-         // Clean instance
-         cleanExecution(exec_id, function(error){
-            database.db.collection('executions').updateOne({id: exec_id},{$set:{inst_id: null, status: "failed_deploy"}});
-         });
+         // Update DB
+         database.db.collection('executions').updateOne({id: exec_id},{$set:{status: "failed_deploy"}});
+
+         // Clean task
+         var next_task = {
+            type: "cleanExecution",
+            exec_id: exec_id,
+         };
+         taskmanager.pushTask(next_task, exec_id);
 
          return;
       }
@@ -683,13 +690,18 @@ taskmanager.setTaskHandler("compileExecution", function(task){
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
 
-         // Clean instance
-         cleanExecution(exec_id, function(error){
-            database.db.collection('executions').updateOne({id: exec_id},{$set:{inst_id: null, status: "failed_compilation"}});
-         });
+         // Update status
+         database.db.collection('executions').updateOne({id: exec_id},{$set:{status: "failed_compilation"}});
 
          // Update execution finish date
          database.db.collection('executions').updateOne({id: task.exec_id},{$set:{finish_date: new Date().toString()}});
+
+         // Clean task
+         var next_task = {
+            type: "cleanExecution",
+            exec_id: exec_id,
+         };
+         taskmanager.pushTask(next_task, exec_id);
 
          return;
       }
@@ -720,13 +732,18 @@ taskmanager.setTaskHandler("executeExecution", function(task){
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
 
-         // Clean instance
-         cleanExecution(exec_id, function(error){
-            database.db.collection('executions').updateOne({id: exec_id},{$set:{inst_id: null, status: "failed_execution"}});
-         });
+         // Update status
+         database.db.collection('executions').updateOne({id: exec_id},{$set:{status: "failed_execution"}});
 
          // Update execution finish date
          database.db.collection('executions').updateOne({id: task.exec_id},{$set:{finish_date: new Date().toString()}});
+
+         // Clean task
+         var next_task = {
+            type: "cleanExecution",
+            exec_id: exec_id,
+         };
+         taskmanager.pushTask(next_task, exec_id);
 
          return;
       }
@@ -752,25 +769,31 @@ taskmanager.setTaskHandler("retrieveExecutionOutput", function(task){
 
    // Retrieve execution output data to storage
    _retrieveExecutionOutput(task, exec_id, function(error){
+
+      // Clean task
+      var next_task = {
+         type: "cleanExecution",
+         exec_id: exec_id,
+      };
+
       if(error){
          // Set task failed
          taskmanager.setTaskFailed(task_id, error);
+         taskmanager.pushTask(next_task, exec_id);
          return;
       }
 
       // Set task to done
       taskmanager.setTaskDone(task_id, null, null);
 
-      // Clean instance
-      cleanExecution(exec_id, function(error){
-         database.db.collection('executions').updateOne({id: exec_id},{$set:{inst_id: null}});
-      });
-
       // Update execution finish date
       database.db.collection('executions').updateOne({id: task.exec_id},{$set:{finish_date: new Date().toString()}});
 
       // Set execution to done status
       database.db.collection('executions').updateOne({id: exec_id},{$set:{status: "done"}});
+
+      // Clean task
+      taskmanager.pushTask(next_task, exec_id);
    });
 });
 
@@ -791,6 +814,27 @@ taskmanager.setTaskHandler("destroyExecution", function(task){
       }
 
       // Set task to done
+      taskmanager.setTaskDone(task_id, null, null);
+   });
+});
+
+/**
+ * Clean execution from instance
+ */
+taskmanager.setTaskHandler("cleanExecution", function(task){
+   // Get vars
+   var task_id = task.id;
+   var exec_id = task.exec_id;
+
+   // Prepare experiment
+   cleanExecution(exec_id, function(error){
+      if(error){
+         // Set task failed
+         taskmanager.setTaskFailed(task_id, error);
+         return;
+      }
+
+      // Set task to done and setup next task
       taskmanager.setTaskDone(task_id, null, null);
    });
 });
@@ -976,15 +1020,40 @@ var _deployExecution = function(task, exec_id, deployCallback){
             wfcb(null, exec);
          }
       },
+      // Remove previous folders
+      function(exec, wfcb){
+         logger.debug('['+MODULE_NAME+']['+exec_id+'] Deploy: Removing previous folders...');
+         var cmd = "rm -rf "+exec.inst.image.workpath+"/"+exec.id +
+            "; rm -rf "+exec.inst.image.inputpath+"/"+exec.id +
+            "; rm -rf "+exec.inst.image.outputpath+"/"+exec.id;
+         instmanager.executeCommand(exec.inst.id, cmd, function (error, result) {
+            if (error) return wfcb(error);
+
+            // Check if command failed
+            if(result.code != 0){
+               logger.error('['+MODULE_NAME+']['+exec_id+'] Deploy: Failed to remove folders. Error code: '+result.code+', stderr: '+result.stderr);
+               return wfcb(new Error("Failed to remove folders in instance."));
+            }
+
+	         wfcb(null, exec);
+         });
+      },
       // Create folders
       function(exec, wfcb){
          logger.debug('['+MODULE_NAME+']['+exec_id+'] Deploy: Creating folders...');
          var cmd = "mkdir -p "+exec.inst.image.workpath+"/"+exec.id +
-		   "; mkdir -p "+exec.inst.image.inputpath+"/"+exec.id +
-		   "; mkdir -p "+exec.inst.image.outputpath+"/"+exec.id;
-         instmanager.executeCommand(exec.inst.id, cmd, function (error, job_id) {
-            if (error) {return wfcb(error);}
-	    wfcb(null, exec);
+            "; mkdir -p "+exec.inst.image.inputpath+"/"+exec.id +
+            "; mkdir -p "+exec.inst.image.outputpath+"/"+exec.id;
+         instmanager.executeCommand(exec.inst.id, cmd, function (error, result) {
+            if (error) return wfcb(error);
+
+            // Check if command failed
+            if(result.code != 0){
+               logger.error('['+MODULE_NAME+']['+exec_id+'] Deploy: Failed to create folders. Error code: '+result.code+', stderr: '+result.stderr);
+               return wfcb(new Error("Failed to create folders in instance."));
+            }
+
+	         wfcb(null, exec);
          });
       },
       // Copy experiment in FS
@@ -1009,12 +1078,18 @@ var _deployExecution = function(task, exec_id, deployCallback){
 
             // Wait for command completion
             logger.debug('['+MODULE_NAME+']['+exec_id+'] Deploy: Waiting - ' + job_id);
-            instmanager.waitJob(job_id, exec.inst.id, function(error){
+            instmanager.waitJob(job_id, exec.inst.id, function(error, output){
                if(error){return wfcb(error);}
 
                // Update task and DB
                task.job_id = null;
                database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
+
+               // Check if command failed
+               if(output.code != 0){
+                  logger.error('['+MODULE_NAME+']['+exec_id+'] Deploy: Failed to clone experiment. Error code: '+output.code+', stderr: '+output.stderr);
+                  return wfcb(new Error("Failed to clone experiments in instance."));
+               }
 
                // Check task abort
                if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
@@ -1045,12 +1120,18 @@ var _deployExecution = function(task, exec_id, deployCallback){
 
             // Wait for command completion
             logger.debug('['+MODULE_NAME+']['+exec_id+'] Deploy: Waiting - ' + job_id);
-            instmanager.waitJob(job_id, exec.inst.id, function(error){
+            instmanager.waitJob(job_id, exec.inst.id, function(error, output){
                if(error){return wfcb(error);}
 
                // Update task and DB
                task.job_id = null;
                database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
+
+               // Check if command failed
+               if(output.code != 0){
+                  logger.error('['+MODULE_NAME+']['+exec_id+'] Deploy: Failed to deploy input data. Error code: '+output.code+', stderr: '+output.stderr);
+                  return wfcb(new Error("Failed to deploy input data in instance."));
+               }
 
                // Check task abort
                if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
@@ -1081,12 +1162,18 @@ var _deployExecution = function(task, exec_id, deployCallback){
 
             // Wait for command completion
             logger.debug('['+MODULE_NAME+']['+exec_id+'] Deploy: Waiting - ' + job_id);
-            instmanager.waitJob(job_id, exec.inst.id, function(error){
+            instmanager.waitJob(job_id, exec.inst.id, function(error, output){
                if(error){return wfcb(error);}
 
                // Update task and DB
                task.job_id = null;
                database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
+
+               // Check if command failed
+               if(output.code != 0){
+                  logger.error('['+MODULE_NAME+']['+exec_id+'] Deploy: Failed to initialize EXPERIMENT_STATUS. Error code: '+output.code+', stderr: '+output.stderr);
+                  return wfcb(new Error("Failed to initialize EXPERIMENT_STATUS in instance."));
+               }
 
                // Check task abort
                if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
@@ -1097,7 +1184,7 @@ var _deployExecution = function(task, exec_id, deployCallback){
       },
    ],
    function(error, exec){
-      if(error){return deployCallback(error);}
+      if(error) return deployCallback(error);
 
       // Poll experiment status
       logger.debug('['+MODULE_NAME+']['+exec_id+'] Deploy: Polling...');
@@ -1201,8 +1288,13 @@ var _compileExecution = function(task, exec_id, compileCallback){
 
          // Wait for command completion
          logger.debug('['+MODULE_NAME+']['+exec_id+'] Compile: Waiting - ' + task.job_id);
-         instmanager.waitJob(task.job_id, exec.inst_id, function(error){
+         instmanager.waitJob(task.job_id, exec.inst_id, function(error, output){
             if(error) return compileCallback(error);
+
+            // Check if command failed
+            if(output.code != 0){
+               logger.error('['+MODULE_NAME+']['+exec_id+'] Compile: Failed to compile. Error code: '+output.code+', stderr: '+output.stderr);
+            }
 
             // Poll execution status
             logger.debug('['+MODULE_NAME+']['+exec_id+'] Compile: Job done, polling...');
@@ -1335,8 +1427,13 @@ var _executeExecution = function(task, exec_id, executionCallback){
 
          // Wait for command completion
          logger.debug('['+MODULE_NAME+']['+exec_id+'] Execute: Waiting - ' + task.job_id);
-         instmanager.waitJob(task.job_id, exec.inst_id, function(error){
+         instmanager.waitJob(task.job_id, exec.inst_id, function(error, output){
             if(error){return executionCallback(error);}
+
+            // Check if command failed
+            if(output.code != 0){
+               logger.error('['+MODULE_NAME+']['+exec_id+'] Execute: Failed to execute. Error code: '+output.code+', stderr: '+output.stderr);
+            }
 
             // Poll execution status
             logger.debug('['+MODULE_NAME+']['+exec_id+'] Execute: Job done, polling...');
@@ -1406,16 +1503,30 @@ var _loadCheckpointExecution = function(exec_id, loadCallback){
          logger.debug('['+MODULE_NAME+']['+exec_id+'] LoadCheckpoint: Copying checkpoint file to working folder...');
          instmanager.executeCommand(exec.inst.id, cmd, function (error, output) {
             if(error) return wfcb(error);
+
+            // Check if command failed
+            if(output.code != 0){
+               logger.debug('['+MODULE_NAME+']['+exec_id+'] LoadCheckpoint: Failed to download checkpoint file. Error code: '+output.code+', stderr: '+output.stderr);
+               return wfcb(new Error("Failed to download checkpoint in instance."));
+            }
+
             wfcb(null, exec);
          });
       },
-      // Decompress file
+      // Uncompress file
       function(exec, wfcb){
          // Execute command
          var cmd = "tar zxvf "+exec.inst.image.workpath+"/checkpoint.tar.gz";
-         logger.debug('['+MODULE_NAME+']['+exec_id+'] LoadCheckpoint: Decompressing...');
+         logger.debug('['+MODULE_NAME+']['+exec_id+'] LoadCheckpoint: Uncompressing...');
          instmanager.executeCommand(exec.inst.id, cmd, function (error, output) {
             if(error) return wfcb(error);
+
+            // Check if command failed
+            if(output.code != 0){
+               logger.debug('['+MODULE_NAME+']['+exec_id+'] LoadCheckpoint: Failed to uncompress checkpoint file. Error code: '+output.code+', stderr: '+output.stderr);
+               return wfcb(new Error("Failed to uncompress checkpoint in instance."));
+            }
+
             wfcb(null, exec);
          });
       }
@@ -1464,15 +1575,22 @@ var _retrieveExecutionOutput = function(task, exec_id, retrieveCallback){
          if(task && taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
          logger.debug('['+MODULE_NAME+']['+exec_id+'] Getting execution output data path.');
-         var output_files = exec.inst.image.outputpath+"/"+exec.id+"/*";
+         var output_files = exec.inst.image.outputpath+"/"+exec.id+"/";
 
          // Execute command
          var cmd = "sshpass -p '"+constants.STORAGE_PASSWORD+"' rsync -Lre 'ssh -o StrictHostKeyChecking=no' "+output_files+" "+exec.output_url+"/ --delete-after";
          logger.debug('['+MODULE_NAME+']['+exec_id+'] Retrieve: Copying output files to storage...');
          instmanager.executeCommand(exec.inst.id, cmd, function (error, output) {
             if(error) return wfcb(error);
+
             // Check task abort
             if(task && taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+
+            // Check if command failed, ignore error 23 (truncated files)
+            if(output.code != 0 && output.code != 23){
+               logger.debug('['+MODULE_NAME+']['+exec_id+'] Retrieve: Failed to copy output files to storage. Error code: '+output.code+', stderr: '+output.stderr);
+               return wfcb(new Error("Failed to copy output files to storage."));
+            }
 
             // Reload output tree
             logger.debug('['+MODULE_NAME+']['+exec_id+'] Retrieve: Copy completed.');
@@ -1712,6 +1830,12 @@ var _pollExecutionLogs = function(exec_id, inst_id, work_dir, log_files, pollCal
                   instmanager.executeCommand(inst_id, cmd, function (error, output) {
                      if(error) return taskcb(new Error("Failed to get modified date of "+ loglist[i]+ ", error: "+ error));
 
+                     // Check if command failed
+                     if(output.code != 0){
+                        logger.debug('['+MODULE_NAME+']['+exec_id+'] PollLogs: Failed to get metadata of '+loglist[i]+'. Error code: '+output.code+', stderr: '+output.stderr);
+                        return wfcb(new Error('Failed to get metadata from '+loglist[i]));
+                     }
+
                      // Get date
                      var log_date = output.stdout;
 
@@ -1727,6 +1851,12 @@ var _pollExecutionLogs = function(exec_id, inst_id, work_dir, log_files, pollCal
                         logger.debug('['+MODULE_NAME+']['+exec_id+'] PollLogs: Updating log content - ' + log_filename + ' : ' + log_date + " ...");
                         instmanager.executeCommand(inst_id, cmd, function (error, output) {
                            if(error) return taskcb(new Error("Failed to poll log "+ loglist[i]+ ", error: "+ error));
+
+                           // Check if command failed
+                           if(output.code != 0){
+                              logger.debug('['+MODULE_NAME+']['+exec_id+'] PollLogs: Failed to update log contents from '+loglist[i]+'. Error code: '+output.code+', stderr: '+output.stderr);
+                              return wfcb(new Error('Failed to update log contents from '+loglist[i]));
+                           }
 
                            // Get log content
                            var content = output.stdout;
@@ -1773,6 +1903,12 @@ var _findExecutionLogs = function(exec_id, inst_id, work_dir, log_files, findCal
    // Search logs in instance
    instmanager.executeCommand(inst_id, cmd, function (error, output) {
       if(error) return findCallback(new Error("Failed to poll log "+ log_files[i]+ ", error: "+ error));
+
+      // Check if command failed
+      if(output.code != 0){
+         logger.debug('['+MODULE_NAME+']['+exec_id+'] FindLogs: Failed to find log files. Error code: '+output.code+', stderr: '+output.stderr);
+         return wfcb(new Error('Failed to find log files'));
+      }
 
       // Get logs path, filter empty
       var loglist = output.stdout.split("\n");
@@ -1987,6 +2123,13 @@ var _checkpointExecution = function(exec_id, cb){
          logger.info('['+MODULE_NAME+']['+exec_id+'] Checkpoint: Compressing data...');
          instmanager.executeCommand(exec.inst_id, cmd, function (error, output) {
             if(error) return wfcb(error);
+
+            // Check if command failed
+            if(output.code != 0){
+               logger.debug('['+MODULE_NAME+']['+exec_id+'] Checkpoing: Failed to compress checkpoint data. Error code: '+output.code+', stderr: '+output.stderr);
+               return wfcb(new Error('Failed to compress checkpoint data.'));
+            }
+
             wfcb(null, exec);
          });
       },
@@ -1997,6 +2140,13 @@ var _checkpointExecution = function(exec_id, cb){
          logger.info('['+MODULE_NAME+']['+exec_id+'] Checkpoint: Moving to output path...');
          instmanager.executeCommand(exec.inst.id, cmd, function (error, output) {
             if(error) return wfcb(error);
+
+            // Check if command failed
+            if(output.code != 0){
+               logger.debug('['+MODULE_NAME+']['+exec_id+'] Checkpoing: Failed to move checkpoint file to output path. Error code: '+output.code+', stderr: '+output.stderr);
+               return wfcb(new Error('Failed to move checkpoint file to output path.'));
+            }
+
             wfcb(null);
          });
       }

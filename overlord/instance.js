@@ -47,6 +47,9 @@ var requestInstance = function(name, image_id, size_id, nodes, requestCallback){
          var minion = _getMinion(image.minion, false, function(error, minion){
             if(error) return requestCallback(error);
 
+            // Minion must be online
+            if(minion.online == false) return requestCallback(new Error('Minion for this image is OFFLINE.').name = 'OfflineMinion');
+
             // Check quotas
             getImageQuotas(image_id, function(error, quotas){
                if(error) return requestCallback(error);
@@ -126,15 +129,18 @@ var getImagesList = function(getCallback){
       (function(i){
          tasks.push(function(taskcb){
             var minion = vMinionClients[i];
-            minion.invoke('getImages', null, function (error, minion_images) {
-               if(error){
-                  taskcb(new Error('Failed to retrieve images'));
-               } else {
-                  // Add to list
-                  list = list.concat(minion_images);
+            // Check if minion is online
+            if(minion.online == true){
+               minion.invoke('getImages', null, function (error, minion_images) {
+                  if(!error){
+                     // Add to list
+                     list = list.concat(minion_images);
+                  }
                   taskcb(null);
-               }
-            });
+               });
+            } else {
+               taskcb(null);
+            }
          });
       })(i);
    }
@@ -156,15 +162,18 @@ var getSizesList = function(getCallback){
       (function(i){
          tasks.push(function(taskcb){
             var minion = vMinionClients[i];
-            minion.invoke('getSizes', null, function (error, minion_sizes) {
-               if(error){
-                  taskcb(new Error('Failed to retrieve sizes'));
-               } else {
-                  // Add to list
-                  list = list.concat(minion_sizes);
+            // Check if minion is online
+            if(minion.online == true){
+               minion.invoke('getSizes', null, function (error, minion_sizes) {
+                  if(!error){
+                     // Add to list
+                     list = list.concat(minion_sizes);
+                  }
                   taskcb(null);
-               }
-            });
+               });
+            } else {
+               taskcb(null);
+            }
          });
       })(i);
    }
@@ -186,15 +195,17 @@ var getInstancesList = function(getCallback){
       (function(i){
          tasks.push(function(taskcb){
             var minion = vMinionClients[i];
-            minion.invoke('getInstances', null, function (error, minion_insts) {
-               if(error){
-                  taskcb(new Error('Failed to retrieve instances'));
-               } else {
-                  // Add to list
-                  list = list.concat(minion_insts);
+            if(minion.online == true){
+               minion.invoke('getInstances', null, function (error, minion_insts) {
+                  if(!error){
+                     // Add to list
+                     list = list.concat(minion_insts);
+                  }
                   taskcb(null);
-               }
-            });
+               });
+            } else {
+               taskcb(null);
+            }
          });
       })(i);
    }
@@ -214,6 +225,9 @@ var getImageQuotas = function(image_id, getCallback){
       // Get minion
       var minion = _getMinion(image.minion, false, function(error, minion){
          if(error) return getCallback(error);
+
+         // Minion must be online
+         if(minion.online == false) return getCallback(new Error('Minion for this image is OFFLINE.').name = 'OfflineMinion');
 
          // Get quotas
          minion.invoke('getQuotas', function (error, quotas) {
@@ -235,6 +249,9 @@ var destroyInstance = function(inst_id, destroyCallback){
       // Get minion
       var minion = _getMinion(inst.minion, false, function(error, minion){
          if(error) return destroyCallback(error);
+
+         // Minion must be online
+         if(minion.online == false) return destroyCallback(new Error('Minion for this image is OFFLINE.').name = 'OfflineMinion');
 
          // Destroy instance
          minion.invoke('destroyInstance', inst_id, function (error) {
@@ -260,6 +277,10 @@ var cleanExecution = function(exec_id, inst_id, b_flags, cleanCallback){
       function(inst, wfcb){
          var minion = _getMinion(inst.minion, false, function(error, minion){
             if(error) return wfcb(error);
+
+            // Minion must be online
+            if(minion.online == false) return wfcb(new Error('Minion for this image is OFFLINE.').name = 'OfflineMinion');
+
             wfcb(null, inst, minion);
          });
       },
@@ -360,6 +381,10 @@ var executeCommand = function(inst_id, cmd, executeCallback){
       function(inst, wfcb){
          var minion = _getMinion(inst.minion, true, function(error, minion){
             if(error) return wfcb(error);
+
+            // Minion must be online
+            if(minion.online == false) return executeCallback(new Error('Minion for this image is OFFLINE.').name = 'OfflineMinion');
+
             wfcb(null, inst, minion);
          });
       },
@@ -375,10 +400,7 @@ var executeCommand = function(inst_id, cmd, executeCallback){
       }
    ],
    function(error, result){
-      if(error){
-         executeCallback(error);
-         return;
-      }
+      if(error) return executeCallback(error);
       // Callback
       executeCallback(null, result);
    });
@@ -397,6 +419,10 @@ var executeJob = function(inst_id, cmd, work_dir, nodes, executeCallback){
       function(inst, wfcb){
          var minion = _getMinion(inst.minion, true, function(error, minion){
             if(error) return wfcb(error);
+
+            // Minion must be online
+            if(minion.online == false) return wfcb(new Error('Minion for this image is OFFLINE.').name = 'OfflineMinion');
+
             wfcb(null, inst, minion);
          });
       },
@@ -413,7 +439,7 @@ var executeJob = function(inst_id, cmd, work_dir, nodes, executeCallback){
       }
    ],
    function(error, job_id){
-      if(error){return executeCallback(error);}
+      if(error) return executeCallback(error);
 
       // Callback
       executeCallback(null, job_id);
@@ -430,6 +456,10 @@ var waitJob = function(job_id, inst_id, waitCallback){
       function(inst, wfcb){
          var minion = _getMinion(inst.minion, true, function(error, minion){
             if(error) return wfcb(error);
+
+            // Minion must be online
+            if(minion.online == false) return wfcb(new Error('Minion for this image is OFFLINE.').name = 'OfflineMinion');
+
             wfcb(null, inst, minion);
          });
       },
@@ -437,25 +467,58 @@ var waitJob = function(job_id, inst_id, waitCallback){
       function(inst, minion, wfcb){
          minion.invoke('getJobStatus', job_id, inst_id, function (error, status) {
             if (error) {
-               wfcb(new Error("Failed to get job status of instance '" + inst_id + "': " + error));
+               wfcb(new Error("Failed to get job status from instance '" + inst_id + "': " + error));
             } else {
                if(status == "finished" || status == "unknown"){
                   // Done
-                  wfcb(null);
+                  wfcb(null, inst, minion);
                } else {
                   // Running
                   wfcb(true);
                }
             }
          });
-      }
+      },
+      // Get job stdout
+      function(inst, minion, wfcb){
+         var output = {
+            stdout: null,
+            stderr: null,
+            code: null
+         };
+
+         // Retrieve output
+         var cmd = 'cat '+inst.image.tmppath+'/'+ job_id + '.stdout';
+         minion.invoke('executeCommand', inst_id, cmd, function (error, result) {
+            if (error) return wfcb(error);
+            output.stdout = result.stdout;
+
+            // Retrieve error
+            var cmd = 'cat '+inst.image.tmppath+'/'+ job_id + '.stderr';
+            minion.invoke('executeCommand', inst_id, cmd, function (error, result) {
+               if (error) return wfcb(error);
+               output.stderr = result.stdout;
+
+               // Retrieve code
+               var cmd = 'cat '+inst.image.tmppath+'/'+ job_id + '.code';
+               minion.invoke('executeCommand', inst_id, cmd, function (error, result) {
+                  if (error) return wfcb(error);
+                  output.code = result.stdout;
+
+                  // Remove files
+                  var cmd = 'rm '+inst.image.tmppath+'/'+ job_id + '.*';
+                  minion.invoke('executeCommand', inst_id, cmd, function (error, result) {
+                     if (error) return wfcb(error);
+                     return wfcb(null, output);
+                  });
+               });
+            });
+         });
+      },
    ],
-   function(error){
-      if(error == true){
-         return setTimeout(waitJob, 1000, job_id, inst_id, waitCallback);
-      } else {
-         return waitCallback(error);
-      }
+   function(error, output){
+      if(error == true) return setTimeout(waitJob, 1000, job_id, inst_id, waitCallback);
+      return waitCallback(error, output);
    });
 }
 
@@ -471,6 +534,10 @@ var abortJob = function(job_id, inst_id, abortCallback){
          // Get minion
          var minion = _getMinion(inst.minion, false, function(error, minion){
             if(error) return abortCallback(error);
+
+            // Minion must be online
+            if(minion.online == false) return abortCallback(new Error('Minion for this image is OFFLINE.').name = 'OfflineMinion');
+
             // Abort job
             logger.debug('['+MODULE_NAME+']['+inst_id+'] Aborting job - ' + job_id);
             minion.invoke('cleanJob', job_id, inst_id, function (error, result) {
@@ -498,7 +565,7 @@ var _getMinion = function(id, wait, cb){
    if(!minion){
       // Wait
       if(wait == true) return setTimeout(_getMinion, 10000, id, cb);
-      else return cb(new Error('Minion "'+minion+'" is not loaded.'));
+      else return cb(new Error('Minion "'+minion+'" is not LOADED.'));
    }
 
    return cb(null, minion);
@@ -657,6 +724,36 @@ var _destroyEmptyInstances = function(destroyCallback){
 }
 
 /**
+ * Poll minion
+ */
+var _pollMinionLock = false;
+var _pollMinionOnline = function(minion){
+   // Avoid multiple polling
+   if(_pollMinionLock == true) return;
+   _pollMinionLock = true;
+
+   // Get minion name
+   minion.invoke('getMinionName', function (error, name) {
+      if(error){
+         logger.info('['+MODULE_NAME+'] Minion in '+minion.minion_url+' if offline.');
+         // Mark minion as offline
+         minion.online = false;
+         // Retry connection
+         minion.connect(minion.minion_url);
+      }
+      // Swap online status
+      else if(minion.online == false){
+         // Is online
+         logger.info('['+MODULE_NAME+'] Minion in '+minion.minion_url+' is online.');
+         minion.online = true;
+         dMinionClients[name] = minion;
+      }
+
+      _pollMinionLock = false;
+   });
+}
+
+/**
  * Update minions.
  */
 var autoupdate = function(cb){
@@ -668,12 +765,16 @@ var autoupdate = function(cb){
       (function(i){
          tasks.push(function(taskcb){
             var minion = vMinionClients[i];
-            minion.invoke('autoupdate', function (error) {
-               if(error){
-                  logger.error('['+MODULE_NAME+'] Failed to autoupdate minion '+minion.minion_url+'.');
-               }
+            if(minion.online == true){
+               minion.invoke('autoupdate', function (error) {
+                  if(error){
+                     logger.error('['+MODULE_NAME+'] Failed to autoupdate minion '+minion.minion_url+'.');
+                  }
+                  return taskcb(null);
+               });
+            } else {
                return taskcb(null);
-            });
+            }
          });
       })(i);
    }
@@ -704,20 +805,19 @@ var init = function(cfg, initCallback){
 
             // Connect
             minion.minion_url = constants.MINION_URL[i];
+            minion.online = false;
             minion.connect(minion.minion_url);
-            logger.info('['+MODULE_NAME+'] Connecting to minion in: ' + minion.minion_url);
-            minion.invoke('getMinionName', function (error, name) {
-               if(error){
-                  logger.error('['+MODULE_NAME+'] Failed to connect to minion '+minion.minion_url+'.');
-                  return taskcb(null);
-               }
+            _pollMinionOnline(minion);
 
-               // Connected
-               logger.info('['+MODULE_NAME+'] Connected to minion '+name+'.');
-               dMinionClients[name] = minion;
-               vMinionClients.push(minion);
-               taskcb(null);
-            });
+            // Poll minions' status (5 sec)
+            setInterval(function(){
+               _pollMinionOnline(minion);
+            }, 5000);
+
+            // Add to minions list
+            logger.debug('['+MODULE_NAME+'] Registered minion in '+minion.minion_url);
+            vMinionClients.push(minion);
+            taskcb(null);
          });
       })(i);
    }
@@ -730,10 +830,10 @@ var init = function(cfg, initCallback){
        */
       var _lock_destroy = true;
       _destroyEmptyInstances(function(error){
-         if(error) console.error('['+MODULE_NAME+'] DestroyEmpty: Failed - ' + error);
+         if(error) logger.error('['+MODULE_NAME+'] DestroyEmpty: Failed - ' + error);
          _lock_destroy = false;
       });
-      // Periodic
+      // Destroy empty instances periodically
       setInterval(function(){
          if(_lock_destroy == true) return;
          _lock_destroy = true;
