@@ -726,11 +726,11 @@ var _destroyEmptyInstances = function(destroyCallback){
 /**
  * Poll minion
  */
-var _pollMinionLock = false;
+var _pollMinionLock = {};
 var _pollMinionOnline = function(minion){
    // Avoid multiple polling
-   if(_pollMinionLock == true) return;
-   _pollMinionLock = true;
+   if(_pollMinionLock[minion.minion_url] == true) return;
+   _pollMinionLock[minion.minion_url] = true;
 
    // Get minion name
    minion.invoke('getMinionName', function (error, name) {
@@ -749,7 +749,7 @@ var _pollMinionOnline = function(minion){
          dMinionClients[name] = minion;
       }
 
-      _pollMinionLock = false;
+      _pollMinionLock[minion.minion_url] = false;
    });
 }
 
