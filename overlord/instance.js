@@ -48,7 +48,10 @@ var requestInstance = function(name, image_id, size_id, nodes, requestCallback){
             if(error) return requestCallback(error);
 
             // Minion must be online
-            if(minion.online == false) return requestCallback(new Error('Minion for this image is OFFLINE.').name = 'OfflineMinion');
+            if(minion.online == false) {
+               logger.error('['+MODULE_NAME+'] requestInstance: Minion "'+id+'" is offline.');
+               return requestCallback(new Error('Minion for this image is OFFLINE.').name = 'OfflineMinion');
+            }
 
             // Check quotas
             getImageQuotas(image_id, function(error, quotas){
@@ -67,12 +70,28 @@ var requestInstance = function(name, image_id, size_id, nodes, requestCallback){
                   nodes: nodes,
                   publicIP: true
                }, function (error, instance_id) {
+                  // Heartbeat? Connection to minion has been lost
+                  if(error && error.name == "HeartbeatError") return requestCallback(new Error('Minion cannot instance because is OFFLINE (HeartbeatError).').name = 'OfflineMinion');
                   if(error) return requestCallback(error);
-                  requestCallback(null, instance_id);
+
+                  // Wait until instance is ready
+                  _waitInstanceReady(instance_id, requestCallback);
                });
             });
          });
       });
+   });
+}
+
+/**
+ * Wait until instance is ready or failed
+ */
+var _waitInstanceReady = function(inst_id, readyCallback){
+   getInstance(inst_id, function(error, inst){
+      if(error || !inst) return readyCallback(new Error('Instance with ID "'+inst_id+'" does not exists'));
+      if(inst.ready == true) return readyCallback(null, inst_id);
+      if(inst.failed == true) return readyCallback(new Error('Failed to instance "'+inst_id+'".'));
+      setTimeout(_waitInstanceReady, 5000, inst_id, readyCallback);
    });
 }
 
@@ -231,6 +250,7 @@ var getImageQuotas = function(image_id, getCallback){
 
          // Get quotas
          minion.invoke('getQuotas', function (error, quotas) {
+            if(error && error.name == "HeartbeatError") return getCallback(new Error('Minion cannot get image quotas because is OFFLINE (HeartbeatError).').name = 'OfflineMinion');
             if(error) return getCallback(error);
             getCallback(null, quotas);
          });
@@ -255,6 +275,7 @@ var destroyInstance = function(inst_id, destroyCallback){
 
          // Destroy instance
          minion.invoke('destroyInstance', inst_id, function (error) {
+            if(error && error.name == "HeartbeatError") return destroyCallback(new Error('Minion cannot destroy instance because is OFFLINE (HeartbeatError).').name = 'OfflineMinion');
             if(error) return destroyCallback(new Error("Failed to destroy instance " + inst_id + ", err: " + error));
             destroyCallback(null);
          });
@@ -400,6 +421,8 @@ var executeCommand = function(inst_id, cmd, executeCallback){
       }
    ],
    function(error, result){
+      // Heartbeat? Connection to minion has been lost
+      if(error && error.name == "HeartbeatError") return executeCallback(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
       if(error) return executeCallback(error);
       // Callback
       executeCallback(null, result);
@@ -439,6 +462,8 @@ var executeJob = function(inst_id, cmd, work_dir, nodes, executeCallback){
       }
    ],
    function(error, job_id){
+      // Heartbeat? Connection to minion has been lost
+      if(error && error.name == "HeartbeatError") return executeCallback(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
       if(error) return executeCallback(error);
 
       // Callback
@@ -466,6 +491,8 @@ var waitJob = function(job_id, inst_id, waitCallback){
       // Get job status
       function(inst, minion, wfcb){
          minion.invoke('getJobStatus', job_id, inst_id, function (error, status) {
+            // Heartbeat? Connection to minion has been lost
+            if(error && error.name == "HeartbeatError") return wfcb(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
             if (error) {
                wfcb(new Error("Failed to get job status from instance '" + inst_id + "': " + error));
             } else {
@@ -490,24 +517,32 @@ var waitJob = function(job_id, inst_id, waitCallback){
          // Retrieve output
          var cmd = 'cat '+inst.image.tmppath+'/'+ job_id + '.stdout';
          minion.invoke('executeCommand', inst_id, cmd, function (error, result) {
+            // Heartbeat? Connection to minion has been lost
+            if(error && error.name == "HeartbeatError") return wfcb(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
             if (error) return wfcb(error);
             output.stdout = result.stdout;
 
             // Retrieve error
             var cmd = 'cat '+inst.image.tmppath+'/'+ job_id + '.stderr';
             minion.invoke('executeCommand', inst_id, cmd, function (error, result) {
+               // Heartbeat? Connection to minion has been lost
+               if(error && error.name == "HeartbeatError") return wfcb(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
                if (error) return wfcb(error);
                output.stderr = result.stdout;
 
                // Retrieve code
                var cmd = 'cat '+inst.image.tmppath+'/'+ job_id + '.code';
                minion.invoke('executeCommand', inst_id, cmd, function (error, result) {
+                  // Heartbeat? Connection to minion has been lost
+                  if(error && error.name == "HeartbeatError") return wfcb(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
                   if (error) return wfcb(error);
                   output.code = result.stdout;
 
                   // Remove files
                   var cmd = 'rm '+inst.image.tmppath+'/'+ job_id + '.*';
                   minion.invoke('executeCommand', inst_id, cmd, function (error, result) {
+                     // Heartbeat? Connection to minion has been lost
+                     if(error && error.name == "HeartbeatError") return wfcb(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
                      if (error) return wfcb(error);
                      return wfcb(null, output);
                   });
@@ -541,9 +576,9 @@ var abortJob = function(job_id, inst_id, abortCallback){
             // Abort job
             logger.debug('['+MODULE_NAME+']['+inst_id+'] Aborting job - ' + job_id);
             minion.invoke('cleanJob', job_id, inst_id, function (error, result) {
-               if (error) {
-                  return abortCallback(error);
-               }
+               // Heartbeat? Connection to minion has been lost
+               if(error && error.name == "HeartbeatError") return abortCallback(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
+               if(error) return abortCallback(error);
 
                // Callback
                logger.debug('['+MODULE_NAME+']['+inst_id+'] Aborted job - ' + job_id);
@@ -564,8 +599,11 @@ var _getMinion = function(id, wait, cb){
    // Check if minion is loaded
    if(!minion){
       // Wait
-      if(wait == true) return setTimeout(_getMinion, 10000, id, cb);
-      else return cb(new Error('Minion "'+minion+'" is not LOADED.'));
+      if(wait == true) return setTimeout(_getMinion, 10000, id, wait, cb);
+      else {
+         logger.error('['+MODULE_NAME+'] _getMinion: Minion "'+id+'" is not loaded.');
+         return cb(new Error('Minion "'+minion+'" is not LOADED.'));
+      }
    }
 
    return cb(null, minion);
@@ -579,6 +617,8 @@ var _cleanExecutionCode = function(minion, exec_id, inst, cleanCallback){
    var cmd = 'rm -rf '+work_dir;
    // Execute command
    minion.invoke('executeCommand', inst.id, cmd, function (error, output) {
+      // Heartbeat? Connection to minion has been lost
+      if(error && error.name == "HeartbeatError") return cleanCallback(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
       return cleanCallback(error);
    });
 }
@@ -592,6 +632,8 @@ var _cleanExecutionInput = function(minion, exec_id, inst, cleanCallback){
    var cmd = 'rm -rf '+input_dir;
    // Execute command
    minion.invoke('executeCommand', inst.id, cmd, function (error, output) {
+      // Heartbeat? Connection to minion has been lost
+      if(error && error.name == "HeartbeatError") return cleanCallback(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
       return cleanCallback(error);
    });
 }
@@ -605,6 +647,8 @@ var _cleanExecutionOutput = function(minion, exec_id, inst, cleanCallback){
    var cmd = 'rm -rf '+output_dir;
    // Execute command
    minion.invoke('executeCommand', inst.id, cmd, function (error, output) {
+      // Heartbeat? Connection to minion has been lost
+      if(error && error.name == "HeartbeatError") return cleanCallback(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
       return cleanCallback(error);
    });
 }
@@ -799,9 +843,11 @@ var init = function(cfg, initCallback){
       (function(i){
          tasks.push(function(taskcb){
             var minion = new zerorpc.Client({
-               heartbeatInterval: 30000,
-               timeout: 3600
+               heartbeatInterval: 5000,
+               timeout: 60
             });
+               //heartbeatInterval: 30000,
+               //timeout: 3600
 
             // Connect
             minion.minion_url = constants.MINION_URL[i];

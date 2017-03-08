@@ -1189,6 +1189,12 @@ var _deployExecution = function(task, exec_id, deployCallback){
       // Poll experiment status
       logger.debug('['+MODULE_NAME+']['+exec_id+'] Deploy: Polling...');
       _pollExecution(exec_id, false, function(error, status){
+         // Minion offline? Repeat later (5 secs)
+         if(error && error.name == "OfflineMinion"){
+            logger.warn('['+MODULE_NAME+']['+exec_id+'] Deploy: Minion is offline, aborting deployment.');
+            return deployCallback(new Error("Failed to deploy execution, minion offline."));
+         }
+
          // Check status
          if(status != "deployed"){
             return deployCallback(new Error("Failed to deploy execution, status: "+status));
@@ -1279,16 +1285,32 @@ var _compileExecution = function(task, exec_id, compileCallback){
       },
    ],
    function(error, exec){
+      // Minion offline? Repeat later (5 secs)
+      if(error && error.name == "OfflineMinion"){
+         logger.warn('['+MODULE_NAME+']['+exec_id+'] Compile: Minion is offline waiting to resume compilation.');
+         return setTimeout(_compileExecution, 5000, exec_id, compileCallback);
+      }
+
       if(error && error != true) return compileCallback(error);
       logger.info('['+MODULE_NAME+']['+exec_id+'] Compile: Compiling...');
 
       // Poll execution status
       _pollExecution(exec_id, false, function(error, status){
+         // Minion offline? Repeat later (5 secs)
+         if(error && error.name == "OfflineMinion"){
+            logger.warn('['+MODULE_NAME+']['+exec_id+'] Compile: Minion is offline waiting to resume compilation.');
+            return setTimeout(_compileExecution, 5000, exec_id, compileCallback);
+         }
          if(error) return compileCallback(error);
 
          // Wait for command completion
          logger.debug('['+MODULE_NAME+']['+exec_id+'] Compile: Waiting - ' + task.job_id);
          instmanager.waitJob(task.job_id, exec.inst_id, function(error, output){
+            // Minion offline? Repeat later (5 secs)
+            if(error && error.name == "OfflineMinion"){
+               logger.warn('['+MODULE_NAME+']['+exec_id+'] Compile: Minion is offline waiting to resume compilation.');
+               return setTimeout(_compileExecution, 5000, exec_id, compileCallback);
+            }
             if(error) return compileCallback(error);
 
             // Check if command failed
@@ -1299,6 +1321,11 @@ var _compileExecution = function(task, exec_id, compileCallback){
             // Poll execution status
             logger.debug('['+MODULE_NAME+']['+exec_id+'] Compile: Job done, polling...');
             _pollExecution(exec_id, true, function(error, status){
+               // Minion offline? Repeat later (5 secs)
+               if(error && error.name == "OfflineMinion"){
+                  logger.warn('['+MODULE_NAME+']['+exec_id+'] Compile: Minion is offline waiting to resume compilation.');
+                  return setTimeout(_compileExecution, 5000, exec_id, compileCallback);
+               }
                if(error) return compileCallback(error);
 
                // Update task and DB
@@ -1418,16 +1445,33 @@ var _executeExecution = function(task, exec_id, executionCallback){
       }
    ],
    function(error, exec){
+      // Minion offline? Repeat later (5 secs)
+      console.log(error);
+      if(error && error.name == "OfflineMinion"){
+         logger.warn('['+MODULE_NAME+']['+exec_id+'] Execute: Minion is offline, waiting to resume execution.');
+         return setTimeout(_executeExecution, 5000, exec_id, executionCallback);
+      }
+
       if(error && error != true){return executionCallback(error);}
       logger.info('['+MODULE_NAME+']['+exec_id+'] Execute: Executing...');
 
       // Poll execution status
       _pollExecution(exec_id, false, function(error, status){
+         // Minion offline? Repeat later (5 secs)
+         if(error && error.name == "OfflineMinion"){
+            logger.warn('['+MODULE_NAME+']['+exec_id+'] Execute: Minion is offline waiting to resume execution.');
+            return setTimeout(_compileExecution, 5000, exec_id, executionCallback);
+         }
          if(error){return executionCallback(error);}
 
          // Wait for command completion
          logger.debug('['+MODULE_NAME+']['+exec_id+'] Execute: Waiting - ' + task.job_id);
          instmanager.waitJob(task.job_id, exec.inst_id, function(error, output){
+            // Minion offline? Repeat later (5 secs)
+            if(error && error.name == "OfflineMinion"){
+               logger.warn('['+MODULE_NAME+']['+exec_id+'] Execute: Minion is offline waiting to resume execution.');
+               return setTimeout(_compileExecution, 5000, exec_id, executionCallback);
+            }
             if(error){return executionCallback(error);}
 
             // Check if command failed
@@ -1438,6 +1482,11 @@ var _executeExecution = function(task, exec_id, executionCallback){
             // Poll execution status
             logger.debug('['+MODULE_NAME+']['+exec_id+'] Execute: Job done, polling...');
             _pollExecution(exec_id, true, function(error, status){
+               // Minion offline? Repeat later (5 secs)
+               if(error && error.name == "OfflineMinion"){
+                  logger.warn('['+MODULE_NAME+']['+exec_id+'] Execute: Minion is offline waiting to resume execution.');
+                  return setTimeout(_compileExecution, 5000, exec_id, executionCallback);
+               }
                // Update task and DB
                task.job_id = null;
                database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
@@ -1833,7 +1882,7 @@ var _pollExecutionLogs = function(exec_id, inst_id, work_dir, log_files, pollCal
                      // Check if command failed
                      if(output.code != 0){
                         logger.debug('['+MODULE_NAME+']['+exec_id+'] PollLogs: Failed to get metadata of '+loglist[i]+'. Error code: '+output.code+', stderr: '+output.stderr);
-                        return wfcb(new Error('Failed to get metadata from '+loglist[i]));
+                        return taskcb(new Error('Failed to get metadata from '+loglist[i]));
                      }
 
                      // Get date
@@ -1855,7 +1904,7 @@ var _pollExecutionLogs = function(exec_id, inst_id, work_dir, log_files, pollCal
                            // Check if command failed
                            if(output.code != 0){
                               logger.debug('['+MODULE_NAME+']['+exec_id+'] PollLogs: Failed to update log contents from '+loglist[i]+'. Error code: '+output.code+', stderr: '+output.stderr);
-                              return wfcb(new Error('Failed to update log contents from '+loglist[i]));
+                              return taskcb(new Error('Failed to update log contents from '+loglist[i]));
                            }
 
                            // Get log content

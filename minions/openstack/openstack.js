@@ -213,6 +213,44 @@ var createInstance = function(inst_cfg, createCallback){
       getSizes(inst_cfg.size_id, function(error, size){
          if(error) return createCallback(error);
 
+         // Create instance metadata
+         var id = utils.generateUUID();
+         var inst = {
+            _id: id,
+            id: id,
+            name: inst_cfg.name,
+            image_id: inst_cfg.image_id,
+            size_id: inst_cfg.size_id,
+            execs: [],
+            nodes: inst_cfg.nodes,
+            size: {
+               cpus: size['cpus'],
+               ram: size['ram']
+            },
+            image: {
+               workpath: image['workpath'],
+               inputpath: image['inputpath'],
+               outputpath: image['outputpath'],
+               libpath: image['libpath'],
+               tmppath: image['tmppath']
+            },
+            minion: MINION_NAME,
+            members: [],
+            in_use: true,
+            idle_time: Date.now(),
+            ready: false,
+            failed: false
+         };
+
+         // Add to DB
+         database.collection('instances').insert(inst, function(error){
+            if(error) return createCallback(error);
+            console.log('['+MINION_NAME+']['+inst.id+'] Added instance to DB.');
+
+            // Return ID
+            return createCallback(null, inst.id);
+         });
+
          // Cluster option
          var headnode = {};
          var insts = [];
@@ -257,68 +295,41 @@ var createInstance = function(inst_cfg, createCallback){
             // Clean created instances
             if(error || failed){
                for (var i = 0; i < insts.length; i++){
-                  console.error('['+MINION_NAME+'] Destroying OpenStack instance "'+insts[i]+'".');
+                  logger.error('['+MINION_NAME+'] Destroying OpenStack instance "'+insts[i]+'".');
                   _destroyOpenStackInstance(insts[i], function(error){
-                     if(error) console.error('['+MINION_NAME+'] Error destroying OpenStack instance "'+insts[i]+'" - ' + error);
+                     if(error) logger.error('['+MINION_NAME+'] Error destroying OpenStack instance "'+insts[i]+'" - ' + error);
                   });
                }
-               if(failed) return createCallback(new Error('Failed to create instance members.'));
-               else return createCallback(error);
+               //if(failed) return createCallback(new Error('Failed to create instance members.'));
+               //else return createCallback(error);
+               database.collection('instances').updateOne({id:inst.id},{"$set":{failed:true}});
+               return;
             }
-
-            // Create instance metadata
-            var id = utils.generateUUID();
-            var inst = {
-               _id: id,
-               id: id,
-               name: inst_cfg.name,
-               image_id: inst_cfg.image_id,
-               size_id: inst_cfg.size_id,
-               execs: [],
-               nodes: insts.length,
-               size: {
-                  cpus: size['cpus'],
-                  ram: size['ram']
-               },
-               image: {
-                  workpath: image['workpath'],
-                  inputpath: image['inputpath'],
-                  outputpath: image['outputpath'],
-                  libpath: image['libpath'],
-                  tmppath: image['tmppath']
-               },
-               minion: MINION_NAME,
-               hostname: headnode.ip,
-               ip: headnode.ip,
-               ip_id: headnode.ip_id,
-               members: insts,
-               in_use: true,
-               idle_time: Date.now(),
-               ready: false
-            };
-
-            // Add to DB
-            database.collection('instances').insert(inst, function(error){
-               if(error) return createCallback(error);
-               console.log('['+MINION_NAME+']['+inst.id+'] Added instance to DB.');
-
-               // Configure cluster
-               _configureInstance(inst.id, function(error){
-                  if(error){
-                     for (var i = 0; i < insts.length; i++){
-                        _destroyOpenStackInstance(insts[i], function(error){
-                           if(error) console.error(error);
-                        });
-                     }
-                     return createCallback(error);
+            // Configure cluster
+            _configureInstance(inst.id, function(error){
+               if(error){
+                  for (var i = 0; i < insts.length; i++){
+                     _destroyOpenStackInstance(insts[i], function(error){
+                        if(error) logger.error('['+MINION_NAME+'] Error destroying OpenStack instance "'+insts[i]+'": '+error.message);
+                     });
                   }
+                  //return createCallback(error);
+                  database.collection('instances').updateOne({id:inst.id},{"$set":{failed:true}});
+                  return;
+               }
 
-                  // Set instance as ready
-                  database.collection('instances').updateOne({id:inst.id},{"$set":{ready: true, idle_time: Date.now()}});
-                  console.log('['+MINION_NAME+']['+inst.id+'] Ready.');
-                  createCallback(null, inst.id);
-               });
+               // Update DB and set instance as ready
+               database.collection('instances').updateOne({id:inst.id},{"$set":{
+                  ready: true,
+                  idle_time: Date.now(),
+                  hostname: headnode.ip,
+                  ip: headnode.ip,
+                  ip_id: headnode.ip_id,
+                  members: insts,
+               }});
+               logger.info('['+MINION_NAME+']['+inst.id+'] Ready.');
             });
+
          });
       });
    });

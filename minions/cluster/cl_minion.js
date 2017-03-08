@@ -160,7 +160,8 @@ var createInstance = function(inst_cfg, createCallback){
             members: null,
             in_use: true,
             idle_time: Date.now(),
-            ready: true
+            ready: true,
+            failed: false
          };
 
          // Add to DB
