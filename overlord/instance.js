@@ -87,11 +87,12 @@ var requestInstance = function(name, image_id, size_id, nodes, requestCallback){
  * Wait until instance is ready or failed
  */
 var _waitInstanceReady = function(inst_id, readyCallback){
+   logger.debug('['+MODULE_NAME+']['+inst_id+'] _waitInstanceReady: Waiting...');
    getInstance(inst_id, function(error, inst){
       if(error || !inst) return readyCallback(new Error('Instance with ID "'+inst_id+'" does not exists'));
       if(inst.ready == true) return readyCallback(null, inst_id);
       if(inst.failed == true) return readyCallback(new Error('Failed to instance "'+inst_id+'".'));
-      setTimeout(_waitInstanceReady, 5000, inst_id, readyCallback);
+      setTimeout(_waitInstanceReady, 10000, inst_id, readyCallback);
    });
 }
 
@@ -601,8 +602,9 @@ var _getMinion = function(id, wait, cb){
       // Wait
       if(wait == true) return setTimeout(_getMinion, 10000, id, wait, cb);
       else {
-         logger.error('['+MODULE_NAME+'] _getMinion: Minion "'+id+'" is not loaded.');
-         return cb(new Error('Minion "'+minion+'" is not LOADED.'));
+         var error = new Error('_getMinion: Minion "'+id+'" is not LOADED.');
+         logger.error('['+MODULE_NAME+'] '+error);
+         return cb(error);
       }
    }
 
@@ -843,11 +845,9 @@ var init = function(cfg, initCallback){
       (function(i){
          tasks.push(function(taskcb){
             var minion = new zerorpc.Client({
-               heartbeatInterval: 5000,
-               timeout: 60
+               heartbeatInterval: 30000,
+               timeout: 3600
             });
-               //heartbeatInterval: 30000,
-               //timeout: 3600
 
             // Connect
             minion.minion_url = constants.MINION_URL[i];

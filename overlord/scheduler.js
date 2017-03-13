@@ -1128,7 +1128,7 @@ var _deployExecution = function(task, exec_id, deployCallback){
                database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: null}});
 
                // Check if command failed
-               if(output.code != 0){
+               if(output.code != 0 && output.code != 23){
                   logger.error('['+MODULE_NAME+']['+exec_id+'] Deploy: Failed to deploy input data. Error code: '+output.code+', stderr: '+output.stderr);
                   return wfcb(new Error("Failed to deploy input data in instance."));
                }
@@ -1291,7 +1291,10 @@ var _compileExecution = function(task, exec_id, compileCallback){
          return setTimeout(_compileExecution, 5000, exec_id, compileCallback);
       }
 
-      if(error && error != true) return compileCallback(error);
+      if(error && error != true) {
+         logger.error('['+MODULE_NAME+']['+exec_id+'] Compile: Error: '+ error);
+         return compileCallback(error);
+      }
       logger.info('['+MODULE_NAME+']['+exec_id+'] Compile: Compiling...');
 
       // Poll execution status
@@ -1554,7 +1557,7 @@ var _loadCheckpointExecution = function(exec_id, loadCallback){
             if(error) return wfcb(error);
 
             // Check if command failed
-            if(output.code != 0){
+            if(output.code != 0 && output.code != 23){
                logger.debug('['+MODULE_NAME+']['+exec_id+'] LoadCheckpoint: Failed to download checkpoint file. Error code: '+output.code+', stderr: '+output.stderr);
                return wfcb(new Error("Failed to download checkpoint in instance."));
             }
