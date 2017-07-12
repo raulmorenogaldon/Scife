@@ -33,6 +33,7 @@ var database = null;
 var auth_url = null;
 var compute_url = null;
 var network_label = null;
+var external_network_label = "public";
 
 var keypair_name = null;
 var private_key_path = null;
@@ -1151,7 +1152,7 @@ var _allocateOpenStackFloatIP = function(allocateCallback){
    };
 
    req.body = {
-      pool: "external"
+      pool: external_network_label
    }
 
    // Send request
