@@ -99,10 +99,10 @@ function execSSH(conn, cmd, work_dir, blocking, tmp, execCallback){
          output.code = code;
          execCallback(null, output);
       }).on('data', function(data) {
-          if(data.strlen > 0)
+          if(data)
               output.stdout = output.stdout + data;
       }).stderr.on('data', function(data){
-          if(data.strlen > 0)
+          if(data)
               output.stderr = output.stderr + data;
       });
    });
