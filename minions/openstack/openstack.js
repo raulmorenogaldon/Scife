@@ -1452,6 +1452,10 @@ var _cleanOpenStackNonInitializedInstances = function(cleanCallback){
                   database.collection('instances').updateOne({id:inst._id},{"$set":{failed:true}});
                   _destroyInstanceMembers(inst.members, function(error){
                      if(error) logger.error('['+MINION_NAME+'] Error destroying instance "'+inst.id+'" members - ' + error);
+
+		     // Remove from DB
+		     database.collection('instances').remove({id: inst.id});
+
                      taskcb(null);
                   });
                } else {
