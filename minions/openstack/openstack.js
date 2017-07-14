@@ -1448,15 +1448,11 @@ var _cleanOpenStackNonInitializedInstances = function(cleanCallback){
             tasks.push(function(taskcb){
                var inst = instances[i];
                // Initialization was interrupted?
-               if(inst.ready == false){
+               if(inst.ready == false || inst.failed != true){
                   //logger.info('['+MINION_NAME+'] Cleaning interrupted instance "'+inst.id+'"');
-                  database.collection('instances').updateOne({id:inst._id},{"$set":{failed:true}});
                   _destroyInstanceMembers(inst.members, function(error){
                      if(error) logger.error('['+MINION_NAME+'] Error destroying instance "'+inst.id+'" members - ' + error);
-
-		     // Remove from DB
-		     database.collection('instances').remove({id: inst.id});
-
+                     database.collection('instances').updateOne({id:inst._id},{"$set":{failed:true}});
                      taskcb(null);
                   });
                } else {
