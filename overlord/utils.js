@@ -99,11 +99,17 @@ function execSSH(conn, cmd, work_dir, blocking, tmp, execCallback){
          output.code = code;
          execCallback(null, output);
       }).on('data', function(data) {
-          if(data)
-              output.stdout = output.stdout + data;
+         try {
+            output.stdout = output.stdout + data;
+         } catch(err) {
+            console.error("Warning: Failed to concatenate STDOUT in command: "+full_cmd);
+         }
       }).stderr.on('data', function(data){
-          if(data)
-              output.stderr = output.stderr + data;
+         try {
+            output.stderr = output.stderr + data;
+         } catch(err) {
+            console.error("Warning: Failed to concatenate STDERR in command: "+full_cmd);
+         }
       });
    });
 };
