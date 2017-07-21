@@ -442,7 +442,10 @@ var executeJob = function(inst_id, cmd, work_dir, nodes, executeCallback){
       // Get minion for this instance
       function(inst, wfcb){
          var minion = _getMinion(inst.minion, true, function(error, minion){
-            if(error) return wfcb(error);
+            if(error){
+               logger.error('['+MODULE_NAME+']['+inst_id+'] ExecuteJob: Failed to get minion data - ' + error);
+               return wfcb(error);
+            }
 
             // Minion must be online
             if(minion.online == false) return wfcb(new Error('Minion for this image is OFFLINE.').name = 'OfflineMinion');
@@ -454,10 +457,12 @@ var executeJob = function(inst_id, cmd, work_dir, nodes, executeCallback){
       function(inst, minion, wfcb){
          minion.invoke('executeScript', inst_id, cmd, work_dir, nodes, function (error, job_id) {
             if (error) {
+               logger.error('['+MODULE_NAME+']['+inst_id+'] ExecuteJob: Failed to execute job in instance - ' + error);
                return wfcb(error);
             } else {
                if(!job_id) return wfcb(new Error('Minion did not return a valid Job ID - '+job_id));
-               wfcb(null, job_id);
+               logger.debug('['+MODULE_NAME+']['+inst_id+'] ExecuteJob: ID returned - ' + job_id);
+               return wfcb(null, job_id);
             }
          });
       }
@@ -468,7 +473,7 @@ var executeJob = function(inst_id, cmd, work_dir, nodes, executeCallback){
       if(error) return executeCallback(error);
 
       // Callback
-      executeCallback(null, job_id);
+      return executeCallback(null, job_id);
    });
 }
 

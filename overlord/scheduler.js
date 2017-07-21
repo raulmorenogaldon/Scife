@@ -1264,12 +1264,17 @@ var _compileExecution = function(task, exec_id, compileCallback){
          // Check if already compiling
          if(task.job_id){
             // Already compiling
+            logger.debug('['+MODULE_NAME+']['+exec_id+'] Compile: Compilation script is executing already.');
             wfcb(true, exec);
          } else {
             // Execute job
             logger.debug('['+MODULE_NAME+']['+exec_id+'] Compile: Executing compiling script...');
             instmanager.executeJob(exec.inst.id, exe_script, work_dir, 1, function (error, job_id) {
-               if (error) {return wfcb(error);}
+               if (error) {
+                  logger.error('['+MODULE_NAME+']['+exec_id+'] Compile: Error when launching compiling script: '+ error);
+                  return wfcb(error);
+               }
+
                logger.debug('['+MODULE_NAME+']['+exec_id+'] Compile: Job ID - ' + job_id);
 
                // Update task and DB
@@ -1291,10 +1296,12 @@ var _compileExecution = function(task, exec_id, compileCallback){
          return setTimeout(_compileExecution, 5000, exec_id, compileCallback);
       }
 
+      // Other kind of error
       if(error && error != true) {
          logger.error('['+MODULE_NAME+']['+exec_id+'] Compile: Error: '+ error);
          return compileCallback(error);
       }
+
       logger.info('['+MODULE_NAME+']['+exec_id+'] Compile: Compiling...');
 
       // Poll execution status
@@ -1304,7 +1311,12 @@ var _compileExecution = function(task, exec_id, compileCallback){
             logger.warn('['+MODULE_NAME+']['+exec_id+'] Compile: Minion is offline waiting to resume compilation.');
             return setTimeout(_compileExecution, 5000, exec_id, compileCallback);
          }
-         if(error) return compileCallback(error);
+
+         // Other kind of error
+         if(error){
+            logger.error('['+MODULE_NAME+']['+exec_id+'] Compile: Failed in compilation polling: '+error);
+            return compileCallback(error);
+         }
 
          // Wait for command completion
          logger.debug('['+MODULE_NAME+']['+exec_id+'] Compile: Waiting - ' + task.job_id);
@@ -1314,7 +1326,12 @@ var _compileExecution = function(task, exec_id, compileCallback){
                logger.warn('['+MODULE_NAME+']['+exec_id+'] Compile: Minion is offline waiting to resume compilation.');
                return setTimeout(_compileExecution, 5000, exec_id, compileCallback);
             }
-            if(error) return compileCallback(error);
+
+            // Other kind of error
+            if(error){
+               logger.error('['+MODULE_NAME+']['+exec_id+'] Compile: Failed in compilation waiting: '+error);
+               return compileCallback(error);
+            }
 
             // Check if command failed
             if(output.code != 0){
@@ -1428,16 +1445,21 @@ var _executeExecution = function(task, exec_id, executionCallback){
          // Check if already executing
          if(task.job_id){
             // Already executing
+            logger.debug('['+MODULE_NAME+']['+exec_id+'] Execute: Execution script is executing already.');
             wfcb(true, exec);
          } else {
             // Execute job
             logger.debug('['+MODULE_NAME+']['+exec_id+'] Execute: Launching execution script...');
             instmanager.executeJob(exec.inst.id, exe_script, work_dir, exec.inst.nodes, function (error, job_id) {
-               if (error) {return wfcb(error);}
+               if (error) {
+                  logger.error('['+MODULE_NAME+']['+exec_id+'] Execute: Error when launching execution script: ' + error);
+                  return wfcb(error);
+               }
 
                // Update task and DB
                task.job_id = job_id;
                database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: job_id}});
+               logger.debug('['+MODULE_NAME+']['+exec_id+'] Execute: Updated job ID in database: '+ job_id);
 
                // Check task abort
                if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
@@ -1449,13 +1471,17 @@ var _executeExecution = function(task, exec_id, executionCallback){
    ],
    function(error, exec){
       // Minion offline? Repeat later (5 secs)
-      console.log(error);
       if(error && error.name == "OfflineMinion"){
          logger.warn('['+MODULE_NAME+']['+exec_id+'] Execute: Minion is offline, waiting to resume execution.');
          return setTimeout(_executeExecution, 5000, exec_id, executionCallback);
       }
 
-      if(error && error != true){return executionCallback(error);}
+      // Other kind of error
+      if(error && error != true){
+         logger.error('['+MODULE_NAME+']['+exec_id+'] Execute: Error when executing: '+error);
+         return executionCallback(error);
+      }
+
       logger.info('['+MODULE_NAME+']['+exec_id+'] Execute: Executing...');
 
       // Poll execution status
@@ -1472,10 +1498,15 @@ var _executeExecution = function(task, exec_id, executionCallback){
          instmanager.waitJob(task.job_id, exec.inst_id, function(error, output){
             // Minion offline? Repeat later (5 secs)
             if(error && error.name == "OfflineMinion"){
-               logger.warn('['+MODULE_NAME+']['+exec_id+'] Execute: Minion is offline waiting to resume execution.');
+               logger.warn('['+MODULE_NAME+']['+exec_id+'] Execute: Minion is offline, waiting to resume execution.');
                return setTimeout(_compileExecution, 5000, exec_id, executionCallback);
             }
-            if(error){return executionCallback(error);}
+
+            // Other kind of error
+            if(error){
+               logger.error('['+MODULE_NAME+']['+exec_id+'] Execute: Error when waiting job: '+ error);
+               return executionCallback(error);
+            }
 
             // Check if command failed
             if(output.code != 0){
@@ -1514,7 +1545,7 @@ var _executeExecution = function(task, exec_id, executionCallback){
 
                // End execution task
                logger.info('['+MODULE_NAME+']['+exec_id+'] Execute: Done.');
-               executionCallback(null);
+               return executionCallback(null);
             });
          });
       });
