@@ -8,6 +8,7 @@ var winston = require('winston');
  * Logger configuration
  */
 winston.level = 'debug';
+logger = winston;
 
 // Create SSH connection
 function connectSSH(username, host, private_key, timeout, connectCallback){
@@ -90,25 +91,30 @@ function execSSH(conn, cmd, work_dir, blocking, tmp, execCallback){
    };
 
    // Execute command
+   logger.debug('[UTILS] execSSH: Executing (blck: '+blocking+') - \n'+full_cmd);
    conn.exec(full_cmd, function(error, stream){
-      if(error) return execCallback(error);
+      if(error){
+         logger.error('[UTILS] execSSH: Error in exec - \n'+error);
+         return execCallback(error);
+      }
 
       // Handle received data
       stream.on('close', function(code, signal){
          // Command executed, return output
          output.code = code;
-         execCallback(null, output);
+         logger.debug('[UTILS] execSSH: Stream closed - output code: '+code);
+         return execCallback(null, output);
       }).on('data', function(data) {
          try {
             output.stdout = output.stdout + data;
          } catch(err) {
-            console.error("Warning: Failed to concatenate STDOUT in command: "+full_cmd);
+            logger.warn("Warning: Failed to concatenate STDOUT in command: "+full_cmd);
          }
       }).stderr.on('data', function(data){
          try {
             output.stderr = output.stderr + data;
          } catch(err) {
-            console.error("Warning: Failed to concatenate STDERR in command: "+full_cmd);
+            logger.warn("Warning: Failed to concatenate STDERR in command: "+full_cmd);
          }
       });
    });

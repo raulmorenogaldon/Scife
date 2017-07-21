@@ -1452,7 +1452,7 @@ var _executeExecution = function(task, exec_id, executionCallback){
             logger.debug('['+MODULE_NAME+']['+exec_id+'] Execute: Launching execution script...');
             instmanager.executeJob(exec.inst.id, exe_script, work_dir, exec.inst.nodes, function (error, job_id) {
                if (error) {
-                  logger.error('['+MODULE_NAME+']['+exec_id+'] Execute: Error when launching execution script: ' + error);
+                  logger.error('['+MODULE_NAME+']['+exec_id+'] Execute: Error when launching execution script: ' + error.name + ' - ' +error);
                   return wfcb(error);
                }
 
@@ -1473,6 +1473,12 @@ var _executeExecution = function(task, exec_id, executionCallback){
       // Minion offline? Repeat later (5 secs)
       if(error && error.name == "OfflineMinion"){
          logger.warn('['+MODULE_NAME+']['+exec_id+'] Execute: Minion is offline, waiting to resume execution.');
+         return setTimeout(_executeExecution, 5000, exec_id, executionCallback);
+      }
+
+      // Unable to connect to instance?
+      if(error && error.name == "EHOSTUNREACH"){
+         logger.warn('['+MODULE_NAME+']['+exec_id+'] Execute: Cannot connect to instance, waiting to resume execution.');
          return setTimeout(_executeExecution, 5000, exec_id, executionCallback);
       }
 
