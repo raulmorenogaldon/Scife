@@ -1461,7 +1461,7 @@ var _cleanOpenStackNonInitializedInstances = function(cleanCallback){
             tasks.push(function(taskcb){
                var inst = instances[i];
                // Initialization was interrupted?
-               if(inst.ready == false || inst.failed != true){
+               if(inst.ready == false && inst.failed != true){
                   //logger.info('['+MINION_NAME+'] Cleaning interrupted instance "'+inst.id+'"');
                   _destroyInstanceMembers(inst.members, function(error){
                      if(error) logger.error('['+MINION_NAME+'] Error destroying instance "'+inst.id+'" members - ' + error);
