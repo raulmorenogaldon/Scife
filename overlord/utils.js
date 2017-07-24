@@ -97,6 +97,7 @@ function execSSH(conn, cmd, work_dir, blocking, tmp, execCallback){
          logger.error('[UTILS] execSSH: Error in exec - \n'+error);
          return execCallback(error);
       }
+      logger.debug('[UTILS] execSSH: Command sent.');
 
       // Handle received data
       stream.on('close', function(code, signal){
@@ -106,15 +107,17 @@ function execSSH(conn, cmd, work_dir, blocking, tmp, execCallback){
          return execCallback(null, output);
       }).on('data', function(data) {
          try {
+            logger.debug('[UTILS] execSSH: Stream updated...');
             output.stdout = output.stdout + data;
          } catch(err) {
-            logger.warn("Warning: Failed to concatenate STDOUT in command: "+full_cmd);
+            logger.warn("[UTILS] Failed to concatenate STDOUT in command: "+full_cmd);
          }
       }).stderr.on('data', function(data){
          try {
+            logger.debug('[UTILS] execSSH: Stream updated...');
             output.stderr = output.stderr + data;
          } catch(err) {
-            logger.warn("Warning: Failed to concatenate STDERR in command: "+full_cmd);
+            logger.warn("[UTILS] Failed to concatenate STDERR in command: "+full_cmd);
          }
       });
    });
