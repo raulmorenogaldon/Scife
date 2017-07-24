@@ -80,7 +80,7 @@ function execSSH(conn, cmd, work_dir, blocking, tmp, execCallback){
       full_cmd = ". ~/.bash_profile; cd "+work_dir+"; "+cmd+";";
    } else {
       // Create a background process
-      full_cmd = "nohup sh -c '. ~/.bash_profile; cd "+work_dir+"; "+cmd+"' > "+output_path+"/$$.stdout 2> "+output_path+"/$$.stderr && echo -n $? > "+output_path+"/$$.code & echo -n $!;";
+      full_cmd = "nohup sh -c '. ~/.bash_profile; cd "+work_dir+"; "+cmd+"' > "+output_path+"/$$.stdout 2> "+output_path+"/$$.stderr < /dev/null & echo -n $? > "+output_path+"/$$.code; echo -n $!";
    }
 
    // Output object with normal and error outputs.

@@ -1457,6 +1457,7 @@ var _executeExecution = function(task, exec_id, executionCallback){
                }
 
                // Update task and DB
+               logger.debug('['+MODULE_NAME+']['+exec_id+'] Execute: Execution script returned.');
                task.job_id = job_id;
                database.db.collection('tasks').updateOne({id: task.id},{$set:{job_id: job_id}});
                logger.debug('['+MODULE_NAME+']['+exec_id+'] Execute: Updated job ID in database: '+ job_id);

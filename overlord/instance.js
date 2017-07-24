@@ -460,7 +460,10 @@ var executeJob = function(inst_id, cmd, work_dir, nodes, executeCallback){
                logger.error('['+MODULE_NAME+']['+inst_id+'] ExecuteJob: Failed to execute job in instance - ' + error);
                return wfcb(error);
             } else {
-               if(!job_id) return wfcb(new Error('Minion did not return a valid Job ID - '+job_id));
+               if(!job_id) {
+                  logger.error('['+MODULE_NAME+']['+inst_id+'] ExecuteJob: Not a valid Job ID returned - ' + job_id);
+                  return wfcb(new Error('Minion did not return a valid Job ID - '+job_id));
+               }
                logger.debug('['+MODULE_NAME+']['+inst_id+'] ExecuteJob: ID returned - ' + job_id);
                return wfcb(null, job_id);
             }
