@@ -453,16 +453,21 @@ var cleanExecution = function(exec_id, cb){
       if(error) return cb(error);
       if(!exec.inst_id) return cb(null);
 
-      // Clean instance if not debug mode
-      if(!exec || !exec.launch_opts || !exec.launch_opts.debug){
-         instmanager.cleanExecution(exec_id, exec.inst_id, {b_input: true, b_output: true, b_sources: true, b_remove: true}, function(error){
-            // Unlink execution from instance if successful
-            if(!error) database.db.collection('executions').updateOne({id: exec_id},{$set:{inst_id: null}});
-            return cb(error);
+      // Clean Rsync files
+      storage.client.invoke('releaseExecutionInputPass', exec_id, function(error){
+         storage.client.invoke('releaseExecutionOutputPass', exec_id, function(error){
+            // Clean instance if not debug mode
+            if(!exec || !exec.launch_opts || !exec.launch_opts.debug){
+               instmanager.cleanExecution(exec_id, exec.inst_id, {b_input: true, b_output: true, b_sources: true, b_remove: true}, function(error){
+                  // Unlink execution from instance if successful
+                  if(!error) database.db.collection('executions').updateOne({id: exec_id},{$set:{inst_id: null}});
+                  return cb(error);
+               });
+            } else {
+               return cb(null);
+            }
          });
-      } else {
-         return cb(null);
-      }
+      });
    });
 }
 
@@ -1004,7 +1009,7 @@ var _deployExecution = function(task, exec_id, deployCallback){
       // Get input URL
       function(exec, wfcb){
          logger.debug('['+MODULE_NAME+']['+exec_id+'] Deploy: Getting experiment URL...');
-         storage.client.invoke('getExperimentInputURL', exec.exp_id, function(error, url){
+         storage.client.invoke('getExecutionInputURL', exec_id, function(error, url){
             exec.input_url = url;
             wfcb(error, exec);
          });
@@ -1098,13 +1103,26 @@ var _deployExecution = function(task, exec_id, deployCallback){
             });
          });
       },
+      // Prepare rsync for inputdata
+      function(exec, wfcb){
+         // Check task abort
+         if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
+
+	 // Allow Rsync for this execution
+         storage.client.invoke('getExecutionInputPass', exec.exp_id, exec_id, function(error, password){
+            if(error) return wfcb(error);
+            exec.input_password = password;
+            wfcb(null, exec);
+         });
+      },
       // Copy inputdata in FS
       function(exec, wfcb){
          // Check task abort
          if(taskmanager.isTaskAborted(task.id)) {return wfcb(new Error("Task aborted"));}
 
-         var cmd = "sshpass -p '"+constants.STORAGE_PASSWORD+"' rsync -Lr "+exec.input_url+"/* "+exec.inst.image.inputpath+"/"+exec.id;
-         var work_dir = exec.inst.image.workpath + "/" + exec.id;
+         var cmd = 'RSYNC_PASSWORD="'+exec.input_password+'" rsync -Lr '+exec.input_url+'/* '+exec.inst.image.inputpath+'/'+exec.id;
+         var work_dir = exec.inst.image.workpath + '/' + exec.id;
+         logger.debug('['+MODULE_NAME+']['+exec_id+'] Deploy: '+cmd);
 
          // Execute command
          logger.debug('['+MODULE_NAME+']['+exec_id+'] Deploy: Making inputdata directory...');
@@ -1138,6 +1156,13 @@ var _deployExecution = function(task, exec_id, deployCallback){
 
                wfcb(null, exec);
             });
+         });
+      },
+      // Disable rsync for this execution
+      function(exec, wfcb){
+         storage.client.invoke('releaseExecutionInputPass', exec_id, function(error){
+            exec.input_password = null;
+            return wfcb(error, exec);
          });
       },
       // Init EXPERIMENT_STATUS
@@ -1584,12 +1609,21 @@ var _loadCheckpointExecution = function(exec_id, loadCallback){
             wfcb(null, exec);
          });
       },
+      // Prepare rsync for outputdata
+      function(exec, wfcb){
+	 // Allow Rsync for this execution
+         storage.client.invoke('getExecutionOutputPass', exec_id, function(error, password){
+            if(error) return wfcb(error);
+            exec.output_password = password;
+            wfcb(null, exec);
+         });
+      },
       // Download checkpoint file
       function(exec, wfcb){
          var checkpoint_file = exec.output_url+"/checkpoint.tar.gz";
 
          // Execute command
-         var cmd = "sshpass -p '"+constants.STORAGE_PASSWORD+"' rsync -e 'ssh -o StrictHostKeyChecking=no' "+url+" "+exec.inst.image.workpath+"/checkpoint.tar.gz";
+         var cmd = 'RSYNC_PASSWORD="'+exec.output_password+'" rsync '+exec.output_url+'/* '+exec.inst.image.workpath+'/checkpoint.tar.gz';
          logger.debug('['+MODULE_NAME+']['+exec_id+'] LoadCheckpoint: Copying checkpoint file to working folder...');
          instmanager.executeCommand(exec.inst.id, cmd, function (error, output) {
             if(error) return wfcb(error);
@@ -1601,6 +1635,13 @@ var _loadCheckpointExecution = function(exec_id, loadCallback){
             }
 
             wfcb(null, exec);
+         });
+      },
+      // Disable rsync for this execution
+      function(exec, wfcb){
+         storage.client.invoke('releaseExecutionOutputPass', exec_id, function(error){
+            exec.output_password = null;
+            return wfcb(error, exec);
          });
       },
       // Uncompress file
@@ -1659,6 +1700,16 @@ var _retrieveExecutionOutput = function(task, exec_id, retrieveCallback){
             wfcb(null, exec);
          });
       },
+      // Prepare rsync for outputdata
+      function(exec, wfcb){
+	 // Allow Rsync for this execution
+         logger.debug('['+MODULE_NAME+']['+exec_id+'] Retrieve: Enabling output password...');
+         storage.client.invoke('getExecutionOutputPass', exec_id, function(error, password){
+            if(error) return wfcb(error);
+            exec.output_password = password;
+            wfcb(null, exec);
+         });
+      },
       // Update output files in storage
       function(exec, wfcb){
          // Check task abort
@@ -1668,7 +1719,7 @@ var _retrieveExecutionOutput = function(task, exec_id, retrieveCallback){
          var output_files = exec.inst.image.outputpath+"/"+exec.id+"/";
 
          // Execute command
-         var cmd = "sshpass -p '"+constants.STORAGE_PASSWORD+"' rsync -Lre 'ssh -o StrictHostKeyChecking=no' "+output_files+" "+exec.output_url+"/ --delete-after";
+         var cmd = 'RSYNC_PASSWORD="'+exec.output_password+'" rsync -Lr '+output_files+' '+exec.output_url+'/ --delete-after';
          logger.debug('['+MODULE_NAME+']['+exec_id+'] Retrieve: Copying output files to storage...');
          instmanager.executeCommand(exec.inst.id, cmd, function (error, output) {
             if(error) return wfcb(error);
@@ -1684,7 +1735,18 @@ var _retrieveExecutionOutput = function(task, exec_id, retrieveCallback){
 
             // Reload output tree
             logger.debug('['+MODULE_NAME+']['+exec_id+'] Retrieve: Copy completed.');
-            reloadExecutionOutputTree(exec_id, wfcb);
+            reloadExecutionOutputTree(exec_id, function(error){
+               if(error) return wfcb(error);
+               wfcb(null, exec);
+            });
+         });
+      },
+      // Disable rsync for this execution
+      function(exec, wfcb){
+         logger.debug('['+MODULE_NAME+']['+exec_id+'] Retrieve: Disabling output password...');
+         storage.client.invoke('releaseExecutionOutputPass', exec_id, function(error){
+            exec.output_password = null;
+            return wfcb(error, exec);
          });
       }
    ],
