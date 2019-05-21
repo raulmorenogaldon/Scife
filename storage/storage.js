@@ -1395,7 +1395,6 @@ var _loadConfig = function(config, loadCallback){
    if(!config.rsync_folder) return loadCallback(new Error('No "rsync_folder" field in CFG.'));
    if(!config.public_url) return loadCallback(new Error('No "public_url" field in CFG.'));
    if(!config.git_port) return loadCallback(new Error('No "git_port" field in CFG.'));
-   if(!config.username) return loadCallback(new Error('No "username" field in CFG.'));
    if(!config.listen) return loadCallback(new Error('No "listen" field in CFG.'));
    if(!config.db) return loadCallback(new Error('No "db" field in CFG.'));
 
