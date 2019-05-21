@@ -1,9 +1,26 @@
 #!/bin/bash
 
+#######################################################
+#######################################################
+#
+# Example script for launching Scife and one minion
+#
+#######################################################
+#######################################################
+
+echo "THIS IS AN EXAMPLE SCRIPT! Please, do not run it without modifying it."
+
 # Load environment
-. ~/.nvm/nvm.sh
-. ~/.profile
-. ~/.bashrc
+. ~/.nvm/nvm.sh 2>/dev/null
+. ~/.bashrc 2>/dev/null
+
+#############################################"
+# CONFIGURATION FILES
+#############################################"
+CFG_OVERLORD="./extra/overlord.cfg"
+CFG_STORAGE="./extra/storage.cfg"
+CFG_MINION="./extra/cluster.cfg"
+CFG_RSYNC="./extra/rsyncd.cfg"
 
 #############################################"
 # NODE PARAMETERS
@@ -32,6 +49,12 @@ GD_OPTS="--reuseaddr --verbose"
 GD_PATH="$HOME/appstorage"
 #GD_PORT="--port=27478"
 #############################################"
+# RSYNC DAEMON PARAMETERS
+#############################################"
+RS_UID="rsyncd"
+RS_BIN=`which rsync`
+RS_OPTS="--daemon --no-detach --config=$CFG_RSYNC"
+#############################################"
 # WEB SERVER PARAMETERS
 #############################################"
 WB_UID="web"
@@ -44,13 +67,13 @@ echo "#############################################"
 
 # IDs
 UUID_OVERLORD="overlord"
-OVERLORD="overlord/app.js ./overlord.cfg"
+OVERLORD="overlord/app.js "$CFG_OVERLORD
 
 UUID_STORAGE="storage"
-STORAGE="storage/storage.js ./storage.cfg"
+STORAGE="storage/storage.js "$CFG_STORAGE
 
 UUID_MINION="minion"
-MINION="minions/cluster/cl_minion.js ./cluster.cfg"
+MINION="minions/cluster/cl_minion.js "$CFG_MINION
 
 # Update repository
 echo "Updating repository..."
@@ -88,20 +111,26 @@ forever stop "$UUID_MINION"
 forever stop "$WB_UID"
 forever stop "$DB_UID"
 forever stop "$GD_UID"
+forever stop "$RS_UID"
 sleep 3
 
 # Ensure
 pkill -f mongod
 pkill -f git-daemon
+pkill -f rsyncd
 sleep 3
 
 # Launch database
 echo "Launching database..."
-forever restart "$DB_UID"  || forever start -a --uid "$DB_UID" aux_system_command.js $DB_NUMA $DB_NUMA_OPTS $DB_BIN $DB_PORT $DB_BIND --dbpath $DB_PATH
+forever restart "$DB_UID"  || forever start -a --uid "$DB_UID" extra/aux_system_command.js $DB_NUMA $DB_NUMA_OPTS $DB_BIN $DB_PORT $DB_BIND --dbpath $DB_PATH
 
 # Launch Git daemon
 echo "Launching Git daemon"
-forever restart "$GD_UID"  || forever start -a --uid "$GD_UID" aux_system_command.js $GD_BIN $GD_OPTS $GD_PORT --base-path=$GD_PATH
+forever restart "$GD_UID"  || forever start -a --uid "$GD_UID" extra/aux_system_command.js $GD_BIN $GD_OPTS $GD_PORT --base-path=$GD_PATH
+
+# Launch Rsync daemon
+echo "Launching Rsync daemon"
+forever restart "$RS_UID"  || forever start -a --uid "$RS_UID" extra/aux_system_command.js extra/launch_rsync.sh $RS_BIN $RS_OPTS
 
 # Wait a little...
 sleep 8

@@ -19,7 +19,35 @@ which handles all the workflows of the executions.
 The other service is the storage service,
 which makes all the I/O-related operations and saves the generated data.
 
+## Dependencies ##
+
+Some dependencies must be installed before deploying Scife.
+
+### Git and Git daemon ###
+
+Git and Git daemon is necessary for Scife to work.
+
+### Rsync daemon ###
+
+The Rsync daemon is necessary for Scife to work.
+
+### NodeJS ###
+A NodeJS environment is necessary for Scife to work.
+Scife has been tested with NodeJS v5.5.0.
+
+For convenience, the Node Version Manager [(NVM)](https://github.com/nvm-sh/nvm) can be used for installing the required environment.
+We provided an script **install_nvm.sh** in the **extra** folder for installing NVM.
+A series of steps for installing the NodeJS dependencies are proposed:
+* Go to the root folder of Scife.
+* Run the `./extra/install_nvm.sh` script for installing NVM on the $HOME/.nvm path.
+* Reload the terminal.
+* Run the `nvm install v5.5.0` command for installing NodeJS v5.5.0.
+* Run the `nvm use v5.5.0` command for loading NodeJS v5.5.0.
+* Run the `npm install` command for installing Scife's dependencies.
+
 ## Configuration files ##
+
+A set of configuration files in the **extra** folder are provided for deploying Scife.
 
 * **start.sh** helper script to launch Scife services.
 * **overlord.cfg** contains the main service configuration.
