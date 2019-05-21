@@ -441,14 +441,14 @@ var getApplicationURL = function(app_id, cb){
  * Get execution output URL.
  */
 var getExecutionOutputURL = function(exec_id, cb){
-   return cb(null, constants.username+'@'+constants.public_url+':'+constants.outputstorage+'/'+exec_id);
+   return cb(null, 'rsync://'+exec_id+'@'+constants.public_url+':'+constants.rsync_port+'/'+exec_id+'_output');
 }
 
 /**
- * Get experiment input URL.
+ * Get execution input URL.
  */
-var getExperimentInputURL = function(exp_id, cb){
-   return cb(null, constants.username+'@'+constants.public_url+':'+constants.inputstorage+'/'+exp_id);
+var getExecutionInputURL = function(exec_id, cb){
+   return cb(null, 'rsync://'+exec_id+'@'+constants.public_url+':'+constants.rsync_port+'/'+exec_id+'_input');
 }
 
 /**
@@ -978,6 +978,213 @@ var getExperimentSrcFolderTree = function(exp_id, app_id, cb){
 }
 
 /**
+ * Allow input data FS from Rsync
+ */
+var getExecutionInputPass = function(exp_id, exec_id, cb){
+   // Get path
+   var id_path = constants.inputstorage+path.sep+exp_id;
+
+   // Get rsync file path
+   var rsync_path = constants.rsync_folder;
+   var rsync_file_path = rsync_path+path.sep+exec_id+"_i.conf";
+   var rsync_file_secret_path = rsync_path+path.sep+exec_id+"_i.conf.secrets";
+
+   // Password
+   var password = utils.generateUUID();
+
+   async.waterfall([
+      // Check paths existence
+      function(wfcb){
+         fs.access(id_path, function(error){
+            return wfcb(error);
+         });
+      },
+      function(wfcb){
+         fs.access(rsync_path, function(error){
+            return wfcb(error);
+         });
+      },
+      // Create input data module in Rsync
+      function(wfcb){
+         logger.info('['+MODULE_NAME+']['+exec_id+'] Allowing input rsync...');
+
+	 // Define file content of rsync
+	 var file_content = '['+exec_id+'_input]\n' +
+		 'path = '+constants.inputstorage+path.sep+exp_id+'\n' +
+		 'auth users = *\n' +
+		 'read only = true\n' +
+		 'secrets file = '+rsync_file_secret_path+'\n';
+
+	 // (Over)write
+         fs.writeFile(rsync_file_path, file_content, "utf8", function(error){
+            return wfcb(error);
+         });
+      },
+      // Create input data module secrets file
+      function(wfcb){
+	 // Define file content of secrets file
+	 var file_content = ''+exec_id+':'+password+'\n';
+
+	 // (Over)write (384 => 0o600
+         fs.writeFile(rsync_file_secret_path, file_content, { mode: 384 }, "utf8", function(error){ 
+            return wfcb(error);
+         });
+      }
+   ],
+   function(error){
+      if(error) return cb(error);
+      logger.info('['+MODULE_NAME+']['+exec_id+'] Rsync input allowed.');
+      return cb(null, password);
+   });
+}
+
+/**
+ * Allow output data FS from Rsync
+ */
+var getExecutionOutputPass = function(exec_id, cb){
+   // Get path
+   var id_path = constants.outputstorage+path.sep+exec_id;
+
+   // Get rsync file path
+   var rsync_path = constants.rsync_folder;
+   var rsync_file_path = rsync_path+path.sep+exec_id+"_o.conf";
+   var rsync_file_secret_path = rsync_path+path.sep+exec_id+"_o.conf.secrets";
+
+   // Password
+   var password = utils.generateUUID();
+
+   async.waterfall([
+      // Check paths existence
+      function(wfcb){
+         fs.access(id_path, function(error){
+            return wfcb(error);
+         });
+      },
+      function(wfcb){
+         fs.access(rsync_path, function(error){
+            return wfcb(error);
+         });
+      },
+      // Create output data module in Rsync
+      function(wfcb){
+         logger.info('['+MODULE_NAME+']['+exec_id+'] Allowing output rsync...');
+
+	 // Define file content of rsync
+	 var file_content = '['+exec_id+'_output]\n' +
+		 'path = '+constants.outputstorage+path.sep+exec_id+'\n' +
+		 'auth users = *\n' +
+		 'read only = false\n' +
+		 'secrets file = '+rsync_file_secret_path+'\n';
+
+	 // (Over)write
+         fs.writeFile(rsync_file_path, file_content, "utf8", function(error){
+            return wfcb(error);
+         });
+      },
+      // Create output data module secrets file
+      function(wfcb){
+	 // Define file content of secrets file
+	 var file_content = ''+exec_id+':'+password+'\n';
+
+	 // (Over)write (384 => 0o600
+         fs.writeFile(rsync_file_secret_path, file_content, { mode: 384 }, "utf8", function(error){ 
+            return wfcb(error);
+         });
+      }
+   ],
+   function(error){
+      logger.info('['+MODULE_NAME+']['+exec_id+'] Rsync output error:'+error);
+      if(error) return cb(error);
+      logger.info('['+MODULE_NAME+']['+exec_id+'] Rsync output allowed.');
+      return cb(null, password);
+   });
+}
+
+/**
+ * Disable input data FS from Rsync
+ */
+var releaseExecutionInputPass = function(exec_id, cb){
+
+   // Get rsync file path
+   var rsync_path = constants.rsync_folder;
+   var rsync_file_path = rsync_path+path.sep+exec_id+"_i.conf";
+   var rsync_file_secret_path = rsync_path+path.sep+exec_id+"_i.conf.secrets";
+
+   async.waterfall([
+      // Check paths existence
+      function(wfcb){
+         fs.access(rsync_path, function(error){
+            return wfcb(error);
+         });
+      },
+      // Remove .conf file
+      function(wfcb){
+         logger.info('['+MODULE_NAME+']['+exec_id+'] Removing input module...');
+         exec('rm -f '+rsync_file_path,{
+         }, function(error, stdout, stderr){
+            if(error) logger.info('['+MODULE_NAME+']['+exp_id+'] Rsync module file does not exist: '+rsync_file_path);
+            return wfcb(null);
+         });
+      },
+      // Remove .conf.secrets file
+      function(wfcb){
+         logger.info('['+MODULE_NAME+']['+exec_id+'] Removing input module secrets...');
+         exec('rm -f '+rsync_file_secret_path,{
+         }, function(error, stdout, stderr){
+            if(error) logger.info('['+MODULE_NAME+']['+exec_id+'] Rsync secrets file does not exist: '+rsync_file_secrets_path);
+            return wfcb(null);
+         });
+      }
+   ],
+   function(error){
+      logger.info('['+MODULE_NAME+']['+exec_id+'] Rsync input disabled.');
+      return cb(null);
+   });
+}
+
+/**
+ * Disable output data FS from Rsync
+ */
+var releaseExecutionOutputPass = function(exec_id, cb){
+
+   // Get rsync file path
+   var rsync_path = constants.rsync_folder;
+   var rsync_file_path = rsync_path+path.sep+exec_id+"_o.conf";
+   var rsync_file_secret_path = rsync_path+path.sep+exec_id+"_o.conf.secrets";
+
+   async.waterfall([
+      // Check paths existence
+      function(wfcb){
+         fs.access(rsync_path, function(error){
+            return wfcb(error);
+         });
+      },
+      // Remove .conf file
+      function(wfcb){
+         logger.info('['+MODULE_NAME+']['+exec_id+'] Removing output module...');
+         exec('rm -f '+rsync_file_path,{
+         }, function(error, stdout, stderr){
+            if(error) logger.info('['+MODULE_NAME+']['+exp_id+'] Rsync module file does not exist: '+rsync_file_path);
+            return wfcb(null);
+         });
+      },
+      // Remove .conf.secrets file
+      function(wfcb){
+         logger.info('['+MODULE_NAME+']['+exec_id+'] Removing output module secrets...');
+         exec('rm -f '+rsync_file_secret_path,{
+         }, function(error, stdout, stderr){
+            if(error) logger.info('['+MODULE_NAME+']['+exec_id+'] Rsync secrets file does not exist: '+rsync_file_secrets_path);
+            return wfcb(null);
+         });
+      }
+   ],
+   function(error){
+      logger.info('['+MODULE_NAME+']['+exec_id+'] Rsync output disabled.');
+      return cb(null);
+   });
+}
+
+/**
  * Get module name.
  * For testing purposes.
  */
@@ -1185,9 +1392,9 @@ var _loadConfig = function(config, loadCallback){
    if(!config.appstorage) return loadCallback(new Error('No "appstorage" field in CFG.'));
    if(!config.inputstorage) return loadCallback(new Error('No "inputstorage" field in CFG.'));
    if(!config.outputstorage) return loadCallback(new Error('No "outputstorage" field in CFG.'));
+   if(!config.rsync_folder) return loadCallback(new Error('No "rsync_folder" field in CFG.'));
    if(!config.public_url) return loadCallback(new Error('No "public_url" field in CFG.'));
    if(!config.git_port) return loadCallback(new Error('No "git_port" field in CFG.'));
-   if(!config.username) return loadCallback(new Error('No "username" field in CFG.'));
    if(!config.listen) return loadCallback(new Error('No "listen" field in CFG.'));
    if(!config.db) return loadCallback(new Error('No "db" field in CFG.'));
 
@@ -1231,6 +1438,14 @@ var _loadConfig = function(config, loadCallback){
          fs.stat(config.outputstorage, function(error, stats){
             if(error) return wfcb(error);
             if(!stats.isDirectory()) return wfcb(new Error('Folder "'+config.outputstorage+'" is not a directory.'));
+            return wfcb(null);
+         });
+      },
+      // Check rsync folder
+      function(wfcb){
+         fs.stat(config.rsync_folder, function(error, stats){
+            if(error) return wfcb(error);
+            if(!stats.isDirectory()) return wfcb(new Error('Folder "'+config.rsync_folder+'" is not a directory.'));
             return wfcb(null);
          });
       },
@@ -1285,7 +1500,7 @@ var _loadConfig = function(config, loadCallback){
             removeExperiment: removeExperiment,
             getApplicationURL: getApplicationURL,
             getExecutionOutputURL: getExecutionOutputURL,
-            getExperimentInputURL: getExperimentInputURL,
+            getExecutionInputURL: getExecutionInputURL,
             getExperimentCode: getExperimentCode,
             putExperimentCode: putExperimentCode,
             deleteExperimentCode: deleteExperimentCode,
@@ -1300,6 +1515,10 @@ var _loadConfig = function(config, loadCallback){
             getOutputFolderTree: getOutputFolderTree,
             getInputFolderTree: getInputFolderTree,
             getExperimentSrcFolderTree: getExperimentSrcFolderTree,
+	    getExecutionInputPass: getExecutionInputPass,
+	    getExecutionOutputPass: getExecutionOutputPass,
+	    releaseExecutionInputPass: releaseExecutionInputPass,
+	    releaseExecutionOutputPass: releaseExecutionOutputPass,
             getModuleName: getModuleName
          }, 30000);
 

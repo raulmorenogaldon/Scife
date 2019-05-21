@@ -105,8 +105,10 @@ var createApplication = function(app_cfg, createCallback){
          app_cfg.id = utils.generateUUID();
 
          // Copy application to storage
+         logger.debug('['+MODULE_NAME+']['+app_cfg.id+'] Copying application data...');
          storage.client.invoke('copyApplication', app_cfg.id, app_cfg.path, function (error) {
             if(error){
+               logger.error('['+MODULE_NAME+']['+app_cfg.id+'] Error copying application data - '+ error);
                wfcb(error);
             } else {
                wfcb(null);
@@ -117,6 +119,7 @@ var createApplication = function(app_cfg, createCallback){
          // Get labels list
          storage.client.invoke('discoverMetadata', app_cfg.id, null, function(error, metadata){
             if(error){
+               logger.error('['+MODULE_NAME+']['+app_cfg.id+'] Error discovering application data - '+ error);
                wfcb(error);
             } else {
                // Save labels
@@ -140,6 +143,7 @@ var createApplication = function(app_cfg, createCallback){
          // Add application to DB
          database.db.collection('applications').insert(app, function(error){
             if(error){
+               logger.error('['+MODULE_NAME+']['+app_cfg.id+'] Error inserting application into DB - '+ error);
                wfcb(error);
             } else {
                // Success adding app
@@ -150,12 +154,12 @@ var createApplication = function(app_cfg, createCallback){
    ],
    function(error, app){
       if(error){
-         console.log("Error creating application with config: " + JSON.stringify(app_cfg) + ", error: " + error);
+         logger.error('['+MODULE_NAME+']['+app_cfg.id+"] Error creating application with config: " + JSON.stringify(app_cfg) + ", error: " + error);
          return createCallback(error);
       }
 
       // Return app data
-      console.log("Created application: " + JSON.stringify(app));
+      logger.info('['+MODULE_NAME+']['+app_cfg.id+"] Created application: " + JSON.stringify(app));
       return createCallback(null, app);
    });
 }

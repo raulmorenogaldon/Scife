@@ -47,6 +47,12 @@ var requestInstance = function(name, image_id, size_id, nodes, requestCallback){
          var minion = _getMinion(image.minion, false, function(error, minion){
             if(error) return requestCallback(error);
 
+            // Minion must be online
+            if(minion.online == false) {
+               logger.error('['+MODULE_NAME+'] requestInstance: Minion "'+id+'" is offline.');
+               return requestCallback(new Error('Minion for this image is OFFLINE.').name = 'OfflineMinion');
+            }
+
             // Check quotas
             getImageQuotas(image_id, function(error, quotas){
                if(error) return requestCallback(error);
@@ -64,12 +70,29 @@ var requestInstance = function(name, image_id, size_id, nodes, requestCallback){
                   nodes: nodes,
                   publicIP: true
                }, function (error, instance_id) {
+                  // Heartbeat? Connection to minion has been lost
+                  if(error && error.name == "HeartbeatError") return requestCallback(new Error('Minion cannot instance because is OFFLINE (HeartbeatError).').name = 'OfflineMinion');
                   if(error) return requestCallback(error);
-                  requestCallback(null, instance_id);
+
+                  // Wait until instance is ready
+                  _waitInstanceReady(instance_id, requestCallback);
                });
             });
          });
       });
+   });
+}
+
+/**
+ * Wait until instance is ready or failed
+ */
+var _waitInstanceReady = function(inst_id, readyCallback){
+   logger.debug('['+MODULE_NAME+']['+inst_id+'] _waitInstanceReady: Waiting...');
+   getInstance(inst_id, function(error, inst){
+      if(error || !inst) return readyCallback(new Error('Instance with ID "'+inst_id+'" does not exists'));
+      if(inst.ready == true) return readyCallback(null, inst_id);
+      if(inst.failed == true) return readyCallback(new Error('Failed to instance "'+inst_id+'".'));
+      setTimeout(_waitInstanceReady, 10000, inst_id, readyCallback);
    });
 }
 
@@ -126,15 +149,18 @@ var getImagesList = function(getCallback){
       (function(i){
          tasks.push(function(taskcb){
             var minion = vMinionClients[i];
-            minion.invoke('getImages', null, function (error, minion_images) {
-               if(error){
-                  taskcb(new Error('Failed to retrieve images'));
-               } else {
-                  // Add to list
-                  list = list.concat(minion_images);
+            // Check if minion is online
+            if(minion.online == true){
+               minion.invoke('getImages', null, function (error, minion_images) {
+                  if(!error){
+                     // Add to list
+                     list = list.concat(minion_images);
+                  }
                   taskcb(null);
-               }
-            });
+               });
+            } else {
+               taskcb(null);
+            }
          });
       })(i);
    }
@@ -156,15 +182,18 @@ var getSizesList = function(getCallback){
       (function(i){
          tasks.push(function(taskcb){
             var minion = vMinionClients[i];
-            minion.invoke('getSizes', null, function (error, minion_sizes) {
-               if(error){
-                  taskcb(new Error('Failed to retrieve sizes'));
-               } else {
-                  // Add to list
-                  list = list.concat(minion_sizes);
+            // Check if minion is online
+            if(minion.online == true){
+               minion.invoke('getSizes', null, function (error, minion_sizes) {
+                  if(!error){
+                     // Add to list
+                     list = list.concat(minion_sizes);
+                  }
                   taskcb(null);
-               }
-            });
+               });
+            } else {
+               taskcb(null);
+            }
          });
       })(i);
    }
@@ -186,15 +215,17 @@ var getInstancesList = function(getCallback){
       (function(i){
          tasks.push(function(taskcb){
             var minion = vMinionClients[i];
-            minion.invoke('getInstances', null, function (error, minion_insts) {
-               if(error){
-                  taskcb(new Error('Failed to retrieve instances'));
-               } else {
-                  // Add to list
-                  list = list.concat(minion_insts);
+            if(minion.online == true){
+               minion.invoke('getInstances', null, function (error, minion_insts) {
+                  if(!error){
+                     // Add to list
+                     list = list.concat(minion_insts);
+                  }
                   taskcb(null);
-               }
-            });
+               });
+            } else {
+               taskcb(null);
+            }
          });
       })(i);
    }
@@ -215,8 +246,12 @@ var getImageQuotas = function(image_id, getCallback){
       var minion = _getMinion(image.minion, false, function(error, minion){
          if(error) return getCallback(error);
 
+         // Minion must be online
+         if(minion.online == false) return getCallback(new Error('Minion for this image is OFFLINE.').name = 'OfflineMinion');
+
          // Get quotas
          minion.invoke('getQuotas', function (error, quotas) {
+            if(error && error.name == "HeartbeatError") return getCallback(new Error('Minion cannot get image quotas because is OFFLINE (HeartbeatError).').name = 'OfflineMinion');
             if(error) return getCallback(error);
             getCallback(null, quotas);
          });
@@ -236,8 +271,12 @@ var destroyInstance = function(inst_id, destroyCallback){
       var minion = _getMinion(inst.minion, false, function(error, minion){
          if(error) return destroyCallback(error);
 
+         // Minion must be online
+         if(minion.online == false) return destroyCallback(new Error('Minion for this image is OFFLINE.').name = 'OfflineMinion');
+
          // Destroy instance
          minion.invoke('destroyInstance', inst_id, function (error) {
+            if(error && error.name == "HeartbeatError") return destroyCallback(new Error('Minion cannot destroy instance because is OFFLINE (HeartbeatError).').name = 'OfflineMinion');
             if(error) return destroyCallback(new Error("Failed to destroy instance " + inst_id + ", err: " + error));
             destroyCallback(null);
          });
@@ -260,6 +299,10 @@ var cleanExecution = function(exec_id, inst_id, b_flags, cleanCallback){
       function(inst, wfcb){
          var minion = _getMinion(inst.minion, false, function(error, minion){
             if(error) return wfcb(error);
+
+            // Minion must be online
+            if(minion.online == false) return wfcb(new Error('Minion for this image is OFFLINE.').name = 'OfflineMinion');
+
             wfcb(null, inst, minion);
          });
       },
@@ -360,6 +403,10 @@ var executeCommand = function(inst_id, cmd, executeCallback){
       function(inst, wfcb){
          var minion = _getMinion(inst.minion, true, function(error, minion){
             if(error) return wfcb(error);
+
+            // Minion must be online
+            if(minion.online == false) return executeCallback(new Error('Minion for this image is OFFLINE.').name = 'OfflineMinion');
+
             wfcb(null, inst, minion);
          });
       },
@@ -375,10 +422,9 @@ var executeCommand = function(inst_id, cmd, executeCallback){
       }
    ],
    function(error, result){
-      if(error){
-         executeCallback(error);
-         return;
-      }
+      // Heartbeat? Connection to minion has been lost
+      if(error && error.name == "HeartbeatError") return executeCallback(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
+      if(error) return executeCallback(error);
       // Callback
       executeCallback(null, result);
    });
@@ -396,7 +442,14 @@ var executeJob = function(inst_id, cmd, work_dir, nodes, executeCallback){
       // Get minion for this instance
       function(inst, wfcb){
          var minion = _getMinion(inst.minion, true, function(error, minion){
-            if(error) return wfcb(error);
+            if(error){
+               logger.error('['+MODULE_NAME+']['+inst_id+'] ExecuteJob: Failed to get minion data - ' + error);
+               return wfcb(error);
+            }
+
+            // Minion must be online
+            if(minion.online == false) return wfcb(new Error('Minion for this image is OFFLINE.').name = 'OfflineMinion');
+
             wfcb(null, inst, minion);
          });
       },
@@ -404,19 +457,26 @@ var executeJob = function(inst_id, cmd, work_dir, nodes, executeCallback){
       function(inst, minion, wfcb){
          minion.invoke('executeScript', inst_id, cmd, work_dir, nodes, function (error, job_id) {
             if (error) {
+               logger.error('['+MODULE_NAME+']['+inst_id+'] ExecuteJob: Failed to execute job in instance - ' + error);
                return wfcb(error);
             } else {
-               if(!job_id) return wfcb(new Error('Minion did not return a valid Job ID - '+job_id));
-               wfcb(null, job_id);
+               if(!job_id) {
+                  logger.error('['+MODULE_NAME+']['+inst_id+'] ExecuteJob: Not a valid Job ID returned - ' + job_id);
+                  return wfcb(new Error('Minion did not return a valid Job ID - '+job_id));
+               }
+               logger.debug('['+MODULE_NAME+']['+inst_id+'] ExecuteJob: ID returned - ' + job_id);
+               return wfcb(null, job_id);
             }
          });
       }
    ],
    function(error, job_id){
-      if(error){return executeCallback(error);}
+      // Heartbeat? Connection to minion has been lost
+      if(error && error.name == "HeartbeatError") return executeCallback(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
+      if(error) return executeCallback(error);
 
       // Callback
-      executeCallback(null, job_id);
+      return executeCallback(null, job_id);
    });
 }
 
@@ -430,32 +490,79 @@ var waitJob = function(job_id, inst_id, waitCallback){
       function(inst, wfcb){
          var minion = _getMinion(inst.minion, true, function(error, minion){
             if(error) return wfcb(error);
+
+            // Minion must be online
+            if(minion.online == false) return wfcb(new Error('Minion for this image is OFFLINE.').name = 'OfflineMinion');
+
             wfcb(null, inst, minion);
          });
       },
       // Get job status
       function(inst, minion, wfcb){
          minion.invoke('getJobStatus', job_id, inst_id, function (error, status) {
+            // Heartbeat? Connection to minion has been lost
+            if(error && error.name == "HeartbeatError") return wfcb(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
             if (error) {
-               wfcb(new Error("Failed to get job status of instance '" + inst_id + "': " + error));
+               wfcb(new Error("Failed to get job status from instance '" + inst_id + "': " + error));
             } else {
                if(status == "finished" || status == "unknown"){
                   // Done
-                  wfcb(null);
+                  wfcb(null, inst, minion);
                } else {
                   // Running
                   wfcb(true);
                }
             }
          });
-      }
+      },
+      // Get job stdout
+      function(inst, minion, wfcb){
+         var output = {
+            stdout: null,
+            stderr: null,
+            code: null
+         };
+
+         // Retrieve output
+         var cmd = 'cat '+inst.image.tmppath+'/'+ job_id + '.stdout';
+         minion.invoke('executeCommand', inst_id, cmd, function (error, result) {
+            // Heartbeat? Connection to minion has been lost
+            if(error && error.name == "HeartbeatError") return wfcb(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
+            if (error) return wfcb(error);
+            output.stdout = result.stdout;
+
+            // Retrieve error
+            var cmd = 'cat '+inst.image.tmppath+'/'+ job_id + '.stderr';
+            minion.invoke('executeCommand', inst_id, cmd, function (error, result) {
+               // Heartbeat? Connection to minion has been lost
+               if(error && error.name == "HeartbeatError") return wfcb(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
+               if (error) return wfcb(error);
+               output.stderr = result.stdout;
+
+               // Retrieve code
+               var cmd = 'cat '+inst.image.tmppath+'/'+ job_id + '.code';
+               minion.invoke('executeCommand', inst_id, cmd, function (error, result) {
+                  // Heartbeat? Connection to minion has been lost
+                  if(error && error.name == "HeartbeatError") return wfcb(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
+                  if (error) return wfcb(error);
+                  output.code = result.stdout;
+
+                  // Remove files
+                  var cmd = 'rm '+inst.image.tmppath+'/'+ job_id + '.*';
+                  minion.invoke('executeCommand', inst_id, cmd, function (error, result) {
+                     // Heartbeat? Connection to minion has been lost
+                     if(error && error.name == "HeartbeatError") return wfcb(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
+                     if (error) return wfcb(error);
+                     return wfcb(null, output);
+                  });
+               });
+            });
+         });
+      },
    ],
-   function(error){
-      if(error == true){
-         return setTimeout(waitJob, 1000, job_id, inst_id, waitCallback);
-      } else {
-         return waitCallback(error);
-      }
+   function(error, output){
+      if(error == true) return setTimeout(waitJob, 1000, job_id, inst_id, waitCallback);
+      return waitCallback(error, output);
    });
 }
 
@@ -471,12 +578,16 @@ var abortJob = function(job_id, inst_id, abortCallback){
          // Get minion
          var minion = _getMinion(inst.minion, false, function(error, minion){
             if(error) return abortCallback(error);
+
+            // Minion must be online
+            if(minion.online == false) return abortCallback(new Error('Minion for this image is OFFLINE.').name = 'OfflineMinion');
+
             // Abort job
             logger.debug('['+MODULE_NAME+']['+inst_id+'] Aborting job - ' + job_id);
             minion.invoke('cleanJob', job_id, inst_id, function (error, result) {
-               if (error) {
-                  return abortCallback(error);
-               }
+               // Heartbeat? Connection to minion has been lost
+               if(error && error.name == "HeartbeatError") return abortCallback(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
+               if(error) return abortCallback(error);
 
                // Callback
                logger.debug('['+MODULE_NAME+']['+inst_id+'] Aborted job - ' + job_id);
@@ -497,8 +608,12 @@ var _getMinion = function(id, wait, cb){
    // Check if minion is loaded
    if(!minion){
       // Wait
-      if(wait == true) return setTimeout(_getMinion, 10000, id, cb);
-      else return cb(new Error('Minion "'+minion+'" is not loaded.'));
+      if(wait == true) return setTimeout(_getMinion, 10000, id, wait, cb);
+      else {
+         var error = new Error('_getMinion: Minion "'+id+'" is not LOADED.');
+         logger.error('['+MODULE_NAME+'] '+error);
+         return cb(error);
+      }
    }
 
    return cb(null, minion);
@@ -512,6 +627,8 @@ var _cleanExecutionCode = function(minion, exec_id, inst, cleanCallback){
    var cmd = 'rm -rf '+work_dir;
    // Execute command
    minion.invoke('executeCommand', inst.id, cmd, function (error, output) {
+      // Heartbeat? Connection to minion has been lost
+      if(error && error.name == "HeartbeatError") return cleanCallback(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
       return cleanCallback(error);
    });
 }
@@ -525,6 +642,8 @@ var _cleanExecutionInput = function(minion, exec_id, inst, cleanCallback){
    var cmd = 'rm -rf '+input_dir;
    // Execute command
    minion.invoke('executeCommand', inst.id, cmd, function (error, output) {
+      // Heartbeat? Connection to minion has been lost
+      if(error && error.name == "HeartbeatError") return cleanCallback(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
       return cleanCallback(error);
    });
 }
@@ -538,6 +657,8 @@ var _cleanExecutionOutput = function(minion, exec_id, inst, cleanCallback){
    var cmd = 'rm -rf '+output_dir;
    // Execute command
    minion.invoke('executeCommand', inst.id, cmd, function (error, output) {
+      // Heartbeat? Connection to minion has been lost
+      if(error && error.name == "HeartbeatError") return cleanCallback(new Error('Minion for this instance is OFFLINE.').name = 'OfflineMinion');
       return cleanCallback(error);
    });
 }
@@ -657,6 +778,36 @@ var _destroyEmptyInstances = function(destroyCallback){
 }
 
 /**
+ * Poll minion
+ */
+var _pollMinionLock = {};
+var _pollMinionOnline = function(minion){
+   // Avoid multiple polling
+   if(_pollMinionLock[minion.minion_url] == true) return;
+   _pollMinionLock[minion.minion_url] = true;
+
+   // Get minion name
+   minion.invoke('getMinionName', function (error, name) {
+      if(error){
+         logger.info('['+MODULE_NAME+'] Minion in '+minion.minion_url+' if offline.');
+         // Mark minion as offline
+         minion.online = false;
+         // Retry connection
+         minion.connect(minion.minion_url);
+      }
+      // Swap online status
+      else if(minion.online == false){
+         // Is online
+         logger.info('['+MODULE_NAME+'] Minion in '+minion.minion_url+' is online.');
+         minion.online = true;
+         dMinionClients[name] = minion;
+      }
+
+      _pollMinionLock[minion.minion_url] = false;
+   });
+}
+
+/**
  * Update minions.
  */
 var autoupdate = function(cb){
@@ -668,12 +819,16 @@ var autoupdate = function(cb){
       (function(i){
          tasks.push(function(taskcb){
             var minion = vMinionClients[i];
-            minion.invoke('autoupdate', function (error) {
-               if(error){
-                  logger.error('['+MODULE_NAME+'] Failed to autoupdate minion '+minion.minion_url+'.');
-               }
+            if(minion.online == true){
+               minion.invoke('autoupdate', function (error) {
+                  if(error){
+                     logger.error('['+MODULE_NAME+'] Failed to autoupdate minion '+minion.minion_url+'.');
+                  }
+                  return taskcb(null);
+               });
+            } else {
                return taskcb(null);
-            });
+            }
          });
       })(i);
    }
@@ -704,20 +859,19 @@ var init = function(cfg, initCallback){
 
             // Connect
             minion.minion_url = constants.MINION_URL[i];
+            minion.online = false;
             minion.connect(minion.minion_url);
-            logger.info('['+MODULE_NAME+'] Connecting to minion in: ' + minion.minion_url);
-            minion.invoke('getMinionName', function (error, name) {
-               if(error){
-                  logger.error('['+MODULE_NAME+'] Failed to connect to minion '+minion.minion_url+'.');
-                  return taskcb(null);
-               }
+            _pollMinionOnline(minion);
 
-               // Connected
-               logger.info('['+MODULE_NAME+'] Connected to minion '+name+'.');
-               dMinionClients[name] = minion;
-               vMinionClients.push(minion);
-               taskcb(null);
-            });
+            // Poll minions' status (5 sec)
+            setInterval(function(){
+               _pollMinionOnline(minion);
+            }, 5000);
+
+            // Add to minions list
+            logger.debug('['+MODULE_NAME+'] Registered minion in '+minion.minion_url);
+            vMinionClients.push(minion);
+            taskcb(null);
          });
       })(i);
    }
@@ -730,10 +884,10 @@ var init = function(cfg, initCallback){
        */
       var _lock_destroy = true;
       _destroyEmptyInstances(function(error){
-         if(error) console.error('['+MODULE_NAME+'] DestroyEmpty: Failed - ' + error);
+         if(error) logger.error('['+MODULE_NAME+'] DestroyEmpty: Failed - ' + error);
          _lock_destroy = false;
       });
-      // Periodic
+      // Destroy empty instances periodically
       setInterval(function(){
          if(_lock_destroy == true) return;
          _lock_destroy = true;

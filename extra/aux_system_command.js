@@ -31,6 +31,7 @@ var kill = function(pid, signal, callback){
 console.log("Spawning: "+process.argv[2]+" "+process.argv.slice(3));
 
 // Execute command
+//var proc = spawn(process.argv[2], process.argv.slice(3), { stdio: ["ignore", "pipe", "pipe"] });
 var proc = spawn(process.argv[2], process.argv.slice(3));
 
 // Print back data

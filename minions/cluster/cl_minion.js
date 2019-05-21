@@ -6,7 +6,6 @@ var async = require('async');
 var request = require('request');
 var fs = require('fs');
 var exec = require('child_process').exec;
-var sleep = require('sleep');
 var ssh2 = require('ssh2').Client;
 var mongo = require('mongodb').MongoClient;
 var utils = require('../../overlord/utils');
@@ -160,7 +159,8 @@ var createInstance = function(inst_cfg, createCallback){
             members: null,
             in_use: true,
             idle_time: Date.now(),
-            ready: true
+            ready: true,
+            failed: false
          };
 
          // Add to DB
@@ -197,11 +197,12 @@ var executeScript = function(inst_id, script, work_dir, nodes, executeCallback){
          if(inst.ready != true) return wfcb(new Error('Instance "'+inst_id+'" is not ready, unable to execute script.'));
 
          // QSUB launch command
-         var qsub_cmd = "qsub -N "+inst.nodes+"-"+inst.size.cpus+"-"+inst.size.ram+" -l select="+inst.nodes+":ncpus="+inst.size.cpus+":mem="+inst.size.ram+"MB -e "+work_dir+" -o "+work_dir;
-         var cmd = cmd_env+"; echo '"+script+"' | "+qsub_cmd+" | tr -d '\n'"; // Strip new line
+         var qsub_cmd = "qsub -N "+inst.nodes+"-"+inst.size.cpus+"-"+inst.size.ram+" -l select="+inst.nodes+":ncpus="+inst.size.cpus+":mem="+inst.size.ram+"MB -e "+inst.image.tmppath+"/${PBS_JOBID}.stderr -o "+inst.image.tmppath+"/${PBS_JOBID}.stdout";
+         var cmd = cmd_env+"; echo '"+script+"; echo -n $? > "+inst.image.tmppath+"/${PBS_JOBID}.code' | "+qsub_cmd+" | tr -d '\n'"; // Strip new line
 
+         logger.debug("["+MINION_NAME+"]["+inst_id+"] Executing script: " + cmd);
          // Execute (blocking as we are using queue system)
-         utils.execSSH(ssh_conn, cmd, work_dir, true, wfcb);
+         utils.execSSH(ssh_conn, cmd, work_dir, true, null, wfcb);
       }
    ],
    function(error, output){
@@ -223,11 +224,12 @@ var executeCommand = function(inst_id, script, executeCallback){
          // Check if instance is ready
          if(inst.ready != true) return wfcb(new Error('Instance "'+inst_id+'" is not ready, unable to execute script.'));
 
-	 // Just the command
-	 var cmd = cmd_env+"; "+script;
+         // Just the command
+         var cmd = cmd_env+"; "+script;
 
          // Execute
-         utils.execSSH(ssh_conn, cmd, null, true, wfcb);
+         logger.debug("["+MINION_NAME+"]["+inst_id+"] Executing command: " + cmd);
+         utils.execSSH(ssh_conn, cmd, null, true, null, wfcb);
       }
    ],
    function(error, output){
@@ -242,7 +244,7 @@ var getJobStatus = function(job_id, inst_id, getCallback){
    var status = "unknown";
    if(job_id){
       var cmd = cmd_env+"; qstat "+job_id;
-      utils.execSSH(ssh_conn, cmd, null, true, function(error, output){
+      utils.execSSH(ssh_conn, cmd, null, true, null, function(error, output){
          // Parse output to get job info
          if(output.stderr.indexOf("Unknown") == -1){
             status = "running";
@@ -282,7 +284,7 @@ var getQuotas = function(getCallback){
 var cleanJob = function(job_id, inst_id, cleanCallback){
    // QDEL
    var cmd = cmd_env+'; qdel -W force '+job_id;
-   utils.execSSH(ssh_conn, cmd, null, true, function(error, output){
+   utils.execSSH(ssh_conn, cmd, null, true, null, function(error, output){
       return cleanCallback(error);
    })
 }

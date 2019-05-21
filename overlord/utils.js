@@ -8,6 +8,7 @@ var winston = require('winston');
  * Logger configuration
  */
 winston.level = 'debug';
+logger = winston;
 
 // Create SSH connection
 function connectSSH(username, host, private_key, timeout, connectCallback){
@@ -59,7 +60,7 @@ function connectSSH(username, host, private_key, timeout, connectCallback){
 };
 
 // Execute a command
-function execSSH(conn, cmd, work_dir, blocking, execCallback){
+function execSSH(conn, cmd, work_dir, blocking, tmp, execCallback){
    // Check connection
    if(!conn || !conn.exec) return execCallback(new Error("Invalid connection object."));
 
@@ -69,33 +70,55 @@ function execSSH(conn, cmd, work_dir, blocking, execCallback){
    // If no work_dir is specified, use $HOME
    if(!work_dir) work_dir = "~";
 
+   // Set output files
+   var output_path = "/dev/null";
+   if(tmp) output_path = tmp;
+
    // If the command is blocking, then wait until command execution
    if(blocking){
       // Change to dir and execute
-      full_cmd = "cd "+work_dir+"; "+cmd+";";
+      full_cmd = ". ~/.bash_profile; cd "+work_dir+"; "+cmd+";";
    } else {
       // Create a background process
-      full_cmd = "nohup sh -c 'cd "+work_dir+"; "+cmd+"' > /dev/null 2>&1 & echo -n $!;";
+      full_cmd = "nohup sh -c '. ~/.bash_profile; cd "+work_dir+"; "+cmd+"' > "+output_path+"/$$.stdout 2> "+output_path+"/$$.stderr < /dev/null & echo -n $? > "+output_path+"/$$.code; echo -n $!";
    }
 
    // Output object with normal and error outputs.
    var output = {
       stdout: "",
-      stderr: ""
+      stderr: "",
+      code: null
    };
 
    // Execute command
+   logger.debug('[UTILS] execSSH: Executing (blck: '+blocking+') - \n'+full_cmd);
    conn.exec(full_cmd, function(error, stream){
-      if(error) return execCallback(error);
+      if(error){
+         logger.error('[UTILS] execSSH: Error in exec - \n'+error);
+         return execCallback(error);
+      }
+      logger.debug('[UTILS] execSSH: Command sent.');
 
       // Handle received data
       stream.on('close', function(code, signal){
          // Command executed, return output
-         execCallback(null, output);
+         output.code = code;
+         logger.debug('[UTILS] execSSH: Stream closed - output code: '+code);
+         return execCallback(null, output);
       }).on('data', function(data) {
-         output.stdout = output.stdout + data;
+         try {
+            logger.debug('[UTILS] execSSH: Stream updated...');
+            output.stdout = output.stdout + data;
+         } catch(err) {
+            logger.warn("[UTILS] Failed to concatenate STDOUT in command: "+full_cmd);
+         }
       }).stderr.on('data', function(data){
-         output.stderr = output.stderr + data;
+         try {
+            logger.debug('[UTILS] execSSH: Stream updated...');
+            output.stderr = output.stderr + data;
+         } catch(err) {
+            logger.warn("[UTILS] Failed to concatenate STDERR in command: "+full_cmd);
+         }
       });
    });
 };
