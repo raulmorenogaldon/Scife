@@ -76,6 +76,8 @@ In order to deploy Scife, it is needed to clone the repository and modify Scife'
 Git and Rsync daemons should be accessible from the instances, as they need to download the data from these services.
 A MongoDB server should be accesible for Scife services.
 
+## Configuration files ##
+
 Here is an example of the ***overlord.cfg*** configuration file:
 ```
 {
@@ -104,7 +106,19 @@ In the case of the storage service the file ***storage.cfg*** is used:
 }
 ```
 
-Review the ***start.sh*** script for an example of usage.
+## Creating the first user ##
+
+An administrator user is needed in order to manage Scife, especially from a clean installation (empty database).
+The system cannot be used without being logged in, and therefore it will not allow you to create the first user in the database.
+For this reason, the `create_user_manual.sh` helper script is provided in the `extra` folder.
+This script allows the manual insertion of a new user into the database by running it: `DB_NAME=scife_db PORT=9999 extra/create_user_manual.sh`.
+Note that you must specify the name of the database and the port where the MongoDB service is listening.
+The script will prompt the user for a username, a password and an administration condition.
+If everything went OK, the new user will be inserted into the database.
+
+## Starting the system ##
+
+Review the ***start.sh*** script for an example of starter script.
 
 # Sources #
 This project is composed by the next components:
@@ -121,4 +135,4 @@ This project is composed by the next components:
     * Users: Provides a user system and their permissions.
     * Utils: Provides general utilities for the other modules like SSH connections or UUID generation.
     * **Routes**: In this folder the HTTP API is defined.
-* Minions: Acts as independent services that offers a uniform interface for the scheduler.
+* Minions: Act as independent services that offers a uniform interface for the scheduler.
