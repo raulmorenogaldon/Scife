@@ -100,7 +100,7 @@ In the case of the storage service the file ***storage.cfg*** is used:
 	"outputstorage": "/path/to/outputstorage", # Specify the file system path where all the output files will be stored
 	"public_url": "192.168.1.10",              # Specify the external IP on which the storage service will be listening
 	"git_port": "9418",                        # Specify the port on which the Git daemon is listening (in the local machine)
-	"username": "scife",                       # Specify the username on which the storage service is executing
+	"rsync_port": "9419",                      # Specify the port on which the Rsync daemon is listening (in the local machine)
 	"listen": "tcp://0.0.0.0:8237",            # Specify the listening direction of the storage service
 	"db": "mongodb://localhost:27017/db"       # Specify the URL on which MongoDB is listening
 }
