@@ -1,0 +1,43 @@
+#!/bin/python
+
+from os import environ as env
+import clicommon
+import getpass
+import hashlib
+import sys
+
+# Usage msg
+USAGE_MSG = "Usage: login"
+OVERLORD = env['OVERLORD']
+ARGS = 0
+
+# Create CLI
+cli = clicommon.CLI(
+    overlord=OVERLORD,
+    usage=USAGE_MSG,
+    args_expected=ARGS,
+)
+
+# Get password from user
+sys.stderr.write('Username: ')
+username = raw_input()
+sys.stderr.write('Password: ')
+pswd = getpass.getpass('')
+
+# Encode password
+pswd = hashlib.sha512(pswd).hexdigest()
+
+# POST for token
+try:
+    login = cli.POST('/login',{'username':username, 'password':pswd})
+except:
+    sys.stderr.write('Error on login!!!\n')
+    exit(-1)
+
+# Print login status
+sys.stderr.write('-------------------------------------------------------\n')
+sys.stderr.write('- Login success!\n')
+sys.stderr.write('-------------------------------------------------------\n')
+
+# Echo the token
+sys.stdout.write(login['token'])

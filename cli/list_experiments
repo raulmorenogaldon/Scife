@@ -6,17 +6,19 @@ import clicommon
 # Usage msg
 USAGE_MSG = "Usage: list_experiments"
 OVERLORD = env['OVERLORD']
+TOKEN = env['TOKEN']
 ARGS = 0
 
 # Create CLI
 cli = clicommon.CLI(
     overlord=OVERLORD,
+    token=TOKEN,
     usage=USAGE_MSG,
     args_expected=ARGS,
 )
 
 # GET
-exps = cli.GET('/cloud/experiments')
+exps = cli.GET('/experiments')
 
 # Print applications
 print('-------------------------------------------------------')

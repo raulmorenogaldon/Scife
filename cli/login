@@ -1,24 +1,8 @@
-#!/bin/python
+#!/bin/sh
 
-from os import environ as env
-import clicommon
+# Print help
+echo "======================================================="
+echo "Use this command with source or dot (.) command, e.g: source ./login. Otherwise the other commands of the CLI will not work."
 
-# Usage msg
-USAGE_MSG = "Usage: login"
-OVERLORD = env['OVERLORD']
-ARGS = 0
-
-# Create CLI
-cli = clicommon.CLI(
-    overlord=OVERLORD,
-    usage=USAGE_MSG,
-    args_expected=ARGS,
-)
-
-# GET
-login = cli.GET('/cloud/login')
-
-# Print login status
-print('-------------------------------------------------------')
-print('- Login status: {0}'.format(login))
-print('-------------------------------------------------------')
+# Get token and set environment
+export TOKEN=$(python ./_login)

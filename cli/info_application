@@ -7,11 +7,13 @@ import clicommon
 # Usage msg
 USAGE_MSG = "Usage: info_application <app_id>"
 OVERLORD = env['OVERLORD']
+TOKEN = env['TOKEN']
 ARGS = 1
 
 # Create CLI
 cli = clicommon.CLI(
     overlord=OVERLORD,
+    token=TOKEN,
     usage=USAGE_MSG,
     args_expected=ARGS,
 )
@@ -20,7 +22,7 @@ cli = clicommon.CLI(
 app_id = sys.argv[1]
 
 # GET
-apps = cli.GET('/cloud/applications/{0}'.format(app_id))
+apps = cli.GET('/applications/{0}'.format(app_id))
 if type(apps) is not list:
     apps = [apps]
 

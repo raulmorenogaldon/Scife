@@ -7,11 +7,13 @@ import clicommon
 # Usage msg
 USAGE_MSG = "Usage: image_size <image_id>"
 OVERLORD = env['OVERLORD']
+TOKEN = env['TOKEN']
 ARGS = 1
 
 # Create CLI
 cli = clicommon.CLI(
     overlord=OVERLORD,
+    token=TOKEN,
     usage=USAGE_MSG,
     args_expected=ARGS,
 )
@@ -20,7 +22,7 @@ cli = clicommon.CLI(
 image_id = sys.argv[1]
 
 # GET
-images = cli.GET('/cloud/images/{0}'.format(image_id))
+images = cli.GET('/images/{0}'.format(image_id))
 if type(images) is not list:
     images = [images]
 

@@ -7,11 +7,13 @@ import clicommon
 # Usage msg
 USAGE_MSG = "Usage: create_application <name> <desc> <creation_script> <execution_script> <input_path>"
 OVERLORD = env['OVERLORD']
+TOKEN = env['TOKEN']
 ARGS = 5
 
 # Create CLI
 cli = clicommon.CLI(
     overlord=OVERLORD,
+    token=TOKEN,
     usage=USAGE_MSG,
     args_expected=ARGS,
 )

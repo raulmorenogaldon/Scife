@@ -7,11 +7,13 @@ import clicommon
 # Usage msg
 USAGE_MSG = "Usage: info_experiment <exp_id>"
 OVERLORD = env['OVERLORD']
+TOKEN = env['TOKEN']
 ARGS = 1
 
 # Create CLI
 cli = clicommon.CLI(
     overlord=OVERLORD,
+    token=TOKEN,
     usage=USAGE_MSG,
     args_expected=ARGS,
 )
@@ -20,7 +22,7 @@ cli = clicommon.CLI(
 exp_id = sys.argv[1]
 
 # GET
-exps = cli.GET('/cloud/experiments/{0}'.format(exp_id))
+exps = cli.GET('/experiments/{0}'.format(exp_id))
 if type(exps) is not list:
     exps = [exps]
 

@@ -8,11 +8,13 @@ import clicommon
 # Usage msg
 USAGE_MSG = "Usage: create_experiment <name> <desc> <app_id> <labels> <image_id> <size_id> <nodes>"
 OVERLORD = env['OVERLORD']
+TOKEN = env['TOKEN']
 ARGS = 7
 
 # Create CLI
 cli = clicommon.CLI(
     overlord=OVERLORD,
+    token=TOKEN,
     usage=USAGE_MSG,
     args_expected=ARGS,
 )
@@ -27,14 +29,14 @@ exp_size_id = sys.argv[6]
 exp_nodes = sys.argv[7]
 
 # Retrieve image
-images = cli.GET('/cloud/images/{0}'.format(exp_image_id))
+images = cli.GET('/images/{0}'.format(exp_image_id))
 if len(images) != 1:
     print('Image not found!')
     exit(1)
 image = images[0]
 
 # Retrieve size
-sizes = cli.GET('/cloud/sizes/{0}'.format(exp_size_id))
+sizes = cli.GET('/sizes/{0}'.format(exp_size_id))
 if len(sizes) != 1:
     print('Size not found!')
     exit(1)
@@ -55,7 +57,7 @@ JSON = {
 }
 
 # POST
-exp_id = cli.POST('/cloud/createexperiment', data=JSON)
+exp_id = cli.POST('/experiments', data=JSON)
 
 # Print info
 print('-------------------------------------------------------')

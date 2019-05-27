@@ -7,11 +7,13 @@ import clicommon
 # Usage msg
 USAGE_MSG = "Usage: info_size <size_id>"
 OVERLORD = env['OVERLORD']
+TOKEN = env['TOKEN']
 ARGS = 1
 
 # Create CLI
 cli = clicommon.CLI(
     overlord=OVERLORD,
+    token=TOKEN,
     usage=USAGE_MSG,
     args_expected=ARGS,
 )
@@ -20,7 +22,7 @@ cli = clicommon.CLI(
 size_id = sys.argv[1]
 
 # GET
-sizes = cli.GET('/cloud/sizes/{0}'.format(size_id))
+sizes = cli.GET('/sizes/{0}'.format(size_id))
 if type(sizes) is not list:
     sizes = [sizes]
 
