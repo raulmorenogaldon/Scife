@@ -5,4 +5,5 @@ echo "======================================================="
 echo "Use this command with source or dot (.) command, e.g: source ./login. Otherwise the other commands of the CLI will not work."
 
 # Get token and set environment
-export TOKEN=$(python ./_login)
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+export TOKEN=$(python $DIR/_login)

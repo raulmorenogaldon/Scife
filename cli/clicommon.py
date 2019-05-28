@@ -44,7 +44,7 @@ class CLI(object):
             self.overlord,
             request
         )
-        res = requests.post(url, data=data)
+        res = requests.post(url, data=data, headers={'x-access-token':self.token})
         try:
             res.raise_for_status()
         except requests.exceptions.HTTPError as e:
