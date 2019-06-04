@@ -9,6 +9,7 @@
 #######################################################
 
 echo "THIS IS AN EXAMPLE SCRIPT! Please, do not run it without modifying it."
+exit 1
 
 # Load environment
 . ~/.nvm/nvm.sh 2>/dev/null
@@ -19,7 +20,7 @@ echo "THIS IS AN EXAMPLE SCRIPT! Please, do not run it without modifying it."
 #############################################"
 CFG_OVERLORD="./extra/overlord.cfg"
 CFG_STORAGE="./extra/storage.cfg"
-CFG_MINION="./extra/cluster.cfg"
+CFG_MINION="./extra/minion.cfg"
 CFG_RSYNC="./extra/rsyncd.cfg"
 
 #############################################"
@@ -36,8 +37,8 @@ BRANCH=develop
 DB_UID="database"
 DB_BIN="mongod"
 DB_PATH="/home/mongodb"
-#DB_BIND="--bind_ip localhost"
-#DB_PORT="--port 27017"
+DB_BIND="--bind_ip localhost"
+DB_PORT="--port 27017"
 #DB_NUMA="`which numactl`"
 #DB_NUMA_OPTS="--interleave all"
 #############################################"
@@ -47,7 +48,7 @@ GD_UID="gitdaemon"
 GD_BIN="git daemon"
 GD_OPTS="--reuseaddr --verbose"
 GD_PATH="$HOME/appstorage"
-#GD_PORT="--port=27478"
+GD_PORT="--port=27478"
 #############################################"
 # RSYNC DAEMON PARAMETERS
 #############################################"
