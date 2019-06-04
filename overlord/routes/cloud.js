@@ -655,7 +655,7 @@ router.delete('/experiments/:exp_id/input', function (req, res, next) {
  * @param {String} - The experiment id.
  * @return {[Object]} - File contents
  */
-router.post('/experiments/:exp_id/input', upload.array('inputFile'), function (req, res, next) {
+router.post('/experiments/:exp_id/input', upload.single('inputFile'), function (req, res, next) {
    // Get file path if provided
    var fpath = req.query.file;
    if(!fpath){
@@ -670,15 +670,16 @@ router.post('/experiments/:exp_id/input', upload.array('inputFile'), function (r
    var tmpfile = null;
    if(fpath.slice(-1) != '/'){
       // Check files in packet
-      if(!req.files || !req.files.length || req.files.length < 1){
+      //if(!req.files || !req.files.length || req.files.length < 1){
+      if(!req.file){
          return next(new Error("Malformed uploaded data."));
       }
       // File, get uploaded file path
-      finfo = req.files[0];
+      finfo = req.file;
       tmpfile = finfo.path;
    }
 
-   // Save to experiment data
+   // Save to experiment data (maybe a bottleneck)
    scheduler.putExperimentInput(req.params.exp_id, fpath, tmpfile, function(error){
       // Remove file
       if(tmpfile) fs.unlink(tmpfile, function(error){

@@ -4,6 +4,7 @@
 var zerorpc = require('zerorpc');
 var async = require('async');
 var fs = require('fs');
+var path = require('path');
 var exec = require('child_process').exec;
 var codes = require('./error_codes.js');
 var logger = require('./utils.js').logger;
@@ -136,21 +137,47 @@ var deleteExperimentCode = function(exp_id, fpath, deleteCallback){
 }
 
 /**
- * Save experiment input file
+ * Save experiment input file from local storage to Rsync
  */
-var putExperimentInput = function(exp_id, fpath, src_file, putCallback){
+var putExperimentInput = function(exp_id, dst_path, src_path, putCallback){
    getExperiment(exp_id, null, function(error, exp){
       if(error) return putCallback(error);
 
-      // Get remote path
-      var src_path = null;
-      if(src_file) src_path = constants.OVERLORD_USERNAME+'@'+constants.OVERLORD_IP+':'+src_file;
+      // Check absolute paths
+      if(path.isAbsolute(dst_path)) return putCallback(new Error('Absolute paths are not supported: '+dst_path));
 
-      // Save file contents
-      storage.client.invoke('putExperimentInput', exp_id, exp.app_id, fpath, src_path, function(error){
-         if(error) return putCallback(error);
-         putCallback(null);
-      });
+      // Check if it is a folder
+      if(!src_path) {
+	 // Create folder
+         storage.client.invoke('putExperimentInputFolder', exp_id, dst_path, function(error){
+            return putCallback(error);
+	 });
+      }
+      // Copy file
+      else
+      {
+         // Get remote path
+         storage.client.invoke('getExperimentInputURL', exp_id, function(error, url){
+            var exp_url = url;
+
+            // Allow Rsync for copying the file
+            storage.client.invoke('getExperimentInputPass', exp_id, function(error, password){
+               if(error) return putCallback(error);
+               var input_password = password;
+
+               // Save file contents
+               var cmd = 'RSYNC_PASSWORD="'+password+'" rsync '+src_path+' '+exp_url+'/'+dst_path;
+               exec(cmd, function(error, stdout, stderr){
+                  var exec_error = error;
+
+                  // Release access
+                  storage.client.invoke('releaseExperimentInputPass', exp_id, function(error){
+                     return putCallback(exec_error);
+                  });
+               });
+            });
+         });
+      }
    })
 }
 
